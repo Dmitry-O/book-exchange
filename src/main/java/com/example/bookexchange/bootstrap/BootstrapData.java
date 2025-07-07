@@ -7,8 +7,10 @@ import com.example.bookexchange.repositories.UserRepository;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
-@Component
-public class BootstrapData implements CommandLineRunner {
+//@Component
+public class BootstrapData {
+    //implements
+//} CommandLineRunner {
 
     private final UserRepository userRepository;
     private final BookRepository bookRepository;
@@ -18,25 +20,21 @@ public class BootstrapData implements CommandLineRunner {
         this.bookRepository = bookRepository;
     }
 
-    @Override
+//    @Override
     public void run(String... args) throws Exception {
-        User user1 = new User();
-        user1.setFirstName("John");
-        user1.setLastName("Doe");
-        user1.setEmail("test.example.com");
-        user1.setPhoneNumber("1234567890");
-        user1.setCity("London");
-        User user1_saved = userRepository.save(user1);
-
-        Book book1 = new Book();
-        book1.setName("Book 1");
-        book1.setAuthor("John");
-        book1.setDescription("Book 1 Description");
-        book1.setCategory("Humor");
-        Book book1_saved = bookRepository.save(book1);
-
-        book1_saved.setUser(user1_saved);
-
-        bookRepository.save(book1_saved);
+//        User user1 = new User();
+//        user1.setEmail("test.example.com");
+//        User user1_saved = userRepository.save(user1);
+//
+//        Book book1 = new Book();
+//        book1.setName("Book 1");
+//        book1.setAuthor("John");
+//        book1.setDescription("Book 1 Description");
+//        book1.setCategory("Humor");
+//        Book book1_saved = bookRepository.save(book1);
+//
+//        book1_saved.setUser(user1_saved);
+//
+//        bookRepository.save(book1_saved);
     }
 }
