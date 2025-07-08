@@ -1,21 +1,14 @@
-package com.example.bookexchange.models;
+package com.example.bookexchange.dto;
 
-import com.fasterxml.jackson.annotation.JsonBackReference;
-import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-@Builder
 @Data
-@Entity
 @AllArgsConstructor
 @NoArgsConstructor
-public class Book {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
+public class BookDTO {
     private Long id;
     private String name;
     private String description;
@@ -26,8 +19,4 @@ public class Book {
     private String city;
     private String contactDetails;
     private Boolean isGift;
-
-    @ManyToOne
-    @JsonBackReference
-    private User user;
 }

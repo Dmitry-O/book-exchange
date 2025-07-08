@@ -1,10 +1,18 @@
 package com.example.bookexchange.services;
 
-import com.example.bookexchange.models.Book;
+import com.example.bookexchange.dto.BookCreateDTO;
+import com.example.bookexchange.dto.BookDTO;
+
+import java.util.List;
 
 public interface BookService {
+    BookDTO addUserBook(Long userId, BookCreateDTO dto);
 
-    Iterable<Book> findAll();
+    List<BookDTO> findUserBooks(Long userId);
 
-    Book findById(Long bookId);
+    List<BookDTO> findBooks();
+
+    String deleteUserBookById(Long userId, Long bookId);
+
+    String updateUserBookById(Long userId, Long bookId, BookDTO dto);
 }
