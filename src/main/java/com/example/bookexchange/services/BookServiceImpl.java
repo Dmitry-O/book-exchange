@@ -17,15 +17,14 @@ import java.util.stream.Collectors;
 
 @Service
 @AllArgsConstructor
-public class BookServiceImpl implements BookService {
+public class BookServiceImpl extends BaseServiceImpl<User, Long> implements BookService {
+
     private final BookRepository bookRepository;
     private final UserRepository userRepository;
 
     @Override
     public BookDTO addUserBook(Long userId, BookCreateDTO dto) {
-        User user = userRepository.findById(userId).orElseThrow(
-                () -> new EntityNotFoundException("Benutzer mit ID " + userId + " wurde nicht gefunden")
-        );
+        User user = findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
 
         Book book = BookMapper.toEntity(dto);
         book.setUser(user);
@@ -56,7 +55,7 @@ public class BookServiceImpl implements BookService {
     public String deleteUserBookById(Long userId, Long bookId) {
         bookRepository.deleteById(bookId);
 
-        return "Dieser Buch mit ID " + bookId + " wurde entfernt";
+        return "Dieses Buch mit ID " + bookId + " wurde entfernt";
     }
 
     @Transactional
