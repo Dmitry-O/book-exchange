@@ -1,6 +1,7 @@
 package com.example.bookexchange.controllers;
 
-import com.example.bookexchange.models.User;
+import com.example.bookexchange.dto.UserCreateDTO;
+import com.example.bookexchange.dto.UserDTO;
 import com.example.bookexchange.services.UserService;
 import lombok.AllArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -9,24 +10,25 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("api/v1/user")
 public class UserController {
+
     private UserService userService;
 
-    @RequestMapping(value = "/{userId}", method = RequestMethod.GET)
-    public User getUser(@PathVariable("userId") Long userId) {
+    @GetMapping("/{userId}")
+    public UserDTO getUser(@PathVariable("userId") Long userId) {
         return userService.getUser(userId);
     }
 
-    @RequestMapping(method = RequestMethod.POST)
-    public User createUser(@RequestBody User user) {
-        return userService.createUser(user);
+    @PostMapping()
+    public UserDTO createUser(@RequestBody UserCreateDTO dto) {
+        return userService.createUser(dto);
     }
 
-    @RequestMapping(value = "/{userId}", method = RequestMethod.PUT)
-    public User updateUser(@PathVariable("userId") Long userId, @RequestBody User user) {
-        return userService.updateUser(userId, user);
+    @PatchMapping("/{userId}")
+    public String updateUser(@PathVariable("userId") Long userId, @RequestBody UserDTO dto) {
+        return userService.updateUser(userId, dto);
     }
 
-    @RequestMapping(value = "/{userId}", method = RequestMethod.DELETE)
+    @DeleteMapping("/{userId}")
     public String deleteUser(@PathVariable("userId") Long userId) {
         return userService.deleteUser(userId);
     }

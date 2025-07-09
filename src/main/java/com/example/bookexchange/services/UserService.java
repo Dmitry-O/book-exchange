@@ -1,13 +1,16 @@
 package com.example.bookexchange.services;
 
+import com.example.bookexchange.dto.UserCreateDTO;
+import com.example.bookexchange.dto.UserDTO;
 import com.example.bookexchange.models.User;
 
 public interface UserService {
-    User getUser(Long userId);
 
-    User createUser(User user);
+    UserDTO getUser(Long userId);
 
-    User updateUser(Long userId, User user);
+    UserDTO createUser(UserCreateDTO dto);
+
+    String updateUser(Long userId, UserDTO dto);
 
     String deleteUser(Long userId);
 }
