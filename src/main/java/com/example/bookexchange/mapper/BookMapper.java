@@ -7,6 +7,7 @@ import com.example.bookexchange.models.Book;
 public class BookMapper {
     public static BookDTO fromEntity(Book book) {
         BookDTO dto = new BookDTO();
+
         dto.setId(book.getId());
         dto.setName(book.getName());
         dto.setDescription(book.getDescription());

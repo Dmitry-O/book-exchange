@@ -1,77 +1,70 @@
 package com.example.bookexchange.services;
 
+import com.example.bookexchange.dto.UserCreateDTO;
+import com.example.bookexchange.dto.UserDTO;
+import com.example.bookexchange.mapper.UserMappper;
 import com.example.bookexchange.models.User;
 import com.example.bookexchange.repositories.UserRepository;
+import jakarta.persistence.EntityExistsException;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
-
-import java.util.Optional;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @AllArgsConstructor
-public class UserServiceImpl implements UserService {
+public class UserServiceImpl extends BaseServiceImpl<User, Long> implements UserService {
+
     private UserRepository userRepository;
 
     @Override
-    public User getUser(Long userId) {
-        Optional<User> user = userRepository.findById(userId);
+    public UserDTO getUser(Long userId) {
+        User user = findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
 
-        if (user.isEmpty()) {
-            throw new IllegalArgumentException("Benutzer mit ID " + userId + " wurde nicht gefunden");
-        }
-
-        return user.get();
+        return UserMappper.fromEntity(user);
     }
 
     @Override
-    public User createUser(User user) {
-        String nickname = user.getNickname();
+    public UserDTO createUser(UserCreateDTO dto) {
+        String nickname = dto.getNickname();
 
-        Optional<User> userWithSameNickname = userRepository.findByNickname(nickname);
+        userRepository.findByNickname(nickname).ifPresent(user -> {
+            throw new EntityExistsException("Es gibt bereits einen Benutzer mit diesem Nickname. Wählen Sie bitte ein anderes.");
+        });
 
-        if (userWithSameNickname.isPresent()) {
-            throw new IllegalArgumentException("Es gibt bereits einen Benutzer mit diesem nickname. Wählen Sie bitte ein anderes");
-        }
+        User savedUser = userRepository.save(UserMappper.toEntity(dto));
 
-        return userRepository.save(user);
+        return UserMappper.fromEntity(savedUser);
     }
 
+    @Transactional
     @Override
-    public User updateUser(Long userId, User user) {
-        Optional<User> oldUser = userRepository.findById(userId);
+    public String updateUser(Long userId, UserDTO dto) {
+        User user = findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
 
-        if (oldUser.isEmpty()) {
-            throw new IllegalArgumentException("Benutzer mit ID " + userId + " wurde nicht gefunden");
+        if (!user.getNickname().equals(dto.getNickname())) {
+            String nickname = dto.getNickname();
+
+            userRepository.findByNickname(nickname).ifPresent(existingUser -> {
+                throw new EntityExistsException("Es gibt bereits einen Benutzer mit diesem nickname. Wählen Sie bitte ein anderes");
+            });
         }
 
-        if (!oldUser.get().getNickname().equals(user.getNickname())) {
-            String nickname = user.getNickname();
+        if (dto.getEmail() != null) user.setEmail(dto.getEmail());
+        if (dto.getNickname() != null) user.setNickname(dto.getNickname());
+        if (dto.getPhotoBase64() != null) user.setPhotoBase64(dto.getPhotoBase64());
 
-            Optional<User> userWithSameNickname = userRepository.findByNickname(nickname);
+        userRepository.save(user);
 
-            if (userWithSameNickname.isPresent()) {
-                throw new IllegalArgumentException("Es gibt bereits einen Benutzer mit diesem nickname. Wählen Sie bitte ein anderes");
-            }
-        }
+        return "Dieser Benutzer mit ID " + userId + " wurde aktualisiert";
 
-        User userToBeUpdated = oldUser.get();
-        userToBeUpdated.setEmail(user.getEmail());
-        userToBeUpdated.setNickname(user.getNickname());
-        userToBeUpdated.setPhotoBase64(user.getPhotoBase64());
-
-        return userRepository.save(userToBeUpdated);
     }
 
     @Override
     public String deleteUser(Long userId) {
-        Optional<User> user = userRepository.findById(userId);
+        User user = findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
 
-        if (user.isEmpty()) {
-            throw new IllegalArgumentException("Benutzer mit ID " + userId + " wurde nicht gefunden");
-        }
+        userRepository.delete(user);
 
-        userRepository.delete(user.get());
-
-        return "Benutzer wurde entfernt";
+        return "Der Benutzer wurde entfernt";
     }
 }
