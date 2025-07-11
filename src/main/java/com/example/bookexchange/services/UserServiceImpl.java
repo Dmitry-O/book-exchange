@@ -2,7 +2,7 @@ package com.example.bookexchange.services;
 
 import com.example.bookexchange.dto.UserCreateDTO;
 import com.example.bookexchange.dto.UserDTO;
-import com.example.bookexchange.mapper.UserMappper;
+import com.example.bookexchange.mapper.UserMapper;
 import com.example.bookexchange.models.User;
 import com.example.bookexchange.repositories.UserRepository;
 import jakarta.persistence.EntityExistsException;
@@ -20,7 +20,7 @@ public class UserServiceImpl extends BaseServiceImpl<User, Long> implements User
     public UserDTO getUser(Long userId) {
         User user = findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
 
-        return UserMappper.fromEntity(user);
+        return UserMapper.fromEntity(user);
     }
 
     @Override
@@ -31,9 +31,9 @@ public class UserServiceImpl extends BaseServiceImpl<User, Long> implements User
             throw new EntityExistsException("Es gibt bereits einen Benutzer mit diesem Nickname. Wählen Sie bitte ein anderes.");
         });
 
-        User savedUser = userRepository.save(UserMappper.toEntity(dto));
+        User savedUser = userRepository.save(UserMapper.toEntity(dto));
 
-        return UserMappper.fromEntity(savedUser);
+        return UserMapper.fromEntity(savedUser);
     }
 
     @Transactional

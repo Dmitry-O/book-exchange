@@ -2,7 +2,6 @@ package com.example.bookexchange.services;
 
 import com.example.bookexchange.dto.UserCreateDTO;
 import com.example.bookexchange.dto.UserDTO;
-import com.example.bookexchange.models.User;
 
 public interface UserService {
 
