@@ -1,7 +1,6 @@
 package com.example.bookexchange.dto;
 
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -18,6 +17,5 @@ public class BookDTO {
     private Integer publicationYear;
     private String photoBase64;
     private String city;
-    private String contactDetails;
     private Boolean isGift;
 }

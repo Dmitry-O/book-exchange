@@ -1,11 +1,15 @@
 package com.example.bookexchange.models;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Builder
 @Data
@@ -30,4 +34,12 @@ public class Book {
     @ManyToOne
     @JsonBackReference
     private User user;
+
+    @OneToMany(mappedBy = "senderBook")
+    @JsonIgnore
+    private List<Exchange> sentBookExchanges = new ArrayList<>();
+
+    @OneToMany(mappedBy = "receiverBook")
+    @JsonIgnore
+    private List<Exchange> receivedBookExchanges  = new ArrayList<>();
 }

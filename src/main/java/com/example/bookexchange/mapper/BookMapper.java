@@ -17,7 +17,6 @@ public class BookMapper {
         dto.setPublicationYear(book.getPublicationYear());
         dto.setPhotoBase64(book.getPhotoBase64());
         dto.setCity(book.getCity());
-        dto.setContactDetails(book.getContactDetails());
         dto.setIsGift(book.getIsGift());
 
         return dto;

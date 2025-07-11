@@ -53,7 +53,7 @@ public class BookServiceImpl extends BaseServiceImpl<User, Long> implements Book
 
     @Override
     public String deleteUserBookById(Long userId, Long bookId) {
-        bookRepository.deleteById(bookId);
+        bookRepository.deleteByIdAndUserId(bookId, userId);
 
         return "Dieses Buch mit ID " + bookId + " wurde entfernt";
     }
@@ -70,7 +70,6 @@ public class BookServiceImpl extends BaseServiceImpl<User, Long> implements Book
         if (dto.getPublicationYear() != null) book.setPublicationYear(dto.getPublicationYear());
         if (dto.getPhotoBase64() != null) book.setPhotoBase64(dto.getPhotoBase64());
         if (dto.getCity() != null) book.setCity(dto.getCity());
-        if (dto.getContactDetails() != null) book.setContactDetails(dto.getContactDetails());
         if (dto.getIsGift() != null) book.setIsGift(dto.getIsGift());
 
         return "Dieses Buch mit ID " + bookId + " wurde aktualisiert";

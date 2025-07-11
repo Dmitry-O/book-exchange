@@ -4,7 +4,7 @@ import com.example.bookexchange.dto.UserCreateDTO;
 import com.example.bookexchange.dto.UserDTO;
 import com.example.bookexchange.models.User;
 
-public class UserMappper {
+public class UserMapper {
     public static UserDTO fromEntity(User user) {
         UserDTO dto = new UserDTO();
 
