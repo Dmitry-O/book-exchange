@@ -18,6 +18,9 @@ public class Exchange {
     @Enumerated(EnumType.STRING)
     private ExchangeStatus status;
 
+    private Boolean isReadBySender = Boolean.FALSE;
+    private Boolean isReadByReceiver = Boolean.FALSE;
+
     @ManyToOne
     @JoinColumn(name = "sender_user_id", nullable = false)
     private User senderUser;
