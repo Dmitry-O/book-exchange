@@ -2,13 +2,17 @@ package com.example.bookexchange.services;
 
 import com.example.bookexchange.dto.BookCreateDTO;
 import com.example.bookexchange.dto.BookDTO;
+import com.example.bookexchange.dto.BookSearchDTO;
 import com.example.bookexchange.mapper.BookMapper;
 import com.example.bookexchange.models.Book;
 import com.example.bookexchange.models.User;
 import com.example.bookexchange.repositories.BookRepository;
 import com.example.bookexchange.repositories.UserRepository;
+import com.example.bookexchange.specification.BookSpecificationBuilder;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.AllArgsConstructor;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,7 +39,7 @@ public class BookServiceImpl extends BaseServiceImpl<User, Long> implements Book
 
     @Override
     public List<BookDTO> findUserBooks(Long userId) {
-        List<Book> books = bookRepository.findByUserId(userId);
+        List<Book> books = bookRepository.findByUserIdAndIsExchanged(userId, false);
 
         return books.stream()
                 .map(BookMapper::fromEntity)
@@ -43,8 +47,29 @@ public class BookServiceImpl extends BaseServiceImpl<User, Long> implements Book
     }
 
     @Override
-    public List<BookDTO> findBooks() {
-        List<Book> books = bookRepository.findAll();
+    public List<BookDTO> findExchangedUserBooks(Long userId) {
+        List<Book> books = bookRepository.findByUserIdAndIsExchanged(userId, true);
+
+        return books.stream()
+                .map(BookMapper::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<BookDTO> findBooks(BookSearchDTO dto) {
+        Specification<Book> specification = BookSpecificationBuilder.build(dto);
+
+        Sort sort = Sort.unsorted();
+
+        if (dto.getSortBy() != null && dto.getSortDirection() != null) {
+            Sort.Direction direction = dto.getSortDirection().equalsIgnoreCase(("desc"))
+                    ? Sort.Direction.DESC
+                    : Sort.Direction.ASC;
+
+            sort = Sort.by(direction, dto.getSortBy());
+        }
+
+        List<Book> books = bookRepository.findAll(specification, sort);
 
         return books.stream()
                 .map(BookMapper::fromEntity)

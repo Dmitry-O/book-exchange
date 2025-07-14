@@ -30,6 +30,7 @@ public class Book {
     private String city;
     private String contactDetails;
     private Boolean isGift;
+    private Boolean isExchanged = Boolean.FALSE;
 
     @ManyToOne
     @JsonBackReference

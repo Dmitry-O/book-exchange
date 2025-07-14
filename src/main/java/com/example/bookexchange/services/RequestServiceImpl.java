@@ -12,6 +12,7 @@ import com.example.bookexchange.models.User;
 import com.example.bookexchange.repositories.BookRepository;
 import com.example.bookexchange.repositories.ExchangeRepository;
 import com.example.bookexchange.repositories.UserRepository;
+import jakarta.persistence.EntityExistsException;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -30,22 +31,37 @@ public class RequestServiceImpl implements RequestService {
     @Override
     public ExchangeDTO createRequest(RequestCreateDTO dto) {
         Long senderUserId = dto.getSenderUserId();
-        Long receiverUserId = dto.getReceiverUserId();
         Long senderBookId = dto.getSenderBookId();
+        Long receiverUserId = dto.getReceiverUserId();
         Long receiverBookId = dto.getReceiverBookId();
+
+        Book senderBook = null;
+
+        Book receiverBook = bookRepository.findByIdAndUserId(receiverBookId, receiverUserId).orElseThrow(() -> new EntityNotFoundException("Das Buch mit ID " + receiverBookId + " oder der Benutzer mit ID " + receiverUserId + " wurde nicht gefunden"));
+
+        if (receiverBook.getIsExchanged()) {
+            throw new IllegalArgumentException("Das Buch mit ID " + receiverBookId + " wurde bereits umgetauscht");
+        }
+
+        Boolean isReceiverBookGift = receiverBook.getIsGift();
+
+        if (isReceiverBookGift) {
+            exchangeRepository.findBySenderUserIdAndReceiverUserIdAndReceiverBookIdAndStatusNot(senderUserId, receiverUserId, receiverBookId, ExchangeStatus.DECLINED).ifPresent(exchange -> { throw new EntityNotFoundException("Für dieses Buch besteht bereits ein Umtauschantrag"); });
+        } else {
+            senderBook = bookRepository.findByIdAndUserId(senderBookId, senderUserId).orElseThrow(() -> new EntityNotFoundException("Das Buch mit ID " + senderBookId + " oder mit user ID + " + senderUserId + " wurde nicht gefunden"));
+
+            if (senderBook.getIsExchanged()) {
+                throw new IllegalArgumentException("Das Buch mit ID " + senderBookId + " wurde bereits umgetauscht");
+            }
+
+            exchangeRepository.findBySenderUserIdAndSenderBookIdAndReceiverUserIdAndReceiverBookIdAndStatusNot(senderUserId, senderBookId, receiverUserId, receiverBookId, ExchangeStatus.DECLINED).ifPresent(exchange -> { throw new EntityNotFoundException("Der Umtauschantrag zwischen diesen Büchern besteht bereits"); });
+        }
 
         if (senderUserId.equals(receiverUserId)) {
             throw new IllegalArgumentException("Der Benutzer kann keine Anfrage an sich selbst senden");
         }
 
-        if (senderBookId.equals(receiverBookId)) {
-            throw new IllegalArgumentException("Ein Umtausch desselben Buches ist nicht möglich");
-        }
-
-        bookRepository.findByIdAndUserId(senderUserId, senderBookId).orElseThrow(() -> new EntityNotFoundException("Das Buch mit ID " + senderBookId + " oder mit user ID + " + senderUserId + " wurde nicht gefunden"));
-        bookRepository.findByIdAndUserId(receiverUserId, receiverBookId).orElseThrow(() -> new EntityNotFoundException("Das Buch mit ID " + receiverBookId + " oder mit user ID + " + receiverUserId + " wurde nicht gefunden"));
-        bookRepository.findByIdAndUserId(senderUserId, receiverBookId).ifPresent(book -> { throw new EntityNotFoundException("Der Absenderbenutzer mit ID " + senderUserId + " hat schon das Buch mit book ID + " + receiverBookId + " in seiner Liste"); });
-        bookRepository.findByIdAndUserId(receiverUserId, senderBookId).ifPresent(book ->  { throw new EntityNotFoundException("Der Empfängerbenutzer mit ID " + receiverUserId + " hat schon das Buch mit book ID + " + senderBookId + " in seiner Liste"); });
+        bookRepository.findByIdAndUserId(receiverBookId, senderUserId).ifPresent(book -> { throw new EntityExistsException("Der Absenderbenutzer mit ID " + senderUserId + " hat schon das Buch mit ID  " + receiverBookId + " in seiner Liste"); });
 
         User senderUser = userRepository.findById(senderUserId).orElseThrow(
                 () -> new EntityNotFoundException("Der Absenderbenutzer mit ID " + senderUserId + " wurde nicht gefunden")
@@ -55,21 +71,22 @@ public class RequestServiceImpl implements RequestService {
                 () -> new EntityNotFoundException("Der Empfängerbenutzer mit ID " + receiverUserId + " wurde nicht gefunden")
         );
 
-        Book senderBook = bookRepository.findById(senderBookId).orElseThrow(
-                () -> new EntityNotFoundException("Das Buch mit ID " + senderBookId + " des Absenderbenutzers mit ID " + senderUserId + " wurde nicht gefunden")
-        );
-
-        Book receiverBook = bookRepository.findById(receiverBookId).orElseThrow(
-                () -> new EntityNotFoundException("Das Buch mit ID " + receiverBookId + " des Absenderbenutzers mit ID " + receiverUserId + " wurde nicht gefunden")
-        );
-
         Exchange exchange = new Exchange();
 
         exchange.setSenderUser(senderUser);
         exchange.setReceiverUser(receiverUser);
-        exchange.setSenderBook(senderBook);
         exchange.setReceiverBook(receiverBook);
         exchange.setStatus(ExchangeStatus.PENDING);
+
+        if (!isReceiverBookGift) {
+            if (senderBookId.equals(receiverBookId)) {
+                throw new IllegalArgumentException("Ein Umtausch desselben Buches ist nicht möglich");
+            }
+
+            bookRepository.findByIdAndUserId(senderBookId, receiverUserId).ifPresent(book ->  { throw new EntityNotFoundException("Der Empfängerbenutzer mit ID " + receiverUserId + " hat schon das Buch mit book ID + " + senderBookId + " in seiner Liste"); });
+
+            exchange.setSenderBook(senderBook);
+        }
 
         return ExchangeMapper.fromEntity(exchangeRepository.save(exchange));
     }
@@ -81,7 +98,7 @@ public class RequestServiceImpl implements RequestService {
 
         return ExchangeMapper.fromEntityDetails(
                 exchange,
-                BookMapper.fromEntity(exchange.getSenderBook()),
+                exchange.getSenderBook() != null ? BookMapper.fromEntity(exchange.getSenderBook()) : null,
                 BookMapper.fromEntity(exchange.getReceiverBook()),
                 exchange.getReceiverUser().getNickname()
         );

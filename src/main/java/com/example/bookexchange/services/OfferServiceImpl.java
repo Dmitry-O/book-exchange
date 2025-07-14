@@ -4,6 +4,7 @@ import com.example.bookexchange.dto.ExchangeDTO;
 import com.example.bookexchange.dto.ExchangeDetailsDTO;
 import com.example.bookexchange.mapper.BookMapper;
 import com.example.bookexchange.mapper.ExchangeMapper;
+import com.example.bookexchange.models.Book;
 import com.example.bookexchange.models.Exchange;
 import com.example.bookexchange.models.ExchangeStatus;
 import com.example.bookexchange.models.User;
@@ -38,7 +39,7 @@ public class OfferServiceImpl implements OfferService {
 
         return ExchangeMapper.fromEntityDetails(
                 exchange,
-                BookMapper.fromEntity(exchange.getSenderBook()),
+                exchange.getSenderBook() != null ? BookMapper.fromEntity(exchange.getSenderBook()) : null,
                 BookMapper.fromEntity(exchange.getReceiverBook()),
                 exchange.getSenderUser().getNickname()
         );
@@ -47,10 +48,31 @@ public class OfferServiceImpl implements OfferService {
     @Override
     public String approveUserOffer(Long receiverUserId, Long exchangeId) {
         Exchange exchange = exchangeRepository.findByIdAndReceiverUserId(exchangeId, receiverUserId);
+        Book senderBook = exchange.getSenderBook();
+        Book receiverBook = exchange.getReceiverBook();
+
+        if (senderBook != null) {
+            senderBook.setIsExchanged(true);
+        }
+
+        receiverBook.setIsExchanged(true);
 
         if (exchange.getStatus().equals(ExchangeStatus.PENDING)) {
             exchange.setStatus(ExchangeStatus.APPROVED);
             exchangeRepository.save(exchange);
+
+            List<Exchange> senderExchanges = exchangeRepository.findByIdNotAndSenderBookIdAndStatus(exchangeId, exchange.getSenderBook().getId(), ExchangeStatus.PENDING);
+            List<Exchange> receiverExchanges = exchangeRepository.findByIdNotAndReceiverBookIdAndStatus(exchangeId, exchange.getReceiverBook().getId(), ExchangeStatus.PENDING);
+
+            senderExchanges.forEach(e->{
+                e.setStatus(ExchangeStatus.DECLINED);
+                exchangeRepository.save(e);
+            });
+
+            receiverExchanges.forEach(e->{
+                e.setStatus(ExchangeStatus.DECLINED);
+                exchangeRepository.save(e);
+            });
 
             return "Der Umtauschantrag wurde genehmigt";
         } else {
