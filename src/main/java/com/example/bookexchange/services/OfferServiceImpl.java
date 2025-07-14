@@ -35,7 +35,7 @@ public class OfferServiceImpl implements OfferService {
 
     @Override
     public ExchangeDetailsDTO getReceiverOfferDetails(Long receiverUserId, Long exchangeId) {
-        Exchange exchange = exchangeRepository.findByIdAndReceiverUserId(exchangeId, receiverUserId);
+        Exchange exchange = exchangeRepository.findByIdAndReceiverUserId(exchangeId, receiverUserId).orElseThrow(() -> new EntityNotFoundException("Der Umtauschantrag wurde nicht gefunden"));
 
         return ExchangeMapper.fromEntityDetails(
                 exchange,
@@ -47,7 +47,7 @@ public class OfferServiceImpl implements OfferService {
 
     @Override
     public String approveUserOffer(Long receiverUserId, Long exchangeId) {
-        Exchange exchange = exchangeRepository.findByIdAndReceiverUserId(exchangeId, receiverUserId);
+        Exchange exchange = exchangeRepository.findByIdAndReceiverUserId(exchangeId, receiverUserId).orElseThrow(() -> new EntityNotFoundException("Der Umtauschantrag mit ID " + exchangeId + " und mit einer Empfängerbenutzer mit ID " + receiverUserId + " wurde nicht gefunden"));
         Book senderBook = exchange.getSenderBook();
         Book receiverBook = exchange.getReceiverBook();
 
@@ -82,7 +82,7 @@ public class OfferServiceImpl implements OfferService {
 
     @Override
     public String declineUserOffer(Long receiverUserId, Long exchangeId) {
-        Exchange exchange = exchangeRepository.findByIdAndReceiverUserId(exchangeId, receiverUserId);
+        Exchange exchange = exchangeRepository.findByIdAndReceiverUserId(exchangeId, receiverUserId).orElseThrow(() -> new EntityNotFoundException("Der Umtauschantrag mit ID " + exchangeId + " und mit einer Empfängerbenutzer mit ID " + receiverUserId + " wurde nicht gefunden"));
         User declinerUser = userRepository.findById(receiverUserId).orElseThrow(() -> new EntityNotFoundException("Der Benutzer mit ID " + receiverUserId + " wurde nicht gefunden"));
 
         if (exchange.getStatus().equals(ExchangeStatus.PENDING)) {

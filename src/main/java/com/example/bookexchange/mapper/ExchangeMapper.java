@@ -1,11 +1,11 @@
 package com.example.bookexchange.mapper;
 
-import com.example.bookexchange.dto.BookDTO;
-import com.example.bookexchange.dto.ExchangeDTO;
-import com.example.bookexchange.dto.ExchangeDetailsDTO;
-import com.example.bookexchange.dto.ExchangeHistoryDetailsDTO;
+import com.example.bookexchange.dto.*;
 import com.example.bookexchange.models.Book;
 import com.example.bookexchange.models.Exchange;
+import com.example.bookexchange.models.UserExchangeRole;
+
+import java.util.Objects;
 
 public class ExchangeMapper {
 
@@ -27,7 +27,6 @@ public class ExchangeMapper {
         return dto;
     }
 
-
     public static ExchangeDetailsDTO fromEntityDetails(
             Exchange exchange,
             BookDTO senderBook,
@@ -48,13 +47,39 @@ public class ExchangeMapper {
         return dto;
     }
 
+    public static ExchangeHistoryDTO fromEntityHistory(Exchange exchange, UserExchangeRole userRole) {
+        ExchangeHistoryDTO dto = new ExchangeHistoryDTO();
+
+        Book senderBook = exchange.getSenderBook();
+        Book receiverBook = exchange.getReceiverBook();
+
+        dto.setId(exchange.getId());
+        dto.setReceiverBookName(receiverBook.getName());
+        dto.setReceiverBookPhotoBase64(receiverBook.getPhotoBase64());
+
+        if (senderBook != null) {
+            dto.setSenderBookName(senderBook.getName());
+            dto.setSenderBookPhotoBase64(senderBook.getPhotoBase64());
+        }
+
+        if (Objects.equals(userRole, UserExchangeRole.SENDER)) {
+            dto.setIsRead(exchange.getIsReadBySender());
+        }
+
+        if (Objects.equals(userRole, UserExchangeRole.RECEIVER)) {
+            dto.setIsRead(exchange.getIsReadByReceiver());
+        }
+
+        return dto;
+    }
+
     public static ExchangeHistoryDetailsDTO fromEntityHistoryDetails(
             Exchange exchange,
             BookDTO senderBook,
             BookDTO receiverBook,
             String userNickname,
             String contactDetails,
-            String youAre
+            UserExchangeRole userExchangeRole
     ) {
         ExchangeHistoryDetailsDTO dto = new ExchangeHistoryDetailsDTO();
 
@@ -64,7 +89,7 @@ public class ExchangeMapper {
         dto.setSenderBook(senderBook);
         dto.setReceiverBook(receiverBook);
         dto.setContactDetails(contactDetails);
-        dto.setYouAre(youAre);
+        dto.setUserExchangeRole(userExchangeRole);
 
         return dto;
     }

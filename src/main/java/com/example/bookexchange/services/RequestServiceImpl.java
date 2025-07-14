@@ -80,7 +80,7 @@ public class RequestServiceImpl implements RequestService {
 
         if (!isReceiverBookGift) {
             if (senderBookId.equals(receiverBookId)) {
-                throw new IllegalArgumentException("Ein Umtausch desselben Buches ist nicht möglich");
+                throw new IllegalArgumentException("Ein Umtauschantrag desselben Buches ist nicht möglich");
             }
 
             bookRepository.findByIdAndUserId(senderBookId, receiverUserId).ifPresent(book ->  { throw new EntityNotFoundException("Der Empfängerbenutzer mit ID " + receiverUserId + " hat schon das Buch mit book ID + " + senderBookId + " in seiner Liste"); });
@@ -93,7 +93,7 @@ public class RequestServiceImpl implements RequestService {
 
     @Override
     public ExchangeDetailsDTO getSenderRequestDetails(Long senderUserId, Long exchangeId) {
-        Exchange exchange = exchangeRepository.findByIdAndSenderUserId(exchangeId, senderUserId);
+        Exchange exchange = exchangeRepository.findByIdAndSenderUserId(exchangeId, senderUserId).orElseThrow(() -> new EntityNotFoundException("Der Umtauschantrag mit ID " + exchangeId + " und mit einer Absenderbenutzer mit ID " + senderUserId + " wurde nicht gefunden"));
         userRepository.findById(senderUserId).orElseThrow(() -> new EntityNotFoundException("Der Benutzer mit ID " + senderUserId + " wurde nicht gefunden"));
 
         return ExchangeMapper.fromEntityDetails(
@@ -115,7 +115,7 @@ public class RequestServiceImpl implements RequestService {
 
     @Override
     public String declineUserRequest(Long senderUserId, Long exchangeId) {
-        Exchange exchange = exchangeRepository.findByIdAndSenderUserId(exchangeId, senderUserId);
+        Exchange exchange = exchangeRepository.findByIdAndSenderUserId(exchangeId, senderUserId).orElseThrow(() -> new EntityNotFoundException("Der Umtauschantrag mit ID " + exchangeId + " und mit einer Absenderbenutzer mit ID " + senderUserId + " wurde nicht gefunden"));
         User declinerUser = userRepository.findById(senderUserId).orElseThrow(() -> new EntityNotFoundException("Der Benutzer mit ID " + senderUserId + " wurde nicht gefunden"));
 
         if (exchange.getStatus().equals(ExchangeStatus.PENDING)) {

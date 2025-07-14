@@ -1,41 +1,44 @@
 package com.example.bookexchange.services;
 
-import com.example.bookexchange.dto.ExchangeDTO;
+import com.example.bookexchange.dto.ExchangeHistoryDTO;
 import com.example.bookexchange.dto.ExchangeHistoryDetailsDTO;
 import com.example.bookexchange.mapper.BookMapper;
 import com.example.bookexchange.mapper.ExchangeMapper;
 import com.example.bookexchange.models.Exchange;
 import com.example.bookexchange.models.ExchangeStatus;
+import com.example.bookexchange.models.UserExchangeRole;
 import com.example.bookexchange.repositories.ExchangeRepository;
+import com.example.bookexchange.util.ExchangeUtil;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
+import java.util.Objects;
 
 @Service
 @AllArgsConstructor
 public class HistoryServiceImpl implements HistoryService {
 
     private final ExchangeRepository exchangeRepository;
+    private final ExchangeUtil exchangeUtil;
 
     @Override
-    public List<ExchangeDTO> getUserExchangeHistory(Long userId) {
+    public List<ExchangeHistoryDTO> getUserExchangeHistory(Long userId) {
         List<Exchange> exchangesAsSender = exchangeRepository.findBySenderUserIdAndStatusNot(userId, ExchangeStatus.PENDING);
-        List<Exchange> exchangesAsReceiver = exchangeRepository.findBySenderUserIdAndStatusNot(userId, ExchangeStatus.PENDING);
+        List<Exchange> exchangesAsReceiver = exchangeRepository.findByReceiverUserIdAndStatusNot(userId, ExchangeStatus.PENDING);
 
-        List<ExchangeDTO> dto = new ArrayList<>();
+        List<ExchangeHistoryDTO> dto = new ArrayList<>();
 
         dto.addAll(
             exchangesAsSender.stream()
-            .map(ExchangeMapper::fromEntity)
+            .map(exchange -> ExchangeMapper.fromEntityHistory(exchange, UserExchangeRole.SENDER))
             .toList()
         );
         dto.addAll(
             exchangesAsReceiver.stream()
-            .map(ExchangeMapper::fromEntity)
+            .map(exchange -> ExchangeMapper.fromEntityHistory(exchange, UserExchangeRole.RECEIVER))
             .toList()
         );
 
@@ -44,12 +47,15 @@ public class HistoryServiceImpl implements HistoryService {
 
     @Override
     public ExchangeHistoryDetailsDTO getUserExchangeHistoryDetails(Long userId, Long exchangeId) {
-        Exchange exchange;
+        UserExchangeRole userRole = exchangeUtil.identifyUserExchangeRole(userId, exchangeId);
+        Exchange exchange = exchangeRepository.findById(exchangeId).orElseThrow(() -> new EntityNotFoundException("Der Umtauschantrag wurde nicht gefunden"));
 
-        Optional<Exchange> exchangeAsSender = Optional.ofNullable(exchangeRepository.findByIdAndSenderUserId(exchangeId, userId));
+        if (Objects.equals(userRole, UserExchangeRole.SENDER)) {
+            if (!exchange.getIsReadBySender()) {
+                exchange.setIsReadBySender(true);
 
-        if (exchangeAsSender.isPresent()) {
-            exchange = exchangeAsSender.get();
+                exchangeRepository.save(exchange);
+            }
 
             return ExchangeMapper.fromEntityHistoryDetails(
                     exchange,
@@ -57,13 +63,15 @@ public class HistoryServiceImpl implements HistoryService {
                     BookMapper.fromEntity(exchange.getReceiverBook()),
                     exchange.getReceiverUser().getNickname(),
                     exchange.getReceiverBook().getContactDetails(),
-                    "sender"
+                    userRole
             );
         } else {
-            Optional<Exchange> exchangeAsReceiver = Optional.ofNullable(exchangeRepository.findByIdAndReceiverUserId(exchangeId, userId));
+            if (Objects.equals(userRole, UserExchangeRole.RECEIVER)) {
+                if (!exchange.getIsReadByReceiver()) {
+                    exchange.setIsReadByReceiver(true);
 
-            if (exchangeAsReceiver.isPresent()) {
-                exchange = exchangeAsReceiver.get();
+                    exchangeRepository.save(exchange);
+                }
 
                 return ExchangeMapper.fromEntityHistoryDetails(
                         exchange,
@@ -71,7 +79,7 @@ public class HistoryServiceImpl implements HistoryService {
                         BookMapper.fromEntity(exchange.getReceiverBook()),
                         exchange.getSenderUser().getNickname(),
                         exchange.getSenderBook() != null ? exchange.getSenderBook().getContactDetails() : null,
-                        "receiver"
+                        userRole
                 );
             } else {
                 throw new EntityNotFoundException("Der Umtauschantrag wurde nicht gefunden");
