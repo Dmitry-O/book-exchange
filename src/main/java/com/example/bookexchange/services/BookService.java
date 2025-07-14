@@ -2,6 +2,7 @@ package com.example.bookexchange.services;
 
 import com.example.bookexchange.dto.BookCreateDTO;
 import com.example.bookexchange.dto.BookDTO;
+import com.example.bookexchange.dto.BookSearchDTO;
 
 import java.util.List;
 
@@ -11,7 +12,9 @@ public interface BookService {
 
     List<BookDTO> findUserBooks(Long userId);
 
-    List<BookDTO> findBooks();
+    List<BookDTO> findExchangedUserBooks(Long userId);
+
+    List<BookDTO> findBooks(BookSearchDTO dto);
 
     String deleteUserBookById(Long userId, Long bookId);
 

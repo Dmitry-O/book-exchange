@@ -11,17 +11,22 @@ public class ExchangeMapper {
 
     public static ExchangeDTO fromEntity(Exchange exchange) {
         ExchangeDTO dto = new ExchangeDTO();
+
         Book senderBook = exchange.getSenderBook();
         Book receiverBook = exchange.getReceiverBook();
 
         dto.setId(exchange.getId());
-        dto.setSenderBookName(senderBook.getName());
         dto.setReceiverBookName(receiverBook.getName());
-        dto.setSenderBookPhotoBase64(senderBook.getPhotoBase64());
         dto.setReceiverBookPhotoBase64(receiverBook.getPhotoBase64());
+
+        if (senderBook != null) {
+            dto.setSenderBookName(senderBook.getName());
+            dto.setSenderBookPhotoBase64(senderBook.getPhotoBase64());
+        }
 
         return dto;
     }
+
 
     public static ExchangeDetailsDTO fromEntityDetails(
             Exchange exchange,
@@ -34,8 +39,11 @@ public class ExchangeMapper {
         dto.setId(exchange.getId());
         dto.setExchangeStatus(exchange.getStatus());
         dto.setUserNickname(userNickname);
-        dto.setSenderBook(senderBook);
         dto.setReceiverBook(receiverBook);
+
+        if (senderBook != null) {
+            dto.setSenderBook(senderBook);
+        }
 
         return dto;
     }
@@ -52,6 +60,7 @@ public class ExchangeMapper {
 
         dto.setId(exchange.getId());
         dto.setUserNickname(userNickname);
+        dto.setStatus(exchange.getStatus());
         dto.setSenderBook(senderBook);
         dto.setReceiverBook(receiverBook);
         dto.setContactDetails(contactDetails);

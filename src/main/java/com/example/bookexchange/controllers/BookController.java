@@ -2,6 +2,7 @@ package com.example.bookexchange.controllers;
 
 import com.example.bookexchange.dto.BookCreateDTO;
 import com.example.bookexchange.dto.BookDTO;
+import com.example.bookexchange.dto.BookSearchDTO;
 import com.example.bookexchange.services.BookService;
 import lombok.AllArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -25,9 +26,14 @@ public class BookController {
         return bookService.findUserBooks(userId);
     }
 
+    @GetMapping("/history/{userId}")
+    public List<BookDTO> getExchangedUserBooks(@PathVariable("userId") Long userId) {
+        return bookService.findExchangedUserBooks(userId);
+    }
+
     @GetMapping()
-    public List<BookDTO> getBooks() {
-        return bookService.findBooks();
+    public List<BookDTO> getBooks(@RequestBody(required = false) BookSearchDTO dto) {
+        return bookService.findBooks(dto);
     }
 
     @DeleteMapping("/{userId}/{bookId}")

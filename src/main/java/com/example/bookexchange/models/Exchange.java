@@ -31,7 +31,7 @@ public class Exchange {
     private User declinerUser;
 
     @ManyToOne
-    @JoinColumn(name = "sender_book_id", nullable = false)
+    @JoinColumn(name = "sender_book_id")
     private Book senderBook;
 
     @ManyToOne

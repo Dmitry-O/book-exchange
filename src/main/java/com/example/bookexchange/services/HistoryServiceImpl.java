@@ -53,7 +53,7 @@ public class HistoryServiceImpl implements HistoryService {
 
             return ExchangeMapper.fromEntityHistoryDetails(
                     exchange,
-                    BookMapper.fromEntity(exchange.getSenderBook()),
+                    exchange.getSenderBook() != null ? BookMapper.fromEntity(exchange.getSenderBook()) : null,
                     BookMapper.fromEntity(exchange.getReceiverBook()),
                     exchange.getReceiverUser().getNickname(),
                     exchange.getReceiverBook().getContactDetails(),
@@ -67,10 +67,10 @@ public class HistoryServiceImpl implements HistoryService {
 
                 return ExchangeMapper.fromEntityHistoryDetails(
                         exchange,
-                        BookMapper.fromEntity(exchange.getSenderBook()),
+                        exchange.getSenderBook() != null ? BookMapper.fromEntity(exchange.getSenderBook()) : null,
                         BookMapper.fromEntity(exchange.getReceiverBook()),
                         exchange.getSenderUser().getNickname(),
-                        exchange.getSenderBook().getContactDetails(),
+                        exchange.getSenderBook() != null ? exchange.getSenderBook().getContactDetails() : null,
                         "receiver"
                 );
             } else {
