@@ -1,18 +1,19 @@
 package com.example.bookexchange.repositories;
 
 import com.example.bookexchange.models.Book;
-import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.data.repository.CrudRepository;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
-import java.util.List;
 import java.util.Optional;
 
-public interface BookRepository extends CrudRepository<Book, Long> {
+public interface BookRepository extends JpaRepository<Book, Long>, JpaSpecificationExecutor<Book> {
 
-    List<Book> findByUserIdAndIsExchanged(Long userId, Boolean isExchanged);
+    Page<Book> findByUserIdAndIsExchanged(Long userId, Boolean isExchanged, Pageable pageable);
 
-    List<Book> findAll(Specification<Book> specification, Sort sort);
+    Page<Book> findAll(Specification<Book> specification, Pageable pageable);
 
     Optional<Book> findByIdAndUserId(Long bookId, Long userId);
 

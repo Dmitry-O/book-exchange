@@ -5,9 +5,8 @@ import com.example.bookexchange.dto.BookDTO;
 import com.example.bookexchange.dto.BookSearchDTO;
 import com.example.bookexchange.services.BookService;
 import lombok.AllArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @AllArgsConstructor
 @RestController
@@ -22,18 +21,30 @@ public class BookController {
     }
 
     @GetMapping("/{userId}")
-    public List<BookDTO> getUserBooks(@PathVariable("userId") Long userId) {
-        return bookService.findUserBooks(userId);
+    public Page<BookDTO> getUserBooks(
+            @PathVariable("userId") Long userId,
+            @RequestParam(value = "pageIndex", defaultValue = "0") Integer pageIndex,
+            @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize
+    ) {
+        return bookService.findUserBooks(userId, pageIndex, pageSize);
     }
 
     @GetMapping("/history/{userId}")
-    public List<BookDTO> getExchangedUserBooks(@PathVariable("userId") Long userId) {
-        return bookService.findExchangedUserBooks(userId);
+    public Page<BookDTO> getExchangedUserBooks(
+            @PathVariable("userId") Long userId,
+            @RequestParam(value = "pageIndex", defaultValue = "0") Integer pageIndex,
+            @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize
+    ) {
+        return bookService.findExchangedUserBooks(userId, pageIndex, pageSize);
     }
 
     @GetMapping()
-    public List<BookDTO> getBooks(@RequestBody(required = false) BookSearchDTO dto) {
-        return bookService.findBooks(dto);
+    public Page<BookDTO> getBooks(
+            @RequestParam(value = "pageIndex", defaultValue = "0") Integer pageIndex,
+            @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize,
+            @RequestBody(required = false) BookSearchDTO dto
+    ) {
+        return bookService.findBooks(dto, pageIndex, pageSize);
     }
 
     @DeleteMapping("/{userId}/{bookId}")

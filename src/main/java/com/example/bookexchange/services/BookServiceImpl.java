@@ -11,13 +11,13 @@ import com.example.bookexchange.repositories.UserRepository;
 import com.example.bookexchange.specification.BookSpecificationBuilder;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.AllArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @AllArgsConstructor
@@ -38,42 +38,42 @@ public class BookServiceImpl extends BaseServiceImpl<User, Long> implements Book
     }
 
     @Override
-    public List<BookDTO> findUserBooks(Long userId) {
-        List<Book> books = bookRepository.findByUserIdAndIsExchanged(userId, false);
+    public Page<BookDTO> findUserBooks(Long userId, Integer pageIndex, Integer pageSize) {
+        Pageable pageable = PageRequest.of(pageIndex, pageSize);
 
-        return books.stream()
-                .map(BookMapper::fromEntity)
-                .collect(Collectors.toList());
+        Page<Book> bookPage = bookRepository.findByUserIdAndIsExchanged(userId, false, pageable);
+
+        return bookPage.map(BookMapper::fromEntity);
     }
 
     @Override
-    public List<BookDTO> findExchangedUserBooks(Long userId) {
-        List<Book> books = bookRepository.findByUserIdAndIsExchanged(userId, true);
+    public Page<BookDTO> findExchangedUserBooks(Long userId, Integer pageIndex, Integer pageSize) {
+        Pageable pageable = PageRequest.of(pageIndex, pageSize);
 
-        return books.stream()
-                .map(BookMapper::fromEntity)
-                .collect(Collectors.toList());
+        Page<Book> bookPage = bookRepository.findByUserIdAndIsExchanged(userId, true, pageable);
+
+        return bookPage.map(BookMapper::fromEntity);
     }
 
     @Override
-    public List<BookDTO> findBooks(BookSearchDTO dto) {
+    public Page<BookDTO> findBooks(BookSearchDTO dto, Integer pageIndex, Integer pageSize) {
         Specification<Book> specification = BookSpecificationBuilder.build(dto);
 
-        Sort sort = Sort.unsorted();
+        Pageable pageable;
 
         if (dto.getSortBy() != null && dto.getSortDirection() != null) {
             Sort.Direction direction = dto.getSortDirection().equalsIgnoreCase(("desc"))
                     ? Sort.Direction.DESC
                     : Sort.Direction.ASC;
 
-            sort = Sort.by(direction, dto.getSortBy());
+            pageable = PageRequest.of(pageIndex, pageSize, Sort.by(direction, dto.getSortBy()));
+        } else {
+            pageable = PageRequest.of(pageIndex, pageSize);
         }
 
-        List<Book> books = bookRepository.findAll(specification, sort);
+        Page<Book> bookPage = bookRepository.findAll(specification, pageable);
 
-        return books.stream()
-                .map(BookMapper::fromEntity)
-                .collect(Collectors.toList());
+        return bookPage.map(BookMapper::fromEntity);
     }
 
     @Override
