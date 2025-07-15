@@ -2,12 +2,11 @@ package com.example.bookexchange.services;
 
 import com.example.bookexchange.dto.ExchangeHistoryDTO;
 import com.example.bookexchange.dto.ExchangeHistoryDetailsDTO;
-
-import java.util.List;
+import org.springframework.data.domain.Page;
 
 public interface HistoryService {
 
-    List<ExchangeHistoryDTO> getUserExchangeHistory(Long userId);
+    Page<ExchangeHistoryDTO> getUserExchangeHistory(Long userId, Integer pageIndex, Integer pageSize);
 
     ExchangeHistoryDetailsDTO getUserExchangeHistoryDetails(Long userId, Long exchangeId);
 }

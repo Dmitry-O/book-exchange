@@ -15,10 +15,10 @@ import com.example.bookexchange.repositories.UserRepository;
 import jakarta.persistence.EntityExistsException;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.AllArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @AllArgsConstructor
@@ -105,12 +105,12 @@ public class RequestServiceImpl implements RequestService {
     }
 
     @Override
-    public List<ExchangeDTO> getSenderRequests(Long senderUserId) {
-        List<Exchange> pendingExchanges = exchangeRepository.findBySenderUserIdAndStatus(senderUserId, ExchangeStatus.PENDING);
+    public Page<ExchangeDTO> getSenderRequests(Long senderUserId, Integer pageIndex, Integer pageSize) {
+        Pageable pageable = PageRequest.of(pageIndex, pageSize);
 
-        return pendingExchanges.stream()
-                .map(ExchangeMapper::fromEntity)
-                .collect(Collectors.toList());
+        Page<Exchange> pendingExchangesPage = exchangeRepository.findBySenderUserIdAndStatus(senderUserId, ExchangeStatus.PENDING, pageable);
+
+        return pendingExchangesPage.map(ExchangeMapper::fromEntity);
     }
 
     @Override

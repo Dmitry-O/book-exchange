@@ -11,9 +11,14 @@ import com.example.bookexchange.repositories.ExchangeRepository;
 import com.example.bookexchange.util.ExchangeUtil;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.AllArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -25,24 +30,36 @@ public class HistoryServiceImpl implements HistoryService {
     private final ExchangeUtil exchangeUtil;
 
     @Override
-    public List<ExchangeHistoryDTO> getUserExchangeHistory(Long userId) {
-        List<Exchange> exchangesAsSender = exchangeRepository.findBySenderUserIdAndStatusNot(userId, ExchangeStatus.PENDING);
-        List<Exchange> exchangesAsReceiver = exchangeRepository.findByReceiverUserIdAndStatusNot(userId, ExchangeStatus.PENDING);
+    public Page<ExchangeHistoryDTO> getUserExchangeHistory(Long userId, Integer pageIndex, Integer pageSize) {
+        Pageable pageable = PageRequest.of(pageIndex, pageSize);
 
-        List<ExchangeHistoryDTO> dto = new ArrayList<>();
+        List<Exchange> exchangesAsSender = exchangeRepository
+                .findBySenderUserIdAndStatusNot(userId, ExchangeStatus.PENDING);
+        List<Exchange> exchangesAsReceiver = exchangeRepository
+                .findByReceiverUserIdAndStatusNot(userId, ExchangeStatus.PENDING);
 
-        dto.addAll(
-            exchangesAsSender.stream()
-            .map(exchange -> ExchangeMapper.fromEntityHistory(exchange, UserExchangeRole.SENDER))
-            .toList()
+        List<ExchangeHistoryDTO> allExchanges = new ArrayList<>();
+
+        allExchanges.addAll(
+                exchangesAsSender.stream()
+                        .map(exchange -> ExchangeMapper.fromEntityHistory(exchange, UserExchangeRole.SENDER))
+                        .toList()
         );
-        dto.addAll(
-            exchangesAsReceiver.stream()
-            .map(exchange -> ExchangeMapper.fromEntityHistory(exchange, UserExchangeRole.RECEIVER))
-            .toList()
+
+        allExchanges.addAll(
+                exchangesAsReceiver.stream()
+                        .map(exchange -> ExchangeMapper.fromEntityHistory(exchange, UserExchangeRole.RECEIVER))
+                        .toList()
         );
 
-        return dto;
+        int start = (int) pageable.getOffset();
+        int end = Math.min(start + pageable.getPageSize(), allExchanges.size());
+
+        List<ExchangeHistoryDTO> paginatedList = start > end
+                ? Collections.emptyList()
+                : allExchanges.subList(start, end);
+
+        return new PageImpl<>(paginatedList, pageable, allExchanges.size());
     }
 
     @Override

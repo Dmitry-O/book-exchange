@@ -2,18 +2,21 @@ package com.example.bookexchange.repositories;
 
 import com.example.bookexchange.models.Exchange;
 import com.example.bookexchange.models.ExchangeStatus;
-import org.springframework.data.repository.CrudRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
 import java.util.List;
 import java.util.Optional;
 
-public interface ExchangeRepository extends CrudRepository<Exchange, Integer> {
+public interface ExchangeRepository extends JpaRepository<Exchange, Long>, JpaSpecificationExecutor<Exchange> {
 
     Optional<Exchange> findByIdAndSenderUserId(Long exchangeId, Long senderUserId);
 
-    List<Exchange> findBySenderUserIdAndStatus(Long senderUserId, ExchangeStatus status);
+    Page<Exchange> findBySenderUserIdAndStatus(Long senderUserId, ExchangeStatus status, Pageable pageable);
 
-    List<Exchange> findByReceiverUserIdAndStatus(Long receiverUserId, ExchangeStatus status);
+    Page<Exchange> findByReceiverUserIdAndStatus(Long receiverUserId, ExchangeStatus status, Pageable pageable);
 
     Optional<Exchange> findByIdAndReceiverUserId(Long exchangeId, Long receiverUserId);
 
