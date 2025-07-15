@@ -3,8 +3,7 @@ package com.example.bookexchange.services;
 import com.example.bookexchange.dto.ExchangeDetailsDTO;
 import com.example.bookexchange.dto.RequestCreateDTO;
 import com.example.bookexchange.dto.ExchangeDTO;
-
-import java.util.List;
+import org.springframework.data.domain.Page;
 
 public interface RequestService {
 
@@ -12,7 +11,7 @@ public interface RequestService {
 
     ExchangeDetailsDTO getSenderRequestDetails(Long senderUserId, Long exchangeId);
 
-    List<ExchangeDTO> getSenderRequests(Long senderUserId);
+    Page<ExchangeDTO> getSenderRequests(Long senderUserId, Integer pageIndex, Integer pageSize);
 
     String declineUserRequest(Long senderUserId, Long exchangeId);
 }

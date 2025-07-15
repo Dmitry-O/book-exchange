@@ -5,9 +5,8 @@ import com.example.bookexchange.dto.RequestCreateDTO;
 import com.example.bookexchange.dto.ExchangeDTO;
 import com.example.bookexchange.services.RequestService;
 import lombok.AllArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @AllArgsConstructor
 @RestController
@@ -27,8 +26,12 @@ public class RequestController {
     }
 
     @GetMapping("/{senderUserId}")
-    public List<ExchangeDTO> getUserRequests(@PathVariable("senderUserId") Long senderUserId) {
-        return requestService.getSenderRequests(senderUserId);
+    public Page<ExchangeDTO> getUserRequests(
+            @PathVariable("senderUserId") Long senderUserId,
+            @RequestParam(value = "pageIndex", defaultValue = "0") Integer pageIndex,
+            @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize
+    ) {
+        return requestService.getSenderRequests(senderUserId, pageIndex, pageSize);
     }
 
     @PatchMapping("/decline/{senderUserId}/{exchangeId}")

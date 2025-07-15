@@ -2,12 +2,11 @@ package com.example.bookexchange.services;
 
 import com.example.bookexchange.dto.ExchangeDTO;
 import com.example.bookexchange.dto.ExchangeDetailsDTO;
-
-import java.util.List;
+import org.springframework.data.domain.Page;
 
 public interface OfferService {
 
-    List<ExchangeDTO> getUserOffers(Long receiverUserId);
+    Page<ExchangeDTO> getUserOffers(Long receiverUserId, Integer pageIndex, Integer pageSize);
 
     ExchangeDetailsDTO getReceiverOfferDetails(Long senderUserId, Long exchangeId);
 

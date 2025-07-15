@@ -12,10 +12,12 @@ import com.example.bookexchange.repositories.ExchangeRepository;
 import com.example.bookexchange.repositories.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.AllArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @AllArgsConstructor
@@ -25,12 +27,12 @@ public class OfferServiceImpl implements OfferService {
     private final UserRepository userRepository;
 
     @Override
-    public List<ExchangeDTO> getUserOffers(Long receiverUserId) {
-        List<Exchange> exchanges = exchangeRepository.findByReceiverUserIdAndStatus(receiverUserId, ExchangeStatus.PENDING);
+    public Page<ExchangeDTO> getUserOffers(Long receiverUserId, Integer pageIndex, Integer pageSize) {
+        Pageable pageable = PageRequest.of(pageIndex, pageSize);
 
-        return exchanges.stream()
-                .map(ExchangeMapper::fromEntity)
-                .collect(Collectors.toList());
+        Page<Exchange> exchangesPage = exchangeRepository.findByReceiverUserIdAndStatus(receiverUserId, ExchangeStatus.PENDING, pageable);
+
+        return exchangesPage.map(ExchangeMapper::fromEntity);
     }
 
     @Override

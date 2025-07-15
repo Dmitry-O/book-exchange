@@ -4,9 +4,8 @@ import com.example.bookexchange.dto.ExchangeDTO;
 import com.example.bookexchange.dto.ExchangeDetailsDTO;
 import com.example.bookexchange.services.OfferService;
 import lombok.AllArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @AllArgsConstructor
@@ -16,8 +15,12 @@ public class OfferController {
     private final OfferService offerService;
 
     @GetMapping("/{receiverUserId}")
-    public List<ExchangeDTO> getUserOffers(@PathVariable("receiverUserId") Long receiverUserId) {
-        return offerService.getUserOffers(receiverUserId);
+    public Page<ExchangeDTO> getUserOffers(
+            @PathVariable("receiverUserId") Long receiverUserId,
+            @RequestParam(value = "pageIndex", defaultValue = "0") Integer pageIndex,
+            @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize
+    ) {
+        return offerService.getUserOffers(receiverUserId, pageIndex, pageSize);
     }
 
     @GetMapping("/{receiverUserId}/{exchangeId}")
