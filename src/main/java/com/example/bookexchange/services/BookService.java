@@ -3,18 +3,17 @@ package com.example.bookexchange.services;
 import com.example.bookexchange.dto.BookCreateDTO;
 import com.example.bookexchange.dto.BookDTO;
 import com.example.bookexchange.dto.BookSearchDTO;
-
-import java.util.List;
+import org.springframework.data.domain.Page;
 
 public interface BookService {
 
     BookDTO addUserBook(Long userId, BookCreateDTO dto);
 
-    List<BookDTO> findUserBooks(Long userId);
+    Page<BookDTO> findUserBooks(Long userId, Integer pageIndex, Integer pageSize);
 
-    List<BookDTO> findExchangedUserBooks(Long userId);
+    Page<BookDTO> findExchangedUserBooks(Long userId,  Integer pageIndex, Integer pageSize);
 
-    List<BookDTO> findBooks(BookSearchDTO dto);
+    Page<BookDTO> findBooks(BookSearchDTO dto, Integer pageIndex, Integer pageSize);
 
     String deleteUserBookById(Long userId, Long bookId);
 
