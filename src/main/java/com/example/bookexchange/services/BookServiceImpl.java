@@ -3,7 +3,7 @@ package com.example.bookexchange.services;
 import com.example.bookexchange.dto.BookCreateDTO;
 import com.example.bookexchange.dto.BookDTO;
 import com.example.bookexchange.dto.BookSearchDTO;
-import com.example.bookexchange.mapper.BookMapper;
+import com.example.bookexchange.mappers.BookMapper;
 import com.example.bookexchange.models.Book;
 import com.example.bookexchange.models.User;
 import com.example.bookexchange.repositories.BookRepository;
@@ -25,16 +25,17 @@ public class BookServiceImpl extends BaseServiceImpl<User, Long> implements Book
 
     private final BookRepository bookRepository;
     private final UserRepository userRepository;
+    private final BookMapper bookMapper;
 
     @Override
     public BookDTO addUserBook(Long userId, BookCreateDTO dto) {
         User user = findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
 
-        Book book = BookMapper.toEntity(dto);
+        Book book = bookMapper.bookDtoToBook(dto);
         book.setUser(user);
         Book savedBook = bookRepository.save(book);
 
-        return BookMapper.fromEntity(savedBook);
+        return bookMapper.bookToBookDto(savedBook);
     }
 
     @Override
@@ -43,7 +44,7 @@ public class BookServiceImpl extends BaseServiceImpl<User, Long> implements Book
 
         Page<Book> bookPage = bookRepository.findByUserIdAndIsExchanged(userId, false, pageable);
 
-        return bookPage.map(BookMapper::fromEntity);
+        return bookPage.map(bookMapper::bookToBookDto);
     }
 
     @Override
@@ -52,7 +53,7 @@ public class BookServiceImpl extends BaseServiceImpl<User, Long> implements Book
 
         Page<Book> bookPage = bookRepository.findByUserIdAndIsExchanged(userId, true, pageable);
 
-        return bookPage.map(BookMapper::fromEntity);
+        return bookPage.map(bookMapper::bookToBookDto);
     }
 
     @Override
@@ -73,7 +74,7 @@ public class BookServiceImpl extends BaseServiceImpl<User, Long> implements Book
 
         Page<Book> bookPage = bookRepository.findAll(specification, pageable);
 
-        return bookPage.map(BookMapper::fromEntity);
+        return bookPage.map(bookMapper::bookToBookDto);
     }
 
     @Override

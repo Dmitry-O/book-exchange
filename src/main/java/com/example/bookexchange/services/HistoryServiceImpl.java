@@ -2,8 +2,8 @@ package com.example.bookexchange.services;
 
 import com.example.bookexchange.dto.ExchangeHistoryDTO;
 import com.example.bookexchange.dto.ExchangeHistoryDetailsDTO;
-import com.example.bookexchange.mapper.BookMapper;
-import com.example.bookexchange.mapper.ExchangeMapper;
+import com.example.bookexchange.mappers.BookMapper;
+import com.example.bookexchange.mappers.ExchangeMapper;
 import com.example.bookexchange.models.Exchange;
 import com.example.bookexchange.models.ExchangeStatus;
 import com.example.bookexchange.models.UserExchangeRole;
@@ -28,6 +28,7 @@ public class HistoryServiceImpl implements HistoryService {
 
     private final ExchangeRepository exchangeRepository;
     private final ExchangeUtil exchangeUtil;
+    private final BookMapper bookMapper;
 
     @Override
     public Page<ExchangeHistoryDTO> getUserExchangeHistory(Long userId, Integer pageIndex, Integer pageSize) {
@@ -76,8 +77,8 @@ public class HistoryServiceImpl implements HistoryService {
 
             return ExchangeMapper.fromEntityHistoryDetails(
                     exchange,
-                    exchange.getSenderBook() != null ? BookMapper.fromEntity(exchange.getSenderBook()) : null,
-                    BookMapper.fromEntity(exchange.getReceiverBook()),
+                    exchange.getSenderBook() != null ? bookMapper.bookToBookDto(exchange.getSenderBook()) : null,
+                    bookMapper.bookToBookDto(exchange.getReceiverBook()),
                     exchange.getReceiverUser().getNickname(),
                     exchange.getReceiverBook().getContactDetails(),
                     userRole
@@ -92,8 +93,8 @@ public class HistoryServiceImpl implements HistoryService {
 
                 return ExchangeMapper.fromEntityHistoryDetails(
                         exchange,
-                        exchange.getSenderBook() != null ? BookMapper.fromEntity(exchange.getSenderBook()) : null,
-                        BookMapper.fromEntity(exchange.getReceiverBook()),
+                        exchange.getSenderBook() != null ? bookMapper.bookToBookDto(exchange.getSenderBook()) : null,
+                        bookMapper.bookToBookDto(exchange.getReceiverBook()),
                         exchange.getSenderUser().getNickname(),
                         exchange.getSenderBook() != null ? exchange.getSenderBook().getContactDetails() : null,
                         userRole

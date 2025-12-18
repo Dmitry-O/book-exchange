@@ -10,17 +10,22 @@ import org.springframework.web.bind.annotation.*;
 
 @AllArgsConstructor
 @RestController
-@RequestMapping("/api/v1/book")
 public class BookController {
+
+    public static final String BOOK_PATH ="/api/v1/book";
+    public static final String USER_ID_PATH = "/{userId}";
+    public static final String BOOK_PATH_USER_ID = BOOK_PATH + USER_ID_PATH;
+    public static final String BOOK_PATH_HISTORY_USER_ID = BOOK_PATH + "/history" + USER_ID_PATH;
+    public static final String BOOK_PATH_USER_ID_BOOK_ID = BOOK_PATH_USER_ID + "/{bookId}";
 
     private final BookService bookService;
 
-    @PostMapping("/{userId}")
+    @PostMapping(BOOK_PATH_USER_ID)
     public BookDTO addUserBook(@PathVariable("userId") Long userId, @RequestBody BookCreateDTO dto) {
         return bookService.addUserBook(userId, dto);
     }
 
-    @GetMapping("/{userId}")
+    @GetMapping(BOOK_PATH_USER_ID)
     public Page<BookDTO> getUserBooks(
             @PathVariable("userId") Long userId,
             @RequestParam(value = "pageIndex", defaultValue = "0") Integer pageIndex,
@@ -29,7 +34,7 @@ public class BookController {
         return bookService.findUserBooks(userId, pageIndex, pageSize);
     }
 
-    @GetMapping("/history/{userId}")
+    @GetMapping(BOOK_PATH_HISTORY_USER_ID)
     public Page<BookDTO> getExchangedUserBooks(
             @PathVariable("userId") Long userId,
             @RequestParam(value = "pageIndex", defaultValue = "0") Integer pageIndex,
@@ -38,7 +43,7 @@ public class BookController {
         return bookService.findExchangedUserBooks(userId, pageIndex, pageSize);
     }
 
-    @GetMapping()
+    @GetMapping(BOOK_PATH)
     public Page<BookDTO> getBooks(
             @RequestParam(value = "pageIndex", defaultValue = "0") Integer pageIndex,
             @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize,
@@ -47,12 +52,12 @@ public class BookController {
         return bookService.findBooks(dto, pageIndex, pageSize);
     }
 
-    @DeleteMapping("/{userId}/{bookId}")
+    @DeleteMapping(BOOK_PATH_USER_ID_BOOK_ID)
     public String deleteBookById(@PathVariable("userId") Long userId, @PathVariable("bookId") Long bookId) {
         return bookService.deleteUserBookById(userId, bookId);
     }
 
-    @PatchMapping("/{userId}/{bookId}")
+    @PatchMapping(BOOK_PATH_USER_ID_BOOK_ID)
     public String updateUserBookById(@PathVariable("userId") Long userId, @PathVariable("bookId") Long bookId, @RequestBody BookDTO dto) {
         return bookService.updateUserBookById(userId, bookId, dto);
     }

@@ -1,4 +1,4 @@
-package com.example.bookexchange.mapper;
+package com.example.bookexchange.mappers;
 
 import com.example.bookexchange.dto.*;
 import com.example.bookexchange.models.Book;
