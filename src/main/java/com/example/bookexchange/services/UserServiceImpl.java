@@ -2,7 +2,7 @@ package com.example.bookexchange.services;
 
 import com.example.bookexchange.dto.UserCreateDTO;
 import com.example.bookexchange.dto.UserDTO;
-import com.example.bookexchange.mapper.UserMapper;
+import com.example.bookexchange.mappers.UserMapper;
 import com.example.bookexchange.models.User;
 import com.example.bookexchange.repositories.UserRepository;
 import jakarta.persistence.EntityExistsException;
@@ -15,12 +15,13 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserServiceImpl extends BaseServiceImpl<User, Long> implements UserService {
 
     private UserRepository userRepository;
+    private UserMapper userMapper;
 
     @Override
     public UserDTO getUser(Long userId) {
         User user = findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
 
-        return UserMapper.fromEntity(user);
+        return userMapper.userToUserDto(user);
     }
 
     @Override
@@ -31,9 +32,9 @@ public class UserServiceImpl extends BaseServiceImpl<User, Long> implements User
             throw new EntityExistsException("Es gibt bereits einen Benutzer mit diesem Nickname. Wählen Sie bitte ein anderes.");
         });
 
-        User savedUser = userRepository.save(UserMapper.toEntity(dto));
+        User savedUser = userRepository.save(userMapper.userDtoToUser(dto));
 
-        return UserMapper.fromEntity(savedUser);
+        return userMapper.userToUserDto((savedUser));
     }
 
     @Transactional

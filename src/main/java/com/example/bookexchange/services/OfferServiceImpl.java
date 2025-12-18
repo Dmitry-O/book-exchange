@@ -2,8 +2,8 @@ package com.example.bookexchange.services;
 
 import com.example.bookexchange.dto.ExchangeDTO;
 import com.example.bookexchange.dto.ExchangeDetailsDTO;
-import com.example.bookexchange.mapper.BookMapper;
-import com.example.bookexchange.mapper.ExchangeMapper;
+import com.example.bookexchange.mappers.BookMapper;
+import com.example.bookexchange.mappers.ExchangeMapper;
 import com.example.bookexchange.models.Book;
 import com.example.bookexchange.models.Exchange;
 import com.example.bookexchange.models.ExchangeStatus;
@@ -25,6 +25,7 @@ public class OfferServiceImpl implements OfferService {
 
     private final ExchangeRepository exchangeRepository;
     private final UserRepository userRepository;
+    private final BookMapper bookMapper;
 
     @Override
     public Page<ExchangeDTO> getUserOffers(Long receiverUserId, Integer pageIndex, Integer pageSize) {
@@ -41,8 +42,8 @@ public class OfferServiceImpl implements OfferService {
 
         return ExchangeMapper.fromEntityDetails(
                 exchange,
-                exchange.getSenderBook() != null ? BookMapper.fromEntity(exchange.getSenderBook()) : null,
-                BookMapper.fromEntity(exchange.getReceiverBook()),
+                exchange.getSenderBook() != null ? bookMapper.bookToBookDto(exchange.getSenderBook()) : null,
+                bookMapper.bookToBookDto(exchange.getReceiverBook()),
                 exchange.getSenderUser().getNickname()
         );
     }

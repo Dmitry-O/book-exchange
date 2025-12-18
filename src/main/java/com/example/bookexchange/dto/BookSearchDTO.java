@@ -1,7 +1,9 @@
 package com.example.bookexchange.dto;
 
+import lombok.Builder;
 import lombok.Data;
 
+@Builder
 @Data
 public class BookSearchDTO {
 
