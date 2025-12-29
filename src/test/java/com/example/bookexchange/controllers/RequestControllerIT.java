@@ -10,24 +10,31 @@ import com.example.bookexchange.repositories.ExchangeRepository;
 import com.example.bookexchange.util.BookUtil;
 import com.example.bookexchange.util.ExchangeUtilIT;
 import com.example.bookexchange.util.UserUtil;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityNotFoundException;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.annotation.Rollback;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.context.WebApplicationContext;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.core.Is.is;
 import static org.junit.jupiter.api.Assertions.*;
 import static com.example.bookexchange.util.TestConstants.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
 @Import(TestUserConfig.class)
@@ -51,6 +58,19 @@ class RequestControllerIT {
 
     @Autowired
     TransactionTemplate transactionTemplate;
+
+    @Autowired
+    WebApplicationContext webApplicationContext;
+
+    @Autowired
+    ObjectMapper objectMapper;
+
+    MockMvc mockMvc;
+
+    @BeforeEach
+    void setUp() {
+        mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
+    }
 
     private Long senderUserId;
     private Long receiverUserId;
@@ -103,6 +123,24 @@ class RequestControllerIT {
         Exchange exchange = exchangeRepository.findById(savedId).get();
 
         assertThat(exchange).isNotNull();
+    }
+
+    @Rollback
+    @Transactional
+    @Test
+    void createRequestBadRequest() throws Exception {
+        RequestCreateDTO requestCreateDTO = RequestCreateDTO.builder().build();
+
+        MvcResult mvcResult = mockMvc.perform(post(RequestController.REQUEST_PATH)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(requestCreateDTO))
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.length()", is(4)))
+                .andReturn();
+
+        System.out.println(mvcResult.getResponse().getContentAsString());
     }
 
     @Rollback

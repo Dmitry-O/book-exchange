@@ -12,43 +12,34 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class BookCreateDTO {
+public class BookUpdateDTO {
 
     @NotBlank
-    @NotNull
     @Size(min = 3, max = 25)
     private String name;
 
     @NotBlank
-    @NotNull
     @Size(min = 3, max = 255)
     private String description;
 
     @NotBlank
-    @NotNull
     @Size(min = 3, max = 25)
     private String author;
 
     @NotBlank
-    @NotNull
     @Size(min = 3, max = 20)
     private String category;
 
-    @NotNull
     private Integer publicationYear;
 
     private String photoBase64;
 
     @NotBlank
-    @NotNull
     @Size(min = 3, max = 25)
     private String city;
 
     @NotBlank
-    @NotNull
     private String contactDetails;
 
-    private Boolean isGift = Boolean.FALSE;
-
-    private Boolean isExchanged = Boolean.FALSE;
+    private Boolean isGift;
 }

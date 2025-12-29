@@ -2,6 +2,7 @@ package com.example.bookexchange.services;
 
 import com.example.bookexchange.dto.UserCreateDTO;
 import com.example.bookexchange.dto.UserDTO;
+import com.example.bookexchange.dto.UserUpdateDTO;
 
 public interface UserService {
 
@@ -9,7 +10,7 @@ public interface UserService {
 
     UserDTO createUser(UserCreateDTO dto);
 
-    void updateUser(Long userId, UserDTO dto);
+    void updateUser(Long userId, UserUpdateDTO dto);
 
     void deleteUser(Long userId);
 }

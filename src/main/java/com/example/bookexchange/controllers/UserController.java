@@ -2,11 +2,13 @@ package com.example.bookexchange.controllers;
 
 import com.example.bookexchange.dto.UserCreateDTO;
 import com.example.bookexchange.dto.UserDTO;
+import com.example.bookexchange.dto.UserUpdateDTO;
 import com.example.bookexchange.services.UserService;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 @AllArgsConstructor
@@ -26,7 +28,7 @@ public class UserController {
     }
 
     @PostMapping(USER_PATH)
-    public ResponseEntity createUser(@RequestBody UserCreateDTO dto) {
+    public ResponseEntity createUser(@Validated @RequestBody UserCreateDTO dto) {
         UserDTO savedUser = userService.createUser(dto);
 
         HttpHeaders headers = new HttpHeaders();
@@ -36,7 +38,7 @@ public class UserController {
     }
 
     @PatchMapping(USER_PATH_USER_ID)
-    public ResponseEntity updateUser(@PathVariable Long userId, @RequestBody UserDTO dto) {
+    public ResponseEntity updateUser(@PathVariable Long userId, @Validated @RequestBody UserUpdateDTO dto) {
         userService.updateUser(userId, dto);
 
         return new ResponseEntity(HttpStatus.NO_CONTENT);

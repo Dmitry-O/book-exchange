@@ -2,7 +2,6 @@ package com.example.bookexchange.controllers;
 
 import com.example.bookexchange.config.TestUserConfig;
 import com.example.bookexchange.dto.*;
-import com.example.bookexchange.mappers.BookMapper;
 import com.example.bookexchange.models.Book;
 import com.example.bookexchange.models.Exchange;
 import com.example.bookexchange.models.ExchangeStatus;
@@ -11,23 +10,30 @@ import com.example.bookexchange.repositories.ExchangeRepository;
 import com.example.bookexchange.util.BookUtil;
 import com.example.bookexchange.util.ExchangeUtilIT;
 import com.example.bookexchange.util.UserUtil;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.annotation.Rollback;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.context.WebApplicationContext;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static com.example.bookexchange.util.TestConstants.*;
+import static org.hamcrest.core.Is.is;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
 @Import(TestUserConfig.class)
@@ -44,9 +50,6 @@ class BookControllerIT {
     ExchangeRepository exchangeRepository;
 
     @Autowired
-    BookMapper bookMapper;
-
-    @Autowired
     UserUtil userUtil;
 
     @Autowired
@@ -57,6 +60,19 @@ class BookControllerIT {
 
     @Autowired
     TransactionTemplate transactionTemplate;
+
+    @Autowired
+    WebApplicationContext webApplicationContext;
+
+    @Autowired
+    ObjectMapper objectMapper;
+
+    MockMvc mockMvc;
+
+    @BeforeEach
+    void setUp() {
+        mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
+    }
 
     private Long userId;
     private Long bookId;
@@ -106,6 +122,24 @@ class BookControllerIT {
         Book book = bookRepository.findById(savedId).get();
 
         assertThat(book).isNotNull();
+    }
+
+    @Rollback
+    @Transactional
+    @Test
+    void addUserBookBadRequest() throws Exception {
+        BookCreateDTO bookCreateDTO = BookCreateDTO.builder().build();
+
+        MvcResult mvcResult = mockMvc.perform(post(BookController.BOOK_PATH_USER_ID, userId)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(bookCreateDTO))
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.length()", is(13)))
+                .andReturn();
+
+        System.out.println(mvcResult.getResponse().getContentAsString());
     }
 
     @Rollback
@@ -181,6 +215,33 @@ class BookControllerIT {
         assertThat(books.getTotalElements()).isEqualTo(1);
     }
 
+    @Test
+    void getBooksBadRequest() throws Exception {
+        BookSearchDTO bookSearchDTO = BookSearchDTO.builder()
+                .author("Author 1")
+                .category("Category 1")
+                .publicationYear(2000)
+                .city("City 1")
+                .isGift(false)
+                .searchText("Book 012345678901234567890123456789")
+                .sortBy("category")
+                .sortDirection("asc")
+                .build();
+
+        MvcResult mvcResult = mockMvc.perform(get(BookController.BOOK_PATH)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .queryParam("pageIndex", PAGE_INDEX.toString())
+                        .queryParam("pageSize", PAGE_SIZE.toString())
+                        .content(objectMapper.writeValueAsString(bookSearchDTO))
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.length()", is(1)))
+                .andReturn();
+
+        System.out.println(mvcResult.getResponse().getContentAsString());
+    }
+
     @Rollback
     @Transactional
     @Test
@@ -239,15 +300,23 @@ class BookControllerIT {
     @Transactional
     @Test
     void updateUserBookById() {
-        Book book = bookRepository.findAll().get(0);
-        BookDTO bookDTO = bookMapper.bookToBookDto(book);
-
         final String bookName = "Book 2";
 
-        bookDTO.setId(null);
-        bookDTO.setName(bookName);
+        Book book = bookRepository.findAll().get(0);
 
-        ResponseEntity responseEntity = bookController.updateUserBookById(userId, book.getId(), bookDTO);
+        BookUpdateDTO bookUpdateDTO = BookUpdateDTO.builder()
+                .name(bookName)
+                .description(book.getDescription())
+                .author(book.getAuthor())
+                .category(book.getCategory())
+                .publicationYear(book.getPublicationYear())
+                .photoBase64(book.getPhotoBase64())
+                .city(book.getCity())
+                .contactDetails(book.getContactDetails())
+                .isGift(book.getIsGift())
+                .build();
+
+        ResponseEntity responseEntity = bookController.updateUserBookById(userId, book.getId(), bookUpdateDTO);
 
         assertThat(responseEntity.getStatusCode()).isEqualTo(HttpStatusCode.valueOf(204));
 
@@ -259,7 +328,39 @@ class BookControllerIT {
     @Test
     void updateUserBookByIdNotFound() {
         assertThrows(NotFoundException.class, () -> {
-            bookController.updateUserBookById(userId, System.nanoTime(), BookDTO.builder().build());
+            bookController.updateUserBookById(userId, System.nanoTime(), BookUpdateDTO.builder().build());
         });
+    }
+
+    @Rollback
+    @Transactional
+    @Test
+    void updateUserBookByIdBadRequest() throws Exception {
+        final String bookName = "Book 012345678901234567890123456789";
+
+        Book book = bookRepository.findAll().get(0);
+
+        BookUpdateDTO bookUpdateDTO = BookUpdateDTO.builder()
+                .name(bookName)
+                .description(book.getDescription())
+                .author(book.getAuthor())
+                .category(book.getCategory())
+                .publicationYear(book.getPublicationYear())
+                .photoBase64(book.getPhotoBase64())
+                .city(book.getCity())
+                .contactDetails(book.getContactDetails())
+                .isGift(book.getIsGift())
+                .build();
+
+        MvcResult mvcResult = mockMvc.perform(patch(BookController.BOOK_PATH_USER_ID_BOOK_ID, userId, bookId)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(bookUpdateDTO))
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.length()", is(1)))
+                .andReturn();
+
+        System.out.println(mvcResult.getResponse().getContentAsString());
     }
 }

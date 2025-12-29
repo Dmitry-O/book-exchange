@@ -3,12 +3,14 @@ package com.example.bookexchange.controllers;
 import com.example.bookexchange.dto.BookCreateDTO;
 import com.example.bookexchange.dto.BookDTO;
 import com.example.bookexchange.dto.BookSearchDTO;
+import com.example.bookexchange.dto.BookUpdateDTO;
 import com.example.bookexchange.services.BookService;
 import lombok.AllArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 @AllArgsConstructor
@@ -24,7 +26,7 @@ public class BookController {
     private final BookService bookService;
 
     @PostMapping(BOOK_PATH_USER_ID)
-    public ResponseEntity addUserBook(@PathVariable Long userId, @RequestBody BookCreateDTO dto) {
+    public ResponseEntity addUserBook(@PathVariable Long userId, @Validated @RequestBody BookCreateDTO dto) {
         BookDTO savedBook = bookService.addUserBook(userId, dto);
 
         HttpHeaders headers = new HttpHeaders();
@@ -55,7 +57,7 @@ public class BookController {
     public Page<BookDTO> getBooks(
             @RequestParam(value = "pageIndex", defaultValue = "0") Integer pageIndex,
             @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize,
-            @RequestBody(required = false) BookSearchDTO dto
+            @Validated @RequestBody(required = false) BookSearchDTO dto
     ) {
         return bookService.findBooks(dto, pageIndex, pageSize);
     }
@@ -70,7 +72,7 @@ public class BookController {
     }
 
     @PatchMapping(BOOK_PATH_USER_ID_BOOK_ID)
-    public ResponseEntity updateUserBookById(@PathVariable Long userId, @PathVariable Long bookId, @RequestBody BookDTO dto) {
+    public ResponseEntity updateUserBookById(@PathVariable Long userId, @PathVariable Long bookId, @Validated @RequestBody BookUpdateDTO dto) {
         if (bookService.updateUserBookById(userId, bookId, dto).isEmpty()) {
             throw new NotFoundException("Das Buch mit ID " + bookId + " oder mit user ID + " + userId + " wurde nicht gefunden");
         }

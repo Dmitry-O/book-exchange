@@ -2,6 +2,7 @@ package com.example.bookexchange.services;
 
 import com.example.bookexchange.dto.UserCreateDTO;
 import com.example.bookexchange.dto.UserDTO;
+import com.example.bookexchange.dto.UserUpdateDTO;
 import com.example.bookexchange.mappers.UserMapper;
 import com.example.bookexchange.models.User;
 import com.example.bookexchange.repositories.BookRepository;
@@ -47,7 +48,7 @@ public class UserServiceImpl extends BaseServiceImpl<User, Long> implements User
 
     @Transactional
     @Override
-    public void updateUser(Long userId, UserDTO dto) {
+    public void updateUser(Long userId, UserUpdateDTO dto) {
         User user = findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
 
         if (!user.getNickname().equals(dto.getNickname())) {

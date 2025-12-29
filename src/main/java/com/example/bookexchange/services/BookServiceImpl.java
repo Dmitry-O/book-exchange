@@ -3,6 +3,7 @@ package com.example.bookexchange.services;
 import com.example.bookexchange.dto.BookCreateDTO;
 import com.example.bookexchange.dto.BookDTO;
 import com.example.bookexchange.dto.BookSearchDTO;
+import com.example.bookexchange.dto.BookUpdateDTO;
 import com.example.bookexchange.mappers.BookMapper;
 import com.example.bookexchange.models.Book;
 import com.example.bookexchange.models.User;
@@ -92,7 +93,7 @@ public class BookServiceImpl extends BaseServiceImpl<User, Long> implements Book
 
     @Transactional
     @Override
-    public Optional<BookDTO> updateUserBookById(Long userId, Long bookId, BookDTO dto) {
+    public Optional<BookDTO> updateUserBookById(Long userId, Long bookId, BookUpdateDTO dto) {
         AtomicReference<Optional<BookDTO>> atomicReference = new AtomicReference<>();
 
         bookRepository.findByIdAndUserId(bookId, userId).ifPresentOrElse(foundBook -> {
@@ -104,6 +105,7 @@ public class BookServiceImpl extends BaseServiceImpl<User, Long> implements Book
             foundBook.setPhotoBase64(!dto.getPhotoBase64().isEmpty() ? dto.getPhotoBase64() : foundBook.getPhotoBase64());
             foundBook.setCity(!dto.getCity().isEmpty() ? dto.getCity() : foundBook.getCity());
             foundBook.setIsGift(dto.getIsGift() != null ?  dto.getIsGift() : foundBook.getIsGift());
+            foundBook.setContactDetails(!dto.getContactDetails().isEmpty() ? dto.getContactDetails() : foundBook.getContactDetails());
 
             atomicReference.set(
                     Optional.of(
@@ -115,8 +117,6 @@ public class BookServiceImpl extends BaseServiceImpl<User, Long> implements Book
         }, () -> {
             atomicReference.set(Optional.empty());
         });
-
-        Optional<BookDTO> optionalBookDTO = atomicReference.get();
 
         return atomicReference.get();
     }

@@ -1,6 +1,7 @@
 package com.example.bookexchange.models;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -13,12 +14,15 @@ public class Exchange {
 
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
+    @NotNull
     private Long id;
 
     @Enumerated(EnumType.STRING)
+    @NotNull
     private ExchangeStatus status;
 
     private Boolean isReadBySender = Boolean.FALSE;
+
     private Boolean isReadByReceiver = Boolean.FALSE;
 
     @ManyToOne
