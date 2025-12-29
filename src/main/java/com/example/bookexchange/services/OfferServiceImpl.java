@@ -49,7 +49,7 @@ public class OfferServiceImpl implements OfferService {
     }
 
     @Override
-    public String approveUserOffer(Long receiverUserId, Long exchangeId) {
+    public void approveUserOffer(Long receiverUserId, Long exchangeId) {
         Exchange exchange = exchangeRepository.findByIdAndReceiverUserId(exchangeId, receiverUserId).orElseThrow(() -> new EntityNotFoundException("Der Umtauschantrag mit ID " + exchangeId + " und mit einer Empfängerbenutzer mit ID " + receiverUserId + " wurde nicht gefunden"));
         Book senderBook = exchange.getSenderBook();
         Book receiverBook = exchange.getReceiverBook();
@@ -76,15 +76,13 @@ public class OfferServiceImpl implements OfferService {
                 e.setStatus(ExchangeStatus.DECLINED);
                 exchangeRepository.save(e);
             });
-
-            return "Der Umtauschantrag wurde genehmigt";
         } else {
-            return "Der Umtauschantrag kann nicht bestätigt werden";
+            throw new IllegalStateException("Der Umtauschantrag kann nicht bestätigt werden");
         }
     }
 
     @Override
-    public String declineUserOffer(Long receiverUserId, Long exchangeId) {
+    public void declineUserOffer(Long receiverUserId, Long exchangeId) {
         Exchange exchange = exchangeRepository.findByIdAndReceiverUserId(exchangeId, receiverUserId).orElseThrow(() -> new EntityNotFoundException("Der Umtauschantrag mit ID " + exchangeId + " und mit einer Empfängerbenutzer mit ID " + receiverUserId + " wurde nicht gefunden"));
         User declinerUser = userRepository.findById(receiverUserId).orElseThrow(() -> new EntityNotFoundException("Der Benutzer mit ID " + receiverUserId + " wurde nicht gefunden"));
 
@@ -92,10 +90,8 @@ public class OfferServiceImpl implements OfferService {
             exchange.setStatus(ExchangeStatus.DECLINED);
             exchange.setDeclinerUser(declinerUser);
             exchangeRepository.save(exchange);
-
-            return "Der Umtauschantrag wurde abgelehnt";
         } else {
-            return "Der Umtauschantrag kann nicht storniert werden";
+            throw new IllegalStateException("Der Umtauschantrag kann nicht storniert werden");
         }
     }
 }

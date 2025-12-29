@@ -6,6 +6,9 @@ import com.example.bookexchange.dto.ExchangeDTO;
 import com.example.bookexchange.services.RequestService;
 import lombok.AllArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @AllArgsConstructor
@@ -22,18 +25,23 @@ public class RequestController {
     private final RequestService requestService;
 
     @PostMapping(REQUEST_PATH)
-    public ExchangeDTO createRequest(@RequestBody RequestCreateDTO dto) {
-        return requestService.createRequest(dto);
+    public ResponseEntity createRequest(@RequestBody RequestCreateDTO dto) {
+        ExchangeDTO savedRequest = requestService.createRequest(dto);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.add(HttpHeaders.LOCATION, REQUEST_PATH + "/" + dto.getSenderUserId() + "/" + savedRequest.getId());
+
+        return new ResponseEntity(headers, HttpStatus.CREATED);
     }
 
     @GetMapping(REQUEST_PATH_SENDER_USER_ID_EXCHANGE_ID)
-    public ExchangeDetailsDTO getUserRequestDetails(@PathVariable("senderUserId") Long senderUserId, @PathVariable("exchangeId") Long exchangeId) {
+    public ExchangeDetailsDTO getUserRequestDetails(@PathVariable Long senderUserId, @PathVariable Long exchangeId) {
         return requestService.getSenderRequestDetails(senderUserId, exchangeId);
     }
 
     @GetMapping(REQUEST_PATH_SENDER_USER_ID)
     public Page<ExchangeDTO> getUserRequests(
-            @PathVariable("senderUserId") Long senderUserId,
+            @PathVariable Long senderUserId,
             @RequestParam(value = "pageIndex", defaultValue = "0") Integer pageIndex,
             @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize
     ) {
@@ -41,7 +49,9 @@ public class RequestController {
     }
 
     @PatchMapping(REQUEST_PATH_DECLINE_REQUEST)
-    public String declineUserRequest(@PathVariable("senderUserId") Long senderUserId, @PathVariable("exchangeId") Long exchangeId) {
-        return requestService.declineUserRequest(senderUserId, exchangeId);
+    public ResponseEntity declineUserRequest(@PathVariable Long senderUserId, @PathVariable Long exchangeId) {
+        requestService.declineUserRequest(senderUserId, exchangeId);
+
+        return new ResponseEntity(HttpStatus.NO_CONTENT);
     }
 }

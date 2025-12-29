@@ -4,6 +4,9 @@ import com.example.bookexchange.dto.UserCreateDTO;
 import com.example.bookexchange.dto.UserDTO;
 import com.example.bookexchange.services.UserService;
 import lombok.AllArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @AllArgsConstructor
@@ -16,22 +19,33 @@ public class UserController {
     private UserService userService;
 
     @GetMapping(USER_PATH_USER_ID)
-    public UserDTO getUser(@PathVariable("userId") Long userId) {
-        return userService.getUser(userId);
+    public UserDTO getUser(@PathVariable Long userId) {
+        UserDTO userDTO = userService.getUser(userId);
+
+        return userDTO;
     }
 
     @PostMapping(USER_PATH)
-    public UserDTO createUser(@RequestBody UserCreateDTO dto) {
-        return userService.createUser(dto);
+    public ResponseEntity createUser(@RequestBody UserCreateDTO dto) {
+        UserDTO savedUser = userService.createUser(dto);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.add(HttpHeaders.LOCATION, USER_PATH + "/" + savedUser.getId());
+
+        return new ResponseEntity(headers, HttpStatus.CREATED);
     }
 
     @PatchMapping(USER_PATH_USER_ID)
-    public String updateUser(@PathVariable("userId") Long userId, @RequestBody UserDTO dto) {
-        return userService.updateUser(userId, dto);
+    public ResponseEntity updateUser(@PathVariable Long userId, @RequestBody UserDTO dto) {
+        userService.updateUser(userId, dto);
+
+        return new ResponseEntity(HttpStatus.NO_CONTENT);
     }
 
     @DeleteMapping(USER_PATH_USER_ID)
-    public String deleteUser(@PathVariable("userId") Long userId) {
-        return userService.deleteUser(userId);
+    public ResponseEntity deleteUser(@PathVariable Long userId) {
+        userService.deleteUser(userId);
+
+        return new ResponseEntity(HttpStatus.NO_CONTENT);
     }
 }

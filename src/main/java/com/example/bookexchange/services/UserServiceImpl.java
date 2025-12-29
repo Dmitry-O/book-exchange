@@ -4,6 +4,7 @@ import com.example.bookexchange.dto.UserCreateDTO;
 import com.example.bookexchange.dto.UserDTO;
 import com.example.bookexchange.mappers.UserMapper;
 import com.example.bookexchange.models.User;
+import com.example.bookexchange.repositories.BookRepository;
 import com.example.bookexchange.repositories.UserRepository;
 import jakarta.persistence.EntityExistsException;
 import lombok.AllArgsConstructor;
@@ -17,6 +18,8 @@ public class UserServiceImpl extends BaseServiceImpl<User, Long> implements User
     private UserRepository userRepository;
     private UserMapper userMapper;
 
+    private BookRepository bookRepository;
+
     @Override
     public UserDTO getUser(Long userId) {
         User user = findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
@@ -26,10 +29,15 @@ public class UserServiceImpl extends BaseServiceImpl<User, Long> implements User
 
     @Override
     public UserDTO createUser(UserCreateDTO dto) {
+        String email = dto.getEmail();
         String nickname = dto.getNickname();
 
+        userRepository.findByEmail(email).ifPresent(user -> {
+            throw new EntityExistsException("Es gibt bereits ein Benutzer mit diesem Email. Wählen Sie bitte ein anderes");
+        });
+
         userRepository.findByNickname(nickname).ifPresent(user -> {
-            throw new EntityExistsException("Es gibt bereits einen Benutzer mit diesem Nickname. Wählen Sie bitte ein anderes.");
+            throw new EntityExistsException("Es gibt bereits ein Benutzer mit diesem Nickname. Wählen Sie bitte einen anderen");
         });
 
         User savedUser = userRepository.save(userMapper.userDtoToUser(dto));
@@ -39,15 +47,15 @@ public class UserServiceImpl extends BaseServiceImpl<User, Long> implements User
 
     @Transactional
     @Override
-    public String updateUser(Long userId, UserDTO dto) {
+    public void updateUser(Long userId, UserDTO dto) {
         User user = findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
 
         if (!user.getNickname().equals(dto.getNickname())) {
             String nickname = dto.getNickname();
 
-            userRepository.findByNickname(nickname).ifPresent(existingUser -> {
-                throw new EntityExistsException("Es gibt bereits einen Benutzer mit diesem nickname. Wählen Sie bitte ein anderes");
-            });
+            if (userRepository.findByNickname(nickname).isPresent()) {
+                throw new EntityExistsException("Es gibt bereits ein Benutzer mit diesem nickname. Wählen Sie bitte einen anderen");
+            }
         }
 
         if (dto.getEmail() != null) user.setEmail(dto.getEmail());
@@ -55,17 +63,12 @@ public class UserServiceImpl extends BaseServiceImpl<User, Long> implements User
         if (dto.getPhotoBase64() != null) user.setPhotoBase64(dto.getPhotoBase64());
 
         userRepository.save(user);
-
-        return "Dieser Benutzer mit ID " + userId + " wurde aktualisiert";
-
     }
 
     @Override
-    public String deleteUser(Long userId) {
-        User user = findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
+    public void deleteUser(Long userId) {
+        findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
 
-        userRepository.delete(user);
-
-        return "Der Benutzer wurde entfernt";
+        userRepository.deleteById(userId);
     }
 }

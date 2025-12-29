@@ -34,7 +34,7 @@ public class BookSpecificationBuilder {
             }
 
             if (dto.getSearchText() != null && !dto.getSearchText().isBlank()) {
-                String like = "%" +  dto.getSearchText() + "%";
+                String like = "%" + dto.getSearchText().toLowerCase() + "%";
                 Predicate nameLike = cb.like(cb.lower(root.get("name")), like);
                 Predicate descriptionLike = cb.like(cb.lower(root.get("description")), like);
                 predicate = cb.and(predicate, cb.or(nameLike, descriptionLike));

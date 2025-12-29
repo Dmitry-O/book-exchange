@@ -6,6 +6,9 @@ import com.example.bookexchange.dto.BookSearchDTO;
 import com.example.bookexchange.services.BookService;
 import lombok.AllArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @AllArgsConstructor
@@ -21,13 +24,18 @@ public class BookController {
     private final BookService bookService;
 
     @PostMapping(BOOK_PATH_USER_ID)
-    public BookDTO addUserBook(@PathVariable("userId") Long userId, @RequestBody BookCreateDTO dto) {
-        return bookService.addUserBook(userId, dto);
+    public ResponseEntity addUserBook(@PathVariable Long userId, @RequestBody BookCreateDTO dto) {
+        BookDTO savedBook = bookService.addUserBook(userId, dto);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.add(HttpHeaders.LOCATION, BOOK_PATH + "/" + userId + "/" + savedBook.getId().toString());
+
+        return new ResponseEntity(headers, HttpStatus.CREATED);
     }
 
     @GetMapping(BOOK_PATH_USER_ID)
     public Page<BookDTO> getUserBooks(
-            @PathVariable("userId") Long userId,
+            @PathVariable Long userId,
             @RequestParam(value = "pageIndex", defaultValue = "0") Integer pageIndex,
             @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize
     ) {
@@ -36,7 +44,7 @@ public class BookController {
 
     @GetMapping(BOOK_PATH_HISTORY_USER_ID)
     public Page<BookDTO> getExchangedUserBooks(
-            @PathVariable("userId") Long userId,
+            @PathVariable Long userId,
             @RequestParam(value = "pageIndex", defaultValue = "0") Integer pageIndex,
             @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize
     ) {
@@ -53,12 +61,20 @@ public class BookController {
     }
 
     @DeleteMapping(BOOK_PATH_USER_ID_BOOK_ID)
-    public String deleteBookById(@PathVariable("userId") Long userId, @PathVariable("bookId") Long bookId) {
-        return bookService.deleteUserBookById(userId, bookId);
+    public ResponseEntity deleteBookById(@PathVariable Long userId, @PathVariable Long bookId) {
+        if (!bookService.deleteUserBookById(userId, bookId)) {
+            throw new NotFoundException();
+        }
+
+        return new ResponseEntity(HttpStatus.NO_CONTENT);
     }
 
     @PatchMapping(BOOK_PATH_USER_ID_BOOK_ID)
-    public String updateUserBookById(@PathVariable("userId") Long userId, @PathVariable("bookId") Long bookId, @RequestBody BookDTO dto) {
-        return bookService.updateUserBookById(userId, bookId, dto);
+    public ResponseEntity updateUserBookById(@PathVariable Long userId, @PathVariable Long bookId, @RequestBody BookDTO dto) {
+        if (bookService.updateUserBookById(userId, bookId, dto).isEmpty()) {
+            throw new NotFoundException("Das Buch mit ID " + bookId + " oder mit user ID + " + userId + " wurde nicht gefunden");
+        }
+
+        return new ResponseEntity(HttpStatus.NO_CONTENT);
     }
 }

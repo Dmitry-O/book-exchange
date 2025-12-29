@@ -41,7 +41,7 @@ public class RequestServiceImpl implements RequestService {
         Book receiverBook = bookRepository.findByIdAndUserId(receiverBookId, receiverUserId).orElseThrow(() -> new EntityNotFoundException("Das Buch mit ID " + receiverBookId + " oder der Benutzer mit ID " + receiverUserId + " wurde nicht gefunden"));
 
         if (receiverBook.getIsExchanged()) {
-            throw new IllegalArgumentException("Das Buch mit ID " + receiverBookId + " wurde bereits umgetauscht");
+            throw new IllegalStateException("Das Buch mit ID " + receiverBookId + " wurde bereits umgetauscht");
         }
 
         Boolean isReceiverBookGift = receiverBook.getIsGift();
@@ -52,7 +52,7 @@ public class RequestServiceImpl implements RequestService {
             senderBook = bookRepository.findByIdAndUserId(senderBookId, senderUserId).orElseThrow(() -> new EntityNotFoundException("Das Buch mit ID " + senderBookId + " oder mit user ID + " + senderUserId + " wurde nicht gefunden"));
 
             if (senderBook.getIsExchanged()) {
-                throw new IllegalArgumentException("Das Buch mit ID " + senderBookId + " wurde bereits umgetauscht");
+                throw new IllegalStateException("Das Buch mit ID " + senderBookId + " wurde bereits umgetauscht");
             }
 
             exchangeRepository.findBySenderUserIdAndSenderBookIdAndReceiverUserIdAndReceiverBookIdAndStatusNot(senderUserId, senderBookId, receiverUserId, receiverBookId, ExchangeStatus.DECLINED).ifPresent(exchange -> { throw new EntityNotFoundException("Der Umtauschantrag zwischen diesen Büchern besteht bereits"); });
@@ -94,7 +94,7 @@ public class RequestServiceImpl implements RequestService {
 
     @Override
     public ExchangeDetailsDTO getSenderRequestDetails(Long senderUserId, Long exchangeId) {
-        Exchange exchange = exchangeRepository.findByIdAndSenderUserId(exchangeId, senderUserId).orElseThrow(() -> new EntityNotFoundException("Der Umtauschantrag mit ID " + exchangeId + " und mit einer Absenderbenutzer mit ID " + senderUserId + " wurde nicht gefunden"));
+        Exchange exchange = exchangeRepository.findByIdAndSenderUserId(exchangeId, senderUserId).orElseThrow(() -> new EntityNotFoundException("Der Umtauschantrag mit ID " + exchangeId + " und mit einem Absenderbenutzer mit ID " + senderUserId + " wurde nicht gefunden"));
         userRepository.findById(senderUserId).orElseThrow(() -> new EntityNotFoundException("Der Benutzer mit ID " + senderUserId + " wurde nicht gefunden"));
 
         return ExchangeMapper.fromEntityDetails(
@@ -115,18 +115,16 @@ public class RequestServiceImpl implements RequestService {
     }
 
     @Override
-    public String declineUserRequest(Long senderUserId, Long exchangeId) {
-        Exchange exchange = exchangeRepository.findByIdAndSenderUserId(exchangeId, senderUserId).orElseThrow(() -> new EntityNotFoundException("Der Umtauschantrag mit ID " + exchangeId + " und mit einer Absenderbenutzer mit ID " + senderUserId + " wurde nicht gefunden"));
+    public void declineUserRequest(Long senderUserId, Long exchangeId) {
+        Exchange exchange = exchangeRepository.findByIdAndSenderUserId(exchangeId, senderUserId).orElseThrow(() -> new EntityNotFoundException("Der Umtauschantrag mit ID " + exchangeId + " und mit einem Absenderbenutzer mit ID " + senderUserId + " wurde nicht gefunden"));
         User declinerUser = userRepository.findById(senderUserId).orElseThrow(() -> new EntityNotFoundException("Der Benutzer mit ID " + senderUserId + " wurde nicht gefunden"));
 
         if (exchange.getStatus().equals(ExchangeStatus.PENDING)) {
             exchange.setStatus(ExchangeStatus.DECLINED);
             exchange.setDeclinerUser(declinerUser);
             exchangeRepository.save(exchange);
-
-            return "Der Umtauschantrag wurde von Ihnen abgelehnt";
         } else {
-            return "Der Umtauschantrag kann nicht storniert werden";
+            throw new IllegalStateException("Der Umtauschantrag kann nicht storniert werden");
         }
     }
 }
