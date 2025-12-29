@@ -9,6 +9,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 @AllArgsConstructor
@@ -25,7 +26,7 @@ public class RequestController {
     private final RequestService requestService;
 
     @PostMapping(REQUEST_PATH)
-    public ResponseEntity createRequest(@RequestBody RequestCreateDTO dto) {
+    public ResponseEntity createRequest(@Validated @RequestBody RequestCreateDTO dto) {
         ExchangeDTO savedRequest = requestService.createRequest(dto);
 
         HttpHeaders headers = new HttpHeaders();

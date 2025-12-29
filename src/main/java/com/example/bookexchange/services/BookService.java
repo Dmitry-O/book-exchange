@@ -3,6 +3,7 @@ package com.example.bookexchange.services;
 import com.example.bookexchange.dto.BookCreateDTO;
 import com.example.bookexchange.dto.BookDTO;
 import com.example.bookexchange.dto.BookSearchDTO;
+import com.example.bookexchange.dto.BookUpdateDTO;
 import org.springframework.data.domain.Page;
 
 import java.util.Optional;
@@ -19,5 +20,5 @@ public interface BookService {
 
     Boolean deleteUserBookById(Long userId, Long bookId);
 
-    Optional<BookDTO> updateUserBookById(Long userId, Long bookId, BookDTO dto);
+    Optional<BookDTO> updateUserBookById(Long userId, Long bookId, BookUpdateDTO dto);
 }

@@ -19,7 +19,7 @@ public class HistoryController {
 
     @GetMapping(HISTORY_PATH_USER_ID)
     public Page<ExchangeHistoryDTO> getExchangeHistory(
-            @PathVariable("userId") Long userId,
+            @PathVariable Long userId,
             @RequestParam(value = "pageIndex", defaultValue = "0") Integer pageIndex,
             @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize
     ) {
@@ -27,7 +27,7 @@ public class HistoryController {
     }
 
     @GetMapping(HISTORY_PATH_USER_ID_EXCHANGE_ID)
-    public ExchangeHistoryDetailsDTO getExchangeHistoryDetails(@PathVariable("userId") Long userId, @PathVariable("exchangeId") Long exchangeId) {
+    public ExchangeHistoryDetailsDTO getExchangeHistoryDetails(@PathVariable Long userId, @PathVariable Long exchangeId) {
         return historyService.getUserExchangeHistoryDetails(userId, exchangeId);
     }
 }
