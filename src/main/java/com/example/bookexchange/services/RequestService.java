@@ -13,5 +13,5 @@ public interface RequestService {
 
     Page<ExchangeDTO> getSenderRequests(Long senderUserId, Integer pageIndex, Integer pageSize);
 
-    String declineUserRequest(Long senderUserId, Long exchangeId);
+    void declineUserRequest(Long senderUserId, Long exchangeId);
 }

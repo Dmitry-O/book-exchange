@@ -9,7 +9,7 @@ public interface UserService {
 
     UserDTO createUser(UserCreateDTO dto);
 
-    String updateUser(Long userId, UserDTO dto);
+    void updateUser(Long userId, UserDTO dto);
 
-    String deleteUser(Long userId);
+    void deleteUser(Long userId);
 }

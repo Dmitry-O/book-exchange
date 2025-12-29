@@ -10,7 +10,7 @@ public interface OfferService {
 
     ExchangeDetailsDTO getReceiverOfferDetails(Long senderUserId, Long exchangeId);
 
-    String approveUserOffer(Long receiverUserId, Long exchangeId);
+    void approveUserOffer(Long receiverUserId, Long exchangeId);
 
-    String declineUserOffer(Long receiverUserId, Long exchangeId);
+    void declineUserOffer(Long receiverUserId, Long exchangeId);
 }

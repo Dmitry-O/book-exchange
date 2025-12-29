@@ -18,4 +18,6 @@ public interface BookRepository extends JpaRepository<Book, Long>, JpaSpecificat
     Optional<Book> findByIdAndUserId(Long bookId, Long userId);
 
     void deleteByIdAndUserId(Long bookId, Long userId);
+
+    void deleteByUserId(Long userId);
 }

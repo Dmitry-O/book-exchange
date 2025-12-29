@@ -1,0 +1,25 @@
+package com.example.bookexchange.util;
+
+import com.example.bookexchange.dto.ExchangeDTO;
+import com.example.bookexchange.dto.RequestCreateDTO;
+import com.example.bookexchange.services.RequestService;
+import lombok.RequiredArgsConstructor;
+
+@RequiredArgsConstructor
+public class ExchangeUtilIT {
+
+    private final RequestService requestService;
+
+    public Long createExchange(Long senderUserId, Long receiverUserId, Long senderBookId, Long receiverBookId) {
+        RequestCreateDTO requestCreateDTO = RequestCreateDTO.builder()
+                .senderUserId(senderUserId)
+                .receiverUserId(receiverUserId)
+                .senderBookId(senderBookId)
+                .receiverBookId(receiverBookId)
+                .build();
+
+        ExchangeDTO exchangeDTO = requestService.createRequest(requestCreateDTO);
+
+        return exchangeDTO.getId();
+    }
+}

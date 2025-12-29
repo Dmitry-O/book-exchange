@@ -9,7 +9,6 @@ import com.example.bookexchange.models.User;
 import com.example.bookexchange.repositories.BookRepository;
 import com.example.bookexchange.repositories.UserRepository;
 import com.example.bookexchange.specification.BookSpecificationBuilder;
-import jakarta.persistence.EntityNotFoundException;
 import lombok.AllArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -18,6 +17,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Service
 @AllArgsConstructor
@@ -78,26 +80,44 @@ public class BookServiceImpl extends BaseServiceImpl<User, Long> implements Book
     }
 
     @Override
-    public String deleteUserBookById(Long userId, Long bookId) {
-        bookRepository.deleteByIdAndUserId(bookId, userId);
+    public Boolean deleteUserBookById(Long userId, Long bookId) {
+        if (bookRepository.existsById(bookId)) {
+            bookRepository.deleteByIdAndUserId(bookId, userId);
 
-        return "Dieses Buch mit ID " + bookId + " wurde entfernt";
+            return true;
+        }
+
+        return false;
     }
 
     @Transactional
     @Override
-    public String updateUserBookById(Long userId, Long bookId, BookDTO dto) {
-        Book book = bookRepository.findByIdAndUserId(userId, bookId).orElseThrow(() -> new EntityNotFoundException("Das Buch mit ID " + bookId + " oder mit user ID + " + userId + " wurde nicht gefunden"));
+    public Optional<BookDTO> updateUserBookById(Long userId, Long bookId, BookDTO dto) {
+        AtomicReference<Optional<BookDTO>> atomicReference = new AtomicReference<>();
 
-        if (dto.getName() != null) book.setName(dto.getName());
-        if (dto.getDescription() != null) book.setDescription(dto.getDescription());
-        if (dto.getAuthor() != null) book.setAuthor(dto.getAuthor());
-        if (dto.getCategory() != null) book.setCategory(dto.getCategory());
-        if (dto.getPublicationYear() != null) book.setPublicationYear(dto.getPublicationYear());
-        if (dto.getPhotoBase64() != null) book.setPhotoBase64(dto.getPhotoBase64());
-        if (dto.getCity() != null) book.setCity(dto.getCity());
-        if (dto.getIsGift() != null) book.setIsGift(dto.getIsGift());
+        bookRepository.findByIdAndUserId(bookId, userId).ifPresentOrElse(foundBook -> {
+            foundBook.setName(!dto.getName().isEmpty() ? dto.getName() : foundBook.getName());
+            foundBook.setDescription(!dto.getDescription().isEmpty() ? dto.getDescription() : foundBook.getDescription());
+            foundBook.setAuthor(!dto.getAuthor().isEmpty() ? dto.getAuthor() : foundBook.getAuthor());
+            foundBook.setCategory(!dto.getCategory().isEmpty() ? dto.getCategory() : foundBook.getCategory());
+            foundBook.setPublicationYear(dto.getPublicationYear() != null ? dto.getPublicationYear() : foundBook.getPublicationYear());
+            foundBook.setPhotoBase64(!dto.getPhotoBase64().isEmpty() ? dto.getPhotoBase64() : foundBook.getPhotoBase64());
+            foundBook.setCity(!dto.getCity().isEmpty() ? dto.getCity() : foundBook.getCity());
+            foundBook.setIsGift(dto.getIsGift() != null ?  dto.getIsGift() : foundBook.getIsGift());
 
-        return "Dieses Buch mit ID " + bookId + " wurde aktualisiert";
+            atomicReference.set(
+                    Optional.of(
+                            bookMapper.bookToBookDto(
+                                    bookRepository.save(foundBook)
+                            )
+                    )
+            );
+        }, () -> {
+            atomicReference.set(Optional.empty());
+        });
+
+        Optional<BookDTO> optionalBookDTO = atomicReference.get();
+
+        return atomicReference.get();
     }
 }
