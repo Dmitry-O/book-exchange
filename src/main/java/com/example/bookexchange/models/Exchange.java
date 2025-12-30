@@ -13,8 +13,7 @@ import lombok.NoArgsConstructor;
 public class Exchange {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
-    @NotNull
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Enumerated(EnumType.STRING)

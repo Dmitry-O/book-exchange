@@ -22,8 +22,7 @@ import java.util.List;
 public class Book {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
-    @NotNull
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @NotBlank
