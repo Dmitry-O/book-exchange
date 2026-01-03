@@ -20,6 +20,7 @@ public class Exchange {
     @NotNull
     private ExchangeStatus status;
 
+    @Column(nullable = false)
     private Boolean isReadBySender = Boolean.FALSE;
 
     private Boolean isReadByReceiver = Boolean.FALSE;

@@ -21,6 +21,17 @@ import java.util.List;
 @NoArgsConstructor
 public class Book {
 
+    @PrePersist
+    public void prePersist() {
+        if (isGift == null) {
+            isGift = false;
+        }
+
+        if (isExchanged == null) {
+            isExchanged = false;
+        }
+    }
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -63,8 +74,10 @@ public class Book {
     @NotNull
     private String contactDetails;
 
+    @Column(nullable = false)
     private Boolean isGift = Boolean.FALSE;
 
+    @Column(nullable = false)
     private Boolean isExchanged = Boolean.FALSE;
 
     @ManyToOne
