@@ -1,6 +1,5 @@
 package com.example.bookexchange.controllers;
 
-import com.example.bookexchange.config.TestUserConfig;
 import com.example.bookexchange.dto.*;
 import com.example.bookexchange.models.Book;
 import com.example.bookexchange.models.Exchange;
@@ -12,8 +11,6 @@ import com.example.bookexchange.util.ExchangeUtilIT;
 import com.example.bookexchange.util.UserUtil;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
@@ -25,6 +22,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.context.WebApplicationContext;
+import org.testcontainers.junit.jupiter.Testcontainers;
 import tools.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -35,10 +33,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
-@Import(TestUserConfig.class)
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
-class BookControllerIT {
+@Testcontainers
+class BookControllerIT extends AbstractIT {
 
     @Autowired
     BookController bookController;

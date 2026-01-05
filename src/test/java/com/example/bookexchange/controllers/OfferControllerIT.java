@@ -1,6 +1,5 @@
 package com.example.bookexchange.controllers;
 
-import com.example.bookexchange.config.TestUserConfig;
 import com.example.bookexchange.dto.ExchangeDTO;
 import com.example.bookexchange.dto.ExchangeDetailsDTO;
 import com.example.bookexchange.models.Exchange;
@@ -13,25 +12,21 @@ import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.annotation.Rollback;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 import static com.example.bookexchange.util.TestConstants.*;
 
-@SpringBootTest
-@Import(TestUserConfig.class)
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
-class OfferControllerIT {
+@Testcontainers
+class OfferControllerIT extends AbstractIT {
 
     @Autowired
     private OfferController offerController;
