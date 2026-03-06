@@ -30,6 +30,7 @@ public class BookServiceImpl extends BaseServiceImpl<User, Long> implements Book
     private final UserRepository userRepository;
     private final BookMapper bookMapper;
 
+    @Transactional
     @Override
     public BookDTO addUserBook(Long userId, BookCreateDTO dto) {
         User user = findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
@@ -80,6 +81,7 @@ public class BookServiceImpl extends BaseServiceImpl<User, Long> implements Book
         return bookPage.map(bookMapper::bookToBookDto);
     }
 
+    @Transactional
     @Override
     public Boolean deleteUserBookById(Long userId, Long bookId) {
         if (bookRepository.existsById(bookId)) {
@@ -114,9 +116,7 @@ public class BookServiceImpl extends BaseServiceImpl<User, Long> implements Book
                             )
                     )
             );
-        }, () -> {
-            atomicReference.set(Optional.empty());
-        });
+        }, () -> atomicReference.set(Optional.empty()));
 
         return atomicReference.get();
     }

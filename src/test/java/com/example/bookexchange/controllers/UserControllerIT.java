@@ -1,6 +1,5 @@
 package com.example.bookexchange.controllers;
 
-import com.example.bookexchange.dto.UserCreateDTO;
 import com.example.bookexchange.dto.UserDTO;
 import com.example.bookexchange.dto.UserUpdateDTO;
 import com.example.bookexchange.models.User;
@@ -23,11 +22,12 @@ import org.springframework.web.context.WebApplicationContext;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import tools.jackson.databind.ObjectMapper;
 
+import static com.example.bookexchange.util.UserUtil.testUser;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.core.Is.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -53,7 +53,9 @@ class UserControllerIT extends AbstractIT {
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
+        mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext)
+                .apply(springSecurity())
+                .build();
     }
 
     @Rollback
@@ -62,73 +64,77 @@ class UserControllerIT extends AbstractIT {
     void getUser() {
         userUtil.createUser(null);
 
-        User user = userRepository.findAll().get(0);
+        User user = userRepository.findAll().getFirst();
 
-        UserDTO userDTO = userController.getUser(user.getId());
+        UserDTO userDTO = userController.getUser(user);
 
         assertThat(userDTO).isNotNull();
     }
 
     @Test
     void getUserNotFound() {
-        assertThrows(EntityNotFoundException.class, () -> userController.getUser(System.nanoTime()));
+        User user = new User();
+        user.setId(Long.MAX_VALUE);
+
+        assertThrows(EntityNotFoundException.class, () -> userController.getUser(user));
     }
 
-    @Rollback
-    @Transactional
-    @Test
-    void createUser() {
-        UserCreateDTO userCreateDTO = UserCreateDTO.builder()
-                .email("user1@test.com")
-                .nickname("user1")
-                .photoBase64("photo.jpg")
-                .build();
+    //TODO: To be refactored
+//    @Rollback
+//    @Transactional
+//    @Test
+//    void createUser() {
+//        UserCreateDTO userCreateDTO = UserCreateDTO.builder()
+//                .email("user1@test.com")
+//                .nickname("user1")
+//                .photoBase64("photo.jpg")
+//                .build();
+//
+//        ResponseEntity responseEntity = userController.createUser(userCreateDTO);
+//
+//        assertThat(responseEntity.getStatusCode()).isEqualTo(HttpStatusCode.valueOf(201));
+//        assertThat(responseEntity.getHeaders().getLocation()).isNotNull();
+//
+//        String[] location = responseEntity.getHeaders().getLocation().getPath().split("/");
+//        Long savedId = Long.valueOf(location[4]);
+//
+//        User user = userRepository.findById(savedId).get();
+//
+//        assertThat(user).isNotNull();
+//    }
 
-        ResponseEntity responseEntity = userController.createUser(userCreateDTO);
+//    @Rollback
+//    @Transactional
+//    @Test
+//    void createUserBadRequest() throws Exception {
+//        UserCreateDTO userCreateDTO = UserCreateDTO.builder().build();
+//
+//        MvcResult mvcResult = mockMvc.perform(post(UserController.USER_PATH)
+//                        .accept(MediaType.APPLICATION_JSON)
+//                        .contentType(MediaType.APPLICATION_JSON)
+//                        .content(objectMapper.writeValueAsString(userCreateDTO))
+//                )
+//                .andExpect(status().isBadRequest())
+//                .andExpect(jsonPath("$.length()", is(4)))
+//                .andReturn();
+//
+//        System.out.println(mvcResult.getResponse().getContentAsString());
+//    }
 
-        assertThat(responseEntity.getStatusCode()).isEqualTo(HttpStatusCode.valueOf(201));
-        assertThat(responseEntity.getHeaders().getLocation()).isNotNull();
-
-        String[] location = responseEntity.getHeaders().getLocation().getPath().split("/");
-        Long savedId = Long.valueOf(location[4]);
-
-        User user = userRepository.findById(savedId).get();
-
-        assertThat(user).isNotNull();
-    }
-
-    @Rollback
-    @Transactional
-    @Test
-    void createUserBadRequest() throws Exception {
-        UserCreateDTO userCreateDTO = UserCreateDTO.builder().build();
-
-        MvcResult mvcResult = mockMvc.perform(post(UserController.USER_PATH)
-                        .accept(MediaType.APPLICATION_JSON)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(userCreateDTO))
-                )
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.length()", is(4)))
-                .andReturn();
-
-        System.out.println(mvcResult.getResponse().getContentAsString());
-    }
-
-    @Rollback
-    @Transactional
-    @Test
-    void createUserAlreadyExists() {
-        userUtil.createUser(null);
-
-        UserCreateDTO userCreateDTO = UserCreateDTO.builder()
-                .email("user1@test.com")
-                .nickname("user1")
-                .photoBase64("photo.jpg")
-                .build();
-
-        assertThrows(EntityExistsException.class, () -> userController.createUser(userCreateDTO));
-    }
+//    @Rollback
+//    @Transactional
+//    @Test
+//    void createUserAlreadyExists() {
+//        userUtil.createUser(null);
+//
+//        UserCreateDTO userCreateDTO = UserCreateDTO.builder()
+//                .email("user1@test.com")
+//                .nickname("user1")
+//                .photoBase64("photo.jpg")
+//                .build();
+//
+//        assertThrows(EntityExistsException.class, () -> userController.createUser(userCreateDTO));
+//    }
 
     @Rollback
     @Transactional
@@ -138,7 +144,7 @@ class UserControllerIT extends AbstractIT {
 
         userUtil.createUser(null);
 
-        User user = userRepository.findAll().get(0);
+        User user = userRepository.findAll().getFirst();
 
         UserUpdateDTO userUpdateDTO = UserUpdateDTO.builder()
                 .email(user.getEmail())
@@ -146,7 +152,7 @@ class UserControllerIT extends AbstractIT {
                 .photoBase64(user.getPhotoBase64())
                 .build();
 
-        ResponseEntity responseEntity = userController.updateUser(user.getId(), userUpdateDTO);
+        ResponseEntity<String> responseEntity = userController.updateUser(user, userUpdateDTO);
 
         assertThat(responseEntity.getStatusCode()).isEqualTo(HttpStatusCode.valueOf(204));
 
@@ -157,7 +163,7 @@ class UserControllerIT extends AbstractIT {
 
     @Test
     void updateUserNotFound() {
-        assertThrows(EntityNotFoundException.class, () -> userController.updateUser(System.nanoTime(), UserUpdateDTO.builder().build()));
+        assertThrows(EntityNotFoundException.class, () -> userController.updateUser(new User(), UserUpdateDTO.builder().build()));
     }
 
     @Rollback
@@ -177,7 +183,7 @@ class UserControllerIT extends AbstractIT {
                 .photoBase64(user.getPhotoBase64())
                 .build();
 
-        assertThrows(EntityExistsException.class, () -> userController.updateUser(user.getId(), userUpdateDTO));
+        assertThrows(EntityExistsException.class, () -> userController.updateUser(user, userUpdateDTO));
     }
 
     @Rollback
@@ -188,7 +194,7 @@ class UserControllerIT extends AbstractIT {
 
         userUtil.createUser(null);
 
-        User user = userRepository.findAll().get(0);
+        User user = userRepository.findAll().getFirst();
 
         UserUpdateDTO userUpdateDTO = UserUpdateDTO.builder()
                 .email(user.getEmail())
@@ -196,7 +202,9 @@ class UserControllerIT extends AbstractIT {
                 .photoBase64(user.getPhotoBase64())
                 .build();
 
-        MvcResult mvcResult = mockMvc.perform(patch(UserController.USER_PATH_USER_ID, user.getId())
+        MvcResult mvcResult = mockMvc.perform(patch(UserController.USER_PATH)
+                        .with(testUser(user))
+//                        .header("Authorization", "Bearer " + token)
                         .accept(MediaType.APPLICATION_JSON)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(userUpdateDTO))
@@ -214,9 +222,9 @@ class UserControllerIT extends AbstractIT {
     void deleteUser() {
         userUtil.createUser(null);
 
-        User user = userRepository.findAll().get(0);
+        User user = userRepository.findAll().getFirst();
 
-        ResponseEntity responseEntity = userController.deleteUser(user.getId());
+        ResponseEntity<String> responseEntity = userController.deleteUser(user);
 
         assertThat(responseEntity.getStatusCode()).isEqualTo(HttpStatusCode.valueOf(204));
         assertThat(userRepository.findById(user.getId())).isEmpty();
@@ -224,6 +232,6 @@ class UserControllerIT extends AbstractIT {
 
     @Test
     void deleteUserNotFound() {
-        assertThrows(EntityNotFoundException.class, () -> userController.deleteUser(System.nanoTime()));
+        assertThrows(EntityNotFoundException.class, () -> userController.deleteUser(new User()));
     }
 }

@@ -1,0 +1,2 @@
+ALTER TABLE app_user
+    ADD COLUMN ban_reason VARCHAR(255) NULL;

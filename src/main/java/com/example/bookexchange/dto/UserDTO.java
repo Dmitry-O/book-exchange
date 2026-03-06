@@ -1,5 +1,6 @@
 package com.example.bookexchange.dto;
 
+import com.example.bookexchange.models.UserRole;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -10,6 +11,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import tools.jackson.databind.annotation.JsonDeserialize;
+
+import java.util.Set;
 
 @JsonDeserialize(builder = UserDTO.UserDTOBuilder.class)
 @Builder
@@ -36,4 +39,16 @@ public class UserDTO {
 
     @JsonProperty("photoBase64")
     private String photoBase64;
+
+    @JsonProperty("bannedUntil")
+    private String bannedUntil;
+
+    @JsonProperty("bannedPermanently")
+    private String bannedPermanently;
+
+    @JsonProperty("banReason")
+    private String banReason;
+
+    @JsonProperty("roles")
+    private Set<UserRole> roles;
 }

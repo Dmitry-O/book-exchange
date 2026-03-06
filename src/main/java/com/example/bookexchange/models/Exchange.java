@@ -23,6 +23,7 @@ public class Exchange {
     @Column(nullable = false)
     private Boolean isReadBySender = Boolean.FALSE;
 
+    @Column(nullable = false)
     private Boolean isReadByReceiver = Boolean.FALSE;
 
     @ManyToOne

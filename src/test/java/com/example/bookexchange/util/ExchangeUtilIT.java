@@ -12,13 +12,12 @@ public class ExchangeUtilIT {
 
     public Long createExchange(Long senderUserId, Long receiverUserId, Long senderBookId, Long receiverBookId) {
         RequestCreateDTO requestCreateDTO = RequestCreateDTO.builder()
-                .senderUserId(senderUserId)
                 .receiverUserId(receiverUserId)
                 .senderBookId(senderBookId)
                 .receiverBookId(receiverBookId)
                 .build();
 
-        ExchangeDTO exchangeDTO = requestService.createRequest(requestCreateDTO);
+        ExchangeDTO exchangeDTO = requestService.createRequest(senderUserId, requestCreateDTO);
 
         return exchangeDTO.getId();
     }

@@ -1,13 +1,14 @@
 package com.example.bookexchange.controllers;
 
-import com.example.bookexchange.dto.UserCreateDTO;
 import com.example.bookexchange.dto.UserDTO;
+import com.example.bookexchange.dto.UserResetPasswordDTO;
 import com.example.bookexchange.dto.UserUpdateDTO;
+import com.example.bookexchange.models.User;
 import com.example.bookexchange.services.UserService;
 import lombok.AllArgsConstructor;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -15,39 +16,33 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 public class UserController {
 
-    public static final String USER_PATH = "/api/v1/user";
-    public static final String USER_PATH_USER_ID = USER_PATH + "/{userId}";
-
     private UserService userService;
+    public static final String USER_PATH = "/api/v1/user";
+    public static final String USER_PATH_RESET_PASSWORD = USER_PATH + "/reset_password";
 
-    @GetMapping(USER_PATH_USER_ID)
-    public UserDTO getUser(@PathVariable Long userId) {
-        UserDTO userDTO = userService.getUser(userId);
-
-        return userDTO;
+    @GetMapping(USER_PATH)
+    public UserDTO getUser(@AuthenticationPrincipal User user) {
+        return userService.getUser(user.getId());
     }
 
-    @PostMapping(USER_PATH)
-    public ResponseEntity createUser(@Validated @RequestBody UserCreateDTO dto) {
-        UserDTO savedUser = userService.createUser(dto);
+    @PatchMapping(USER_PATH)
+    public ResponseEntity<String> updateUser(@AuthenticationPrincipal User user, @Validated @RequestBody UserUpdateDTO dto) {
+        userService.updateUser(user.getId(), dto);
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.add(HttpHeaders.LOCATION, USER_PATH + "/" + savedUser.getId());
-
-        return new ResponseEntity(headers, HttpStatus.CREATED);
+        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
 
-    @PatchMapping(USER_PATH_USER_ID)
-    public ResponseEntity updateUser(@PathVariable Long userId, @Validated @RequestBody UserUpdateDTO dto) {
-        userService.updateUser(userId, dto);
+    @DeleteMapping(USER_PATH)
+    public ResponseEntity<String> deleteUser(@AuthenticationPrincipal User user) {
+        userService.deleteUser(user.getId());
 
-        return new ResponseEntity(HttpStatus.NO_CONTENT);
+        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
 
-    @DeleteMapping(USER_PATH_USER_ID)
-    public ResponseEntity deleteUser(@PathVariable Long userId) {
-        userService.deleteUser(userId);
+    @PatchMapping(USER_PATH_RESET_PASSWORD)
+    public ResponseEntity<String> resetPassword(@AuthenticationPrincipal User user, @Validated @RequestBody UserResetPasswordDTO dto) {
+        userService.resetPassword(user, dto);
 
-        return new ResponseEntity(HttpStatus.NO_CONTENT);
+        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
 }

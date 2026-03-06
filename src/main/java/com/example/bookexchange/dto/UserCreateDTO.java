@@ -24,12 +24,14 @@ public class UserCreateDTO {
     @Email
     private String email;
 
+    @JsonProperty("password")
+    @NotBlank
+    @NotNull
+    private String password;
+
     @JsonProperty("nickname")
     @NotBlank
     @NotNull
     @Size(min = 5, max = 20)
     private String nickname;
-
-    @JsonProperty("photoBase64")
-    private String photoBase64;
 }

@@ -30,8 +30,7 @@ public class RequestServiceImpl implements RequestService {
     private final BookMapper bookMapper;
 
     @Override
-    public ExchangeDTO createRequest(RequestCreateDTO dto) {
-        Long senderUserId = dto.getSenderUserId();
+    public ExchangeDTO createRequest(Long senderUserId, RequestCreateDTO dto) {
         Long senderBookId = dto.getSenderBookId();
         Long receiverUserId = dto.getReceiverUserId();
         Long receiverBookId = dto.getReceiverBookId();

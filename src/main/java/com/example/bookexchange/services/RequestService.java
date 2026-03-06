@@ -7,7 +7,7 @@ import org.springframework.data.domain.Page;
 
 public interface RequestService {
 
-    ExchangeDTO createRequest(RequestCreateDTO dto);
+    ExchangeDTO createRequest(Long senderUserId, RequestCreateDTO dto);
 
     ExchangeDetailsDTO getSenderRequestDetails(Long senderUserId, Long exchangeId);
 

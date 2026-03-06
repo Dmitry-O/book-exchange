@@ -1,0 +1,2 @@
+ALTER TABLE app_user
+    MODIFY COLUMN banned_permanently BOOLEAN NOT NULL DEFAULT FALSE;

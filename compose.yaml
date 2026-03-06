@@ -1,5 +1,6 @@
 services:
   mysql:
+    container_name: book_exchange_mysql
     image: 'mysql:latest'
     environment:
       - MYSQL_DATABASE=${DB_NAME}
@@ -8,3 +9,8 @@ services:
       - MYSQL_USER=${DB_USERNAME}
     ports:
       - "${DB_PORT}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+volumes:
+  mysql_data:

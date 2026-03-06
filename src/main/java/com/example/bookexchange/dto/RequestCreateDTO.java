@@ -11,10 +11,6 @@ import tools.jackson.databind.annotation.JsonDeserialize;
 @Data
 public class RequestCreateDTO {
 
-    @JsonProperty("senderUserId")
-    @NotNull
-    private Long senderUserId;
-
     @JsonProperty("receiverUserId")
     @NotNull
     private Long receiverUserId;

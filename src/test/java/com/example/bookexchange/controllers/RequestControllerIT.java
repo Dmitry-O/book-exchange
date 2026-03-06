@@ -5,6 +5,7 @@ import com.example.bookexchange.dto.ExchangeDetailsDTO;
 import com.example.bookexchange.dto.RequestCreateDTO;
 import com.example.bookexchange.models.Exchange;
 import com.example.bookexchange.models.ExchangeStatus;
+import com.example.bookexchange.models.User;
 import com.example.bookexchange.repositories.ExchangeRepository;
 import com.example.bookexchange.util.BookUtil;
 import com.example.bookexchange.util.ExchangeUtilIT;
@@ -68,31 +69,31 @@ class RequestControllerIT extends AbstractIT {
         mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
     }
 
-    private Long senderUserId;
-    private Long receiverUserId;
+    private User senderUser;
+    private User receiverUser;
     private Long senderBookId;
     private Long receiverBookId;
 
     @BeforeAll
     void init() {
-        senderUserId = userUtil.createUser(1);
-        receiverUserId = userUtil.createUser(2);
+        senderUser = userUtil.createUser(1);
+        receiverUser = userUtil.createUser(2);
 
-        senderBookId = bookUtil.createBook(senderUserId, 1);
-        receiverBookId = bookUtil.createBook(receiverUserId, 2);
+        senderBookId = bookUtil.createBook(senderUser.getId(), 1);
+        receiverBookId = bookUtil.createBook(receiverUser.getId(), 2);
     }
 
     @AfterAll
     void cleanup() {
         transactionTemplate.executeWithoutResult(status -> {
-            bookUtil.deleteUserBooks(senderUserId);
-            bookUtil.deleteUserBooks(receiverUserId);
-            userUtil.deleteUser(senderUserId);
-            userUtil.deleteUser(receiverUserId);
+            bookUtil.deleteUserBooks(senderUser.getId());
+            bookUtil.deleteUserBooks(receiverUser.getId());
+            userUtil.deleteUser(senderUser.getId());
+            userUtil.deleteUser(receiverUser.getId());
         });
 
-        senderUserId = null;
-        receiverUserId = null;
+        senderUser = null;
+        receiverUser = null;
         senderBookId = null;
         receiverBookId = null;
     }
@@ -102,19 +103,18 @@ class RequestControllerIT extends AbstractIT {
     @Test
     void createRequest() {
         RequestCreateDTO requestCreateDTO = RequestCreateDTO.builder()
-                .senderUserId(senderUserId)
-                .receiverUserId(receiverUserId)
+                .receiverUserId(receiverUser.getId())
                 .senderBookId(senderBookId)
                 .receiverBookId(receiverBookId)
                 .build();
 
-        ResponseEntity responseEntity = requestController.createRequest(requestCreateDTO);
+        ResponseEntity<String> responseEntity = requestController.createRequest(senderUser, requestCreateDTO);
 
         assertThat(responseEntity.getStatusCode()).isEqualTo(HttpStatusCode.valueOf(201));
         assertThat(responseEntity.getHeaders().getLocation()).isNotNull();
 
         String[] locationId = responseEntity.getHeaders().getLocation().getPath().split("/");
-        Long savedId = Long.valueOf(locationId[5]);
+        Long savedId = Long.valueOf(locationId[4]);
 
         Exchange exchange = exchangeRepository.findById(savedId).get();
 
@@ -133,7 +133,7 @@ class RequestControllerIT extends AbstractIT {
                         .content(objectMapper.writeValueAsString(requestCreateDTO))
                 )
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.length()", is(4)))
+                .andExpect(jsonPath("$.length()", is(3)))
                 .andReturn();
 
         System.out.println(mvcResult.getResponse().getContentAsString());
@@ -143,32 +143,32 @@ class RequestControllerIT extends AbstractIT {
     @Transactional
     @Test
     void getUserRequestDetails() {
-        Long exchangeId = exchangeUtilIT.createExchange(senderUserId, receiverUserId, senderBookId, receiverBookId);
+        Long exchangeId = exchangeUtilIT.createExchange(senderUser.getId(), receiverUser.getId(), senderBookId, receiverBookId);
 
-        ExchangeDetailsDTO exchangeDTO = requestController.getUserRequestDetails(senderUserId, exchangeId);
+        ExchangeDetailsDTO exchangeDTO = requestController.getUserRequestDetails(senderUser, exchangeId);
 
         assertThat(exchangeDTO).isNotNull();
     }
 
     @Test
     void getUserRequestDetailsNotFound() {
-        assertThrows(EntityNotFoundException.class, () -> requestController.getUserRequestDetails(System.nanoTime(), System.nanoTime()));
+        assertThrows(EntityNotFoundException.class, () -> requestController.getUserRequestDetails(new User(), System.nanoTime()));
     }
 
     @Rollback
     @Transactional
     @Test
     void getUserRequests() {
-        exchangeUtilIT.createExchange(senderUserId, receiverUserId, senderBookId, receiverBookId);
+        exchangeUtilIT.createExchange(senderUser.getId(), receiverUser.getId(), senderBookId, receiverBookId);
 
-        Page<ExchangeDTO> exchangeDTOs = requestController.getUserRequests(senderUserId, PAGE_INDEX, PAGE_SIZE);
+        Page<ExchangeDTO> exchangeDTOs = requestController.getUserRequests(senderUser, PAGE_INDEX, PAGE_SIZE);
 
         assertThat(exchangeDTOs.getTotalElements()).isEqualTo(1);
     }
 
     @Test
     void getUserRequestsNotFound() {
-        Page<ExchangeDTO> exchangeDTOs = requestController.getUserRequests(senderUserId, PAGE_INDEX, PAGE_SIZE);
+        Page<ExchangeDTO> exchangeDTOs = requestController.getUserRequests(senderUser, PAGE_INDEX, PAGE_SIZE);
 
         assertThat(exchangeDTOs.getTotalElements()).isEqualTo(0);
     }
@@ -177,61 +177,57 @@ class RequestControllerIT extends AbstractIT {
     @Transactional
     @Test
     void declineUserRequest() {
-        Long exchangeId = exchangeUtilIT.createExchange(senderUserId, receiverUserId, senderBookId, receiverBookId);
+        Long exchangeId = exchangeUtilIT.createExchange(senderUser.getId(), receiverUser.getId(), senderBookId, receiverBookId);
 
-        ResponseEntity responseEntity = requestController.declineUserRequest(senderUserId, exchangeId);
+        ResponseEntity<String> responseEntity = requestController.declineUserRequest(senderUser, exchangeId);
 
         assertThat(responseEntity.getStatusCode()).isEqualTo(HttpStatusCode.valueOf(204));
 
         Exchange exchange = exchangeRepository.findById(exchangeId).get();
 
         assertThat(exchange.getStatus()).isEqualTo(ExchangeStatus.DECLINED);
-        assertThat(exchange.getDeclinerUser().getId()).isEqualTo(senderUserId);
+        assertThat(exchange.getDeclinerUser().getId()).isEqualTo(senderUser.getId());
     }
 
     @Rollback
     @Transactional
     @Test
     void declineUserRequestUserNotFound() {
-        Long exchangeId = exchangeUtilIT.createExchange(senderUserId, receiverUserId, senderBookId, receiverBookId);
+        Long exchangeId = exchangeUtilIT.createExchange(senderUser.getId(), receiverUser.getId(), senderBookId, receiverBookId);
 
-        assertThrows(EntityNotFoundException.class, () -> requestController.declineUserRequest(System.nanoTime(), exchangeId));
+        assertThrows(EntityNotFoundException.class, () -> requestController.declineUserRequest(new User(), exchangeId));
     }
 
     @Test
     void declineUserRequestExchangeNotFound() {
-        assertThrows(EntityNotFoundException.class, () -> requestController.declineUserRequest(senderUserId, System.nanoTime()));
+        assertThrows(EntityNotFoundException.class, () -> requestController.declineUserRequest(senderUser, System.nanoTime()));
     }
 
     @Rollback
     @Transactional
     @Test
     void declineUserRequestExchangeStatusDeclined() {
-        Long exchangeId = exchangeUtilIT.createExchange(senderUserId, receiverUserId, senderBookId, receiverBookId);
+        Long exchangeId = exchangeUtilIT.createExchange(senderUser.getId(), receiverUser.getId(), senderBookId, receiverBookId);
 
         Exchange exchange = exchangeRepository.findById(exchangeId).get();
 
         exchange.setStatus(ExchangeStatus.DECLINED);
         exchangeRepository.save(exchange);
 
-        assertThrows(IllegalStateException.class, () -> {
-            requestController.declineUserRequest(senderUserId, exchangeId);
-        });
+        assertThrows(IllegalStateException.class, () -> requestController.declineUserRequest(senderUser, exchangeId));
     }
 
     @Rollback
     @Transactional
     @Test
     void declineUserRequestExchangeStatusApproved() {
-        Long exchangeId = exchangeUtilIT.createExchange(senderUserId, receiverUserId, senderBookId, receiverBookId);
+        Long exchangeId = exchangeUtilIT.createExchange(senderUser.getId(), receiverUser.getId(), senderBookId, receiverBookId);
 
         Exchange exchange = exchangeRepository.findById(exchangeId).get();
 
         exchange.setStatus(ExchangeStatus.APPROVED);
         exchangeRepository.save(exchange);
 
-        assertThrows(IllegalStateException.class, () -> {
-            requestController.declineUserRequest(senderUserId, exchangeId);
-        });
+        assertThrows(IllegalStateException.class, () -> requestController.declineUserRequest(senderUser, exchangeId));
     }
 }
