@@ -4,6 +4,7 @@ import com.example.bookexchange.dto.ExchangeDTO;
 import com.example.bookexchange.dto.ExchangeDetailsDTO;
 import com.example.bookexchange.models.Exchange;
 import com.example.bookexchange.models.ExchangeStatus;
+import com.example.bookexchange.models.User;
 import com.example.bookexchange.repositories.ExchangeRepository;
 import com.example.bookexchange.util.BookUtil;
 import com.example.bookexchange.util.ExchangeUtilIT;
@@ -46,31 +47,31 @@ class OfferControllerIT extends AbstractIT {
     @Autowired
     TransactionTemplate transactionTemplate;
 
-    private Long senderUserId;
-    private Long receiverUserId;
+    private User senderUser;
+    private User receiverUser;
     private Long senderBookId;
     private Long receiverBookId;
 
     @BeforeAll
     void init() {
-        senderUserId = userUtil.createUser(1);
-        receiverUserId = userUtil.createUser(2);
+        senderUser = userUtil.createUser(1);
+        receiverUser = userUtil.createUser(2);
 
-        senderBookId = bookUtil.createBook(senderUserId, 1);
-        receiverBookId = bookUtil.createBook(receiverUserId, 2);
+        senderBookId = bookUtil.createBook(senderUser.getId(), 1);
+        receiverBookId = bookUtil.createBook(receiverUser.getId(), 2);
     }
 
     @AfterAll
     void cleanup() {
         transactionTemplate.executeWithoutResult(status -> {
-            bookUtil.deleteUserBooks(senderUserId);
-            bookUtil.deleteUserBooks(receiverUserId);
-            userUtil.deleteUser(senderUserId);
-            userUtil.deleteUser(receiverUserId);
+            bookUtil.deleteUserBooks(senderUser.getId());
+            bookUtil.deleteUserBooks(receiverUser.getId());
+            userUtil.deleteUser(senderUser.getId());
+            userUtil.deleteUser(receiverUser.getId());
         });
 
-        senderUserId = null;
-        receiverUserId = null;
+        senderUser = null;
+        receiverUser = null;
         senderBookId = null;
         receiverBookId = null;
     }
@@ -79,16 +80,16 @@ class OfferControllerIT extends AbstractIT {
     @Transactional
     @Test
     void getUserOffers() {
-        exchangeUtilIT.createExchange(senderUserId, receiverUserId, senderBookId, receiverBookId);
+        exchangeUtilIT.createExchange(senderUser.getId(), receiverUser.getId(), senderBookId, receiverBookId);
 
-        Page<ExchangeDTO> exchangeDTOs = offerController.getUserOffers(receiverUserId, PAGE_INDEX, PAGE_SIZE);
+        Page<ExchangeDTO> exchangeDTOs = offerController.getUserOffers(receiverUser, PAGE_INDEX, PAGE_SIZE);
 
         assertThat(exchangeDTOs.getTotalElements()).isEqualTo(1);
     }
 
     @Test
     void getUserOffersNotFound() {
-        Page<ExchangeDTO> exchangeDTOs = offerController.getUserOffers(receiverUserId, PAGE_INDEX, PAGE_SIZE);
+        Page<ExchangeDTO> exchangeDTOs = offerController.getUserOffers(receiverUser, PAGE_INDEX, PAGE_SIZE);
 
         assertThat(exchangeDTOs.getTotalElements()).isEqualTo(0);
     }
@@ -97,25 +98,25 @@ class OfferControllerIT extends AbstractIT {
     @Transactional
     @Test
     void getUserOfferDetails() {
-        Long exchangeId = exchangeUtilIT.createExchange(senderUserId, receiverUserId, senderBookId, receiverBookId);
+        Long exchangeId = exchangeUtilIT.createExchange(senderUser.getId(), receiverUser.getId(), senderBookId, receiverBookId);
 
-        ExchangeDetailsDTO exchangeDetailsDTO = offerController.getUserOfferDetails(receiverUserId, exchangeId);
+        ExchangeDetailsDTO exchangeDetailsDTO = offerController.getUserOfferDetails(receiverUser, exchangeId);
 
         assertThat(exchangeDetailsDTO).isNotNull();
     }
 
     @Test
     void getUserRequestDetailsNotFound() {
-        assertThrows(EntityNotFoundException.class, () -> offerController.getUserOfferDetails(System.nanoTime(), System.nanoTime()));
+        assertThrows(EntityNotFoundException.class, () -> offerController.getUserOfferDetails(new User(), System.nanoTime()));
     }
 
     @Rollback
     @Transactional
     @Test
     void approveUserOffer() {
-        Long exchangeId = exchangeUtilIT.createExchange(senderUserId, receiverUserId, senderBookId, receiverBookId);
+        Long exchangeId = exchangeUtilIT.createExchange(senderUser.getId(), receiverUser.getId(), senderBookId, receiverBookId);
 
-        ResponseEntity responseEntity = offerController.approveUserOffer(receiverUserId, exchangeId);
+        ResponseEntity<String> responseEntity = offerController.approveUserOffer(receiverUser, exchangeId);
 
         assertThat(responseEntity.getStatusCode()).isEqualTo(HttpStatusCode.valueOf(204));
 
@@ -128,107 +129,99 @@ class OfferControllerIT extends AbstractIT {
     @Transactional
     @Test
     void approveUserOfferUserNotFound() {
-        Long exchangeId = exchangeUtilIT.createExchange(senderUserId, receiverUserId, senderBookId, receiverBookId);
+        Long exchangeId = exchangeUtilIT.createExchange(senderUser.getId(), receiverUser.getId(), senderBookId, receiverBookId);
 
-        assertThrows(EntityNotFoundException.class, () -> offerController.approveUserOffer(System.nanoTime(), exchangeId));
+        assertThrows(EntityNotFoundException.class, () -> offerController.approveUserOffer(new User(), exchangeId));
     }
 
     @Test
     void approveUserOfferExchangeNotFound() {
-        assertThrows(EntityNotFoundException.class, () -> offerController.approveUserOffer(receiverUserId, System.nanoTime()));
+        assertThrows(EntityNotFoundException.class, () -> offerController.approveUserOffer(receiverUser, System.nanoTime()));
     }
 
     @Rollback
     @Transactional
     @Test
     void approveUserOfferExchangeStatusDeclined() {
-        Long exchangeId = exchangeUtilIT.createExchange(senderUserId, receiverUserId, senderBookId, receiverBookId);
+        Long exchangeId = exchangeUtilIT.createExchange(senderUser.getId(), receiverUser.getId(), senderBookId, receiverBookId);
 
         Exchange exchange = exchangeRepository.findById(exchangeId).get();
 
         exchange.setStatus(ExchangeStatus.DECLINED);
         exchangeRepository.save(exchange);
 
-        assertThrows(IllegalStateException.class, () -> {
-            offerController.approveUserOffer(receiverUserId, exchangeId);
-        });
+        assertThrows(IllegalStateException.class, () -> offerController.approveUserOffer(receiverUser, exchangeId));
     }
 
     @Rollback
     @Transactional
     @Test
     void approveUserOfferExchangeStatusApproved() {
-        Long exchangeId = exchangeUtilIT.createExchange(senderUserId, receiverUserId, senderBookId, receiverBookId);
+        Long exchangeId = exchangeUtilIT.createExchange(senderUser.getId(), receiverUser.getId(), senderBookId, receiverBookId);
 
         Exchange exchange = exchangeRepository.findById(exchangeId).get();
 
         exchange.setStatus(ExchangeStatus.APPROVED);
         exchangeRepository.save(exchange);
 
-        assertThrows(IllegalStateException.class, () -> {
-            offerController.approveUserOffer(receiverUserId, exchangeId);
-        });
+        assertThrows(IllegalStateException.class, () -> offerController.approveUserOffer(receiverUser, exchangeId));
     }
 
     @Rollback
     @Transactional
     @Test
     void declineUserOffer() {
-        Long exchangeId = exchangeUtilIT.createExchange(senderUserId, receiverUserId, senderBookId, receiverBookId);
+        Long exchangeId = exchangeUtilIT.createExchange(senderUser.getId(), receiverUser.getId(), senderBookId, receiverBookId);
 
-        ResponseEntity responseEntity = offerController.declineUserOffer(receiverUserId, exchangeId);
+        ResponseEntity responseEntity = offerController.declineUserOffer(receiverUser, exchangeId);
 
         assertThat(responseEntity.getStatusCode()).isEqualTo(HttpStatusCode.valueOf(204));
 
         Exchange exchange = exchangeRepository.findById(exchangeId).get();
 
         assertThat(exchange.getStatus()).isEqualTo(ExchangeStatus.DECLINED);
-        assertThat(exchange.getDeclinerUser().getId()).isEqualTo(receiverUserId);
+        assertThat(exchange.getDeclinerUser().getId()).isEqualTo(receiverUser.getId());
     }
 
     @Rollback
     @Transactional
     @Test
     void declineUserOfferUserNotFound() {
-        Long exchangeId = exchangeUtilIT.createExchange(senderUserId, receiverUserId, senderBookId, receiverBookId);
+        Long exchangeId = exchangeUtilIT.createExchange(senderUser.getId(), receiverUser.getId(), senderBookId, receiverBookId);
 
-        assertThrows(EntityNotFoundException.class, () -> offerController.declineUserOffer(System.nanoTime(), exchangeId));
+        assertThrows(EntityNotFoundException.class, () -> offerController.declineUserOffer(new User(), exchangeId));
     }
 
     @Test
     void declineUserOfferExchangeNotFound() {
-        assertThrows(EntityNotFoundException.class, () -> offerController.declineUserOffer(receiverUserId, System.nanoTime()));
+        assertThrows(EntityNotFoundException.class, () -> offerController.declineUserOffer(receiverUser, System.nanoTime()));
     }
 
     @Rollback
     @Transactional
     @Test
     void declineUserOfferExchangeStatusDeclined() {
-        Long exchangeId = exchangeUtilIT.createExchange(senderUserId, receiverUserId, senderBookId, receiverBookId);
+        Long exchangeId = exchangeUtilIT.createExchange(senderUser.getId(), receiverUser.getId(), senderBookId, receiverBookId);
 
         Exchange exchange = exchangeRepository.findById(exchangeId).get();
 
         exchange.setStatus(ExchangeStatus.DECLINED);
         exchangeRepository.save(exchange);
 
-        assertThrows(IllegalStateException.class, () -> {
-            offerController.declineUserOffer(receiverUserId, exchangeId);
-        });
+        assertThrows(IllegalStateException.class, () -> offerController.declineUserOffer(receiverUser, exchangeId));
     }
 
     @Rollback
     @Transactional
     @Test
     void declineUserOfferExchangeStatusApproved() {
-        Long exchangeId = exchangeUtilIT.createExchange(senderUserId, receiverUserId, senderBookId, receiverBookId);
+        Long exchangeId = exchangeUtilIT.createExchange(senderUser.getId(), receiverUser.getId(), senderBookId, receiverBookId);
 
         Exchange exchange = exchangeRepository.findById(exchangeId).get();
 
         exchange.setStatus(ExchangeStatus.APPROVED);
         exchangeRepository.save(exchange);
 
-        assertThrows(IllegalStateException.class, () -> {
-            offerController.declineUserOffer(receiverUserId, exchangeId);
-        });
+        assertThrows(IllegalStateException.class, () -> offerController.declineUserOffer(receiverUser, exchangeId));
     }
 }

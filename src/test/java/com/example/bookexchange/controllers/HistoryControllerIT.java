@@ -49,31 +49,31 @@ class HistoryControllerIT extends AbstractIT {
     @Autowired
     private UserRepository userRepository;
 
-    private Long senderUserId;
-    private Long receiverUserId;
+    private User senderUser;
+    private User receiverUser;
     private Long senderBookId;
     private Long receiverBookId;
 
     @BeforeAll
     void init() {
-        senderUserId = userUtil.createUser(1);
-        receiverUserId = userUtil.createUser(2);
+        senderUser = userUtil.createUser(1);
+        receiverUser = userUtil.createUser(2);
 
-        senderBookId = bookUtil.createBook(senderUserId, 1);
-        receiverBookId = bookUtil.createBook(receiverUserId, 2);
+        senderBookId = bookUtil.createBook(senderUser.getId(), 1);
+        receiverBookId = bookUtil.createBook(receiverUser.getId(), 2);
     }
 
     @AfterAll
     void cleanup() {
         transactionTemplate.executeWithoutResult(status -> {
-            bookUtil.deleteUserBooks(senderUserId);
-            bookUtil.deleteUserBooks(receiverUserId);
-            userUtil.deleteUser(senderUserId);
-            userUtil.deleteUser(receiverUserId);
+            bookUtil.deleteUserBooks(senderUser.getId());
+            bookUtil.deleteUserBooks(receiverUser.getId());
+            userUtil.deleteUser(senderUser.getId());
+            userUtil.deleteUser(receiverUser.getId());
         });
 
-        senderUserId = null;
-        receiverUserId = null;
+        senderUser = null;
+        receiverUser = null;
         senderBookId = null;
         receiverBookId = null;
     }
@@ -82,19 +82,19 @@ class HistoryControllerIT extends AbstractIT {
     @Transactional
     @Test
     void getExchangeHistory() {
-        Long approvedSenderBookId = bookUtil.createBook(senderUserId, 3);
-        Long approvedReceiverBookId = bookUtil.createBook(receiverUserId, 4);
-        Long declinedSenderBookId = bookUtil.createBook(senderUserId, 5);
-        Long declinedReceiverBookId = bookUtil.createBook(receiverUserId, 6);
+        Long approvedSenderBookId = bookUtil.createBook(senderUser.getId(), 3);
+        Long approvedReceiverBookId = bookUtil.createBook(receiverUser.getId(), 4);
+        Long declinedSenderBookId = bookUtil.createBook(senderUser.getId(), 5);
+        Long declinedReceiverBookId = bookUtil.createBook(receiverUser.getId(), 6);
 
-        exchangeUtilIT.createExchange(senderUserId, receiverUserId, senderBookId, receiverBookId);
-        Long approvedExchangeId = exchangeUtilIT.createExchange(senderUserId, receiverUserId, approvedSenderBookId, approvedReceiverBookId);
-        Long declinedExchangeId = exchangeUtilIT.createExchange(senderUserId, receiverUserId, declinedSenderBookId, declinedReceiverBookId);
+        exchangeUtilIT.createExchange(senderUser.getId(), receiverUser.getId(), senderBookId, receiverBookId);
+        Long approvedExchangeId = exchangeUtilIT.createExchange(senderUser.getId(), receiverUser.getId(), approvedSenderBookId, approvedReceiverBookId);
+        Long declinedExchangeId = exchangeUtilIT.createExchange(senderUser.getId(), receiverUser.getId(), declinedSenderBookId, declinedReceiverBookId);
 
         Exchange approvedExchange = exchangeRepository.findById(approvedExchangeId).get();
         Exchange declinedExchange = exchangeRepository.findById(declinedExchangeId).get();
 
-        User declinerUser = userRepository.findById(senderUserId).get();
+        User declinerUser = userRepository.findById(senderUser.getId()).get();
 
         approvedExchange.setStatus(ExchangeStatus.APPROVED);
         declinedExchange.setStatus(ExchangeStatus.DECLINED);
@@ -103,14 +103,14 @@ class HistoryControllerIT extends AbstractIT {
         exchangeRepository.save(approvedExchange);
         exchangeRepository.save(declinedExchange);
 
-        Page<ExchangeHistoryDTO> exchangeHistoryDTOs = historyController.getExchangeHistory(senderUserId, PAGE_INDEX, PAGE_SIZE);
+        Page<ExchangeHistoryDTO> exchangeHistoryDTOs = historyController.getExchangeHistory(senderUser, PAGE_INDEX, PAGE_SIZE);
 
         assertThat(exchangeHistoryDTOs.getTotalElements()).isEqualTo(2);
     }
 
     @Test
     void getExchangeHistoryNotFound() {
-        Page<ExchangeHistoryDTO> exchangeHistoryDTOs = historyController.getExchangeHistory(senderUserId, PAGE_INDEX, PAGE_SIZE);
+        Page<ExchangeHistoryDTO> exchangeHistoryDTOs = historyController.getExchangeHistory(senderUser, PAGE_INDEX, PAGE_SIZE);
 
         assertThat(exchangeHistoryDTOs.getTotalElements()).isEqualTo(0);
     }
@@ -119,7 +119,7 @@ class HistoryControllerIT extends AbstractIT {
     @Transactional
     @Test
     void getExchangeHistoryDetails() {
-        Long exchangeId = exchangeUtilIT.createExchange(senderUserId, receiverUserId, senderBookId, receiverBookId);
+        Long exchangeId = exchangeUtilIT.createExchange(senderUser.getId(), receiverUser.getId(), senderBookId, receiverBookId);
 
         Exchange exchange = exchangeRepository.findById(exchangeId).get();
 
@@ -127,7 +127,7 @@ class HistoryControllerIT extends AbstractIT {
 
         exchangeRepository.save(exchange);
 
-        ExchangeHistoryDetailsDTO exchangeHistoryDetailsDTO = historyController.getExchangeHistoryDetails(senderUserId, exchangeId);
+        ExchangeHistoryDetailsDTO exchangeHistoryDetailsDTO = historyController.getExchangeHistoryDetails(senderUser, exchangeId);
 
         assertThat(exchangeHistoryDetailsDTO).isNotNull();
     }
@@ -136,17 +136,13 @@ class HistoryControllerIT extends AbstractIT {
     @Transactional
     @Test
     void getExchangeHistoryDetailsUserNotFound() {
-        Long exchangeId = exchangeUtilIT.createExchange(senderUserId, receiverUserId, senderBookId, receiverBookId);
+        Long exchangeId = exchangeUtilIT.createExchange(senderUser.getId(), receiverUser.getId(), senderBookId, receiverBookId);
 
-        assertThrows(EntityNotFoundException.class, () -> {
-            historyController.getExchangeHistoryDetails(System.nanoTime(), exchangeId);
-        });
+        assertThrows(EntityNotFoundException.class, () -> historyController.getExchangeHistoryDetails(new User(), exchangeId));
     }
 
     @Test
     void getExchangeHistoryDetailsExchangeNotFound() {
-        assertThrows(EntityNotFoundException.class, () -> {
-            historyController.getExchangeHistoryDetails(senderUserId, System.nanoTime());
-        });
+        assertThrows(EntityNotFoundException.class, () -> historyController.getExchangeHistoryDetails(senderUser, System.nanoTime()));
     }
 }
