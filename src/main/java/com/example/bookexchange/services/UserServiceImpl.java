@@ -28,6 +28,7 @@ public class UserServiceImpl extends BaseServiceImpl<User, Long> implements User
     private UserMapper userMapper;
     private PasswordEncoder passwordEncoder;
     private JwtService jwtService;
+    private EmailService emailService;
 
     @Transactional(readOnly = true)
     @Override
@@ -39,7 +40,7 @@ public class UserServiceImpl extends BaseServiceImpl<User, Long> implements User
 
     @Transactional
     @Override
-    public VerificationTokenDTO createUser(UserCreateDTO dto) {
+    public String createUser(UserCreateDTO dto) {
         String email = dto.getEmail();
         String nickname = dto.getNickname();
 
@@ -57,11 +58,9 @@ public class UserServiceImpl extends BaseServiceImpl<User, Long> implements User
         user.addRole(UserRole.USER);
         User savedUser = userRepository.save(user);
 
-        return VerificationTokenDTO
-                .builder()
-                .message("Ihr Konto wurde erfolgreich registriert. Bitte überprüfen Sie jetzt Ihre E-mail Adresse")
-                .token(createVerificationToken(savedUser, TokenType.CONFIRM_EMAIL))
-                .build();
+        emailService.sendVerificationEmail(user.getEmail(), createVerificationToken(savedUser, TokenType.CONFIRM_EMAIL));
+
+        return "Ihr Konto wurde erfolgreich registriert. Bitte bestätigen Sie jetzt Ihre E-mail Adresse";
     }
 
     @Transactional
@@ -205,20 +204,22 @@ public class UserServiceImpl extends BaseServiceImpl<User, Long> implements User
 
     @Transactional
     @Override
-    public VerificationTokenDTO forgotPassword(UserForgotPasswordDTO dto) {
+    public String forgotPassword(UserForgotPasswordDTO dto) {
         User user = userRepository.findByEmail(dto.getEmail()).orElseThrow(() -> new NotFoundException("Der Benutzer mit Email " + dto.getEmail() + " wurde nicht gefunden"));
 
-        return VerificationTokenDTO
-                .builder()
-                .token(createVerificationToken(user, TokenType.RESET_PASSWORD))
-                .message("Wir haben Ihnen eine Anleitung zum Zurücksetzen des Passworts auf Ihre E-mail Adresse geschikt")
-                .build();
+        if (!user.isEmailVerified()) {
+            throw new RuntimeException("Ihr Konto wurde noch nicht verifiziert");
+        }
+
+        emailService.sendResetPasswordEmail(user.getEmail(), createVerificationToken(user, TokenType.RESET_PASSWORD));
+
+        return "Wir haben Ihnen eine Anleitung zum Zurücksetzen des Passworts auf Ihre E-mail Adresse geschikt";
     }
 
     @Transactional
     @Override
-    public void resetForgottenPassword(UserResetForgottenPasswordDTO dto) {
-        VerificationToken verificationToken = verificationTokenRepository.findByToken(dto.getToken()).orElseThrow(() -> new RuntimeException("Das Token wurde nicht gefunden"));
+    public void resetForgottenPassword(String token, UserResetForgottenPasswordDTO dto) {
+        VerificationToken verificationToken = verificationTokenRepository.findByToken(token).orElseThrow(() -> new RuntimeException("Das Token wurde nicht gefunden"));
 
         if (verificationToken.getExpiryDate().isBefore(Instant.now())) {
             verificationTokenRepository.deleteById(verificationToken.getId());
@@ -237,15 +238,17 @@ public class UserServiceImpl extends BaseServiceImpl<User, Long> implements User
 
     @Transactional
     @Override
-    public VerificationTokenDTO resendEmailConfirmation(UserResendEmailConfirmationDTO dto) {
+    public String resendEmailConfirmation(UserResendEmailConfirmationDTO dto) {
         User user = userRepository.findByEmail(dto.getEmail()).orElseThrow(() -> new NotFoundException("Der Benutzer mit Email " + dto.getEmail() + " wurde nicht gefunden"));
+
+        if (user.isEmailVerified()) {
+            throw new RuntimeException("Ihr Konto wurde bereits verifiziert");
+        }
 
         verificationTokenRepository.findByUserAndType(user, TokenType.CONFIRM_EMAIL).ifPresent(verificationToken -> verificationTokenRepository.deleteById(verificationToken.getId()));
 
-        return VerificationTokenDTO
-                .builder()
-                .message("Bitte überprüfen Sie jetzt Ihre E-mail Adresse")
-                .token(createVerificationToken(user, TokenType.CONFIRM_EMAIL))
-                .build();
+        emailService.sendVerificationEmail(user.getEmail(), createVerificationToken(user, TokenType.CONFIRM_EMAIL));
+
+        return "Bitte überprüfen Sie jetzt Ihre E-mail Adresse";
     }
 }

@@ -18,11 +18,6 @@ public class UserResetForgottenPasswordDTO {
 
     @NotNull
     @NotBlank
-    @JsonProperty("token")
-    private String token;
-
-    @NotNull
-    @NotBlank
     @JsonProperty("newPassword")
     private String newPassword;
 }
