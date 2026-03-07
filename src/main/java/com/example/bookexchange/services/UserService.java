@@ -8,7 +8,7 @@ public interface UserService {
 
     UserDTO getUser(Long userId);
 
-    VerificationTokenDTO createUser(UserCreateDTO dto);
+    String createUser(UserCreateDTO dto);
 
     void updateUser(Long userId, UserUpdateDTO dto);
 
@@ -26,9 +26,9 @@ public interface UserService {
 
     void confirmRegistration(String token);
 
-    VerificationTokenDTO forgotPassword(UserForgotPasswordDTO dto);
+    String forgotPassword(UserForgotPasswordDTO dto);
 
-    void resetForgottenPassword(UserResetForgottenPasswordDTO dto);
+    void resetForgottenPassword(String token, UserResetForgottenPasswordDTO dto);
 
-    VerificationTokenDTO resendEmailConfirmation(UserResendEmailConfirmationDTO dto);
+    String resendEmailConfirmation(UserResendEmailConfirmationDTO dto);
 }
