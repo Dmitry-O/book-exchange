@@ -10,9 +10,9 @@ public interface UserService {
 
     String createUser(UserCreateDTO dto);
 
-    void updateUser(Long userId, UserUpdateDTO dto);
+    String updateUser(Long userId, UserUpdateDTO dto);
 
-    void deleteUser(Long userId);
+    String deleteUser(Long userId);
 
     AuthResponseDTO loginUser(AuthRequestDTO requestDTO);
 
@@ -20,15 +20,15 @@ public interface UserService {
 
     String refreshAccessToken(String token);
 
-    void resetPassword(User user, UserResetPasswordDTO dto);
+    String resetPassword(Long userId, UserResetPasswordDTO dto);
 
     String createVerificationToken(User user, TokenType tokenType);
 
-    void confirmRegistration(String token);
+    String confirmRegistration(String token);
 
     String forgotPassword(UserForgotPasswordDTO dto);
 
-    void resetForgottenPassword(String token, UserResetForgottenPasswordDTO dto);
+    String resetForgottenPassword(String token, UserResetForgottenPasswordDTO dto);
 
     String resendEmailConfirmation(UserResendEmailConfirmationDTO dto);
 }

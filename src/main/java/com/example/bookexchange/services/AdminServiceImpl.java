@@ -1,7 +1,9 @@
 package com.example.bookexchange.services;
 
-import com.example.bookexchange.controllers.NotFoundException;
 import com.example.bookexchange.dto.*;
+import com.example.bookexchange.exception.BadRequestException;
+import com.example.bookexchange.exception.EntityExistsException;
+import com.example.bookexchange.exception.NotFoundException;
 import com.example.bookexchange.mappers.BookMapper;
 import com.example.bookexchange.mappers.ReportMapper;
 import com.example.bookexchange.mappers.UserMapper;
@@ -11,6 +13,7 @@ import com.example.bookexchange.repositories.ReportRepository;
 import com.example.bookexchange.repositories.UserRepository;
 import com.example.bookexchange.specification.UserSpecificationBuilder;
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -20,10 +23,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
-import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 
+@Slf4j
 @Service
 @AllArgsConstructor
 public class AdminServiceImpl extends BaseServiceImpl<User, Long> implements AdminService {
@@ -37,32 +39,38 @@ public class AdminServiceImpl extends BaseServiceImpl<User, Long> implements Adm
 
     @Transactional
     @Override
-    public void giveAdminRights(Long userId) {
+    public String giveAdminRights(Long userId) {
         User user = findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
 
         if (!user.getRoles().contains(UserRole.ADMIN)) {
             user.addRole(UserRole.ADMIN);
             userRepository.save(user);
         } else {
-            throw new IllegalStateException("Der Benutzer mit ID " + userId + " ist bereits Administrator");
+            throw new EntityExistsException("Der Benutzer mit ID " + userId + " ist bereits Administrator");
         }
+
+        return "Dem Benutzer " + user.getEmail() + " wurden Administratorrechte gewährt";
     }
 
     @Transactional
     @Override
-    public void revokeAdminRights(Long userId) {
+    public String revokeAdminRights(Long userId) {
         User user = findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
 
         if (user.getRoles().contains(UserRole.ADMIN)) {
             user.removeRole(UserRole.ADMIN);
             userRepository.save(user);
         } else {
-            throw new IllegalStateException("Der Benutzer mit ID " + userId + " ist kein Administrator");
+            throw new BadRequestException("Der Benutzer " + user.getEmail() + " ist kein Administrator");
         }
+
+        return "Dem Benutzer " + user.getEmail() + " wurden die Administratorrechte entzogen";
     }
 
     @Override
-    public Page<UserDTO> findUsers(User user, Integer pageIndex, Integer pageSize, String searchText, Set<UserRole> roles, Boolean onlyBannedUsers) {
+    public Page<UserDTO> findUsers(Long userId, Integer pageIndex, Integer pageSize, String searchText, Set<UserRole> roles, Boolean onlyBannedUsers) {
+        User user = findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
+
         Boolean isUserSuperAdmin = user.getRoles().contains(UserRole.SUPER_ADMIN);
 
         Specification<User> specification = UserSpecificationBuilder.build(searchText, roles, onlyBannedUsers, isUserSuperAdmin);
@@ -73,16 +81,18 @@ public class AdminServiceImpl extends BaseServiceImpl<User, Long> implements Adm
 
         Page<User> userPage = userRepository.findAll(specification, pageable);
 
+        log.info("ADMIN Service ENTERED");
+
         return userPage.map(userMapper::userToUserDto);
     }
 
     @Transactional
     @Override
-    public void banUserById(User adminUser, Long userId, BanUserDTO banUserDTO) {
+    public String banUserById(User adminUser, Long userId, BanUserDTO banUserDTO) {
         User user = findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
 
         if (adminUser.getId().equals(user.getId())){
-            throw new IllegalArgumentException("Sie können sich nicht selbst sperren");
+            throw new BadRequestException("Sie können sich nicht selbst sperren");
         }
 
         if (banUserDTO.isBannedPermanently()) {
@@ -90,17 +100,19 @@ public class AdminServiceImpl extends BaseServiceImpl<User, Long> implements Adm
         } else if (banUserDTO.getBannedUntil() != null) {
             user.setBannedUntil(OffsetDateTime.parse(banUserDTO.getBannedUntil()).toInstant());
         } else {
-            throw new IllegalArgumentException("Die Anfrage ist ungültig");
+            throw new BadRequestException("Die Anfrage ist ungültig");
         }
 
         user.setBanReason(banUserDTO.getBanReason());
 
         userRepository.save(user);
+
+        return "Der Benutzer " + user.getEmail() + " wurde gesperrt";
     }
 
     @Transactional
     @Override
-    public void unbanUserById(Long userId) {
+    public String unbanUserById(Long userId) {
         User user = findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
 
         user.setBannedUntil(null);
@@ -108,25 +120,25 @@ public class AdminServiceImpl extends BaseServiceImpl<User, Long> implements Adm
         user.setBanReason(null);
 
         userRepository.save(user);
+
+        return "Der Benutzer " + user.getEmail() + " wurde entsperrt";
     }
 
     @Transactional
     @Override
-    public Boolean deleteBookById(Long bookId) {
+    public String deleteBookById(Long bookId) {
         if (bookRepository.existsById(bookId)) {
             bookRepository.deleteById(bookId);
 
-            return true;
+            return "Das Buch mit ID " + bookId + " wurde gelöscht";
         }
 
-        return false;
+        return "Das Buch mit ID " + bookId + " wurde nicht gefunden";
     }
 
     @Transactional
     @Override
-    public Optional<BookDTO> updateBookById(Long bookId, BookUpdateDTO dto) {
-        AtomicReference<Optional<BookDTO>> atomicReference = new AtomicReference<>();
-
+    public String updateBookById(Long bookId, BookUpdateDTO dto) {
         bookRepository.findById(bookId).ifPresentOrElse(foundBook -> {
             foundBook.setName(!dto.getName().isEmpty() ? dto.getName() : foundBook.getName());
             foundBook.setDescription(!dto.getDescription().isEmpty() ? dto.getDescription() : foundBook.getDescription());
@@ -138,16 +150,12 @@ public class AdminServiceImpl extends BaseServiceImpl<User, Long> implements Adm
             foundBook.setIsGift(dto.getIsGift() != null ?  dto.getIsGift() : foundBook.getIsGift());
             foundBook.setContactDetails(!dto.getContactDetails().isEmpty() ? dto.getContactDetails() : foundBook.getContactDetails());
 
-            atomicReference.set(
-                    Optional.of(
-                            bookMapper.bookToBookDto(
-                                    bookRepository.save(foundBook)
-                            )
-                    )
-            );
-        }, () -> atomicReference.set(Optional.empty()));
+            bookMapper.bookToBookDto(bookRepository.save(foundBook));
+        }, () -> {
+            throw new NotFoundException("Das Buch mit ID " + bookId + " wurde nicht gefunden");
+        });
 
-        return atomicReference.get();
+        return "Das Buch mit ID " + bookId + " wurde aktualisiert";
     }
 
     @Override
@@ -165,21 +173,25 @@ public class AdminServiceImpl extends BaseServiceImpl<User, Long> implements Adm
     }
 
     @Override
-    public void resolveReport(Long reportId) {
+    public String resolveReport(Long reportId) {
         Report report = reportRepository.findById(reportId).orElseThrow(() -> new NotFoundException("Die Berichtserstellung mit ID " + reportId + " wurde nicht gefunden"));
 
         report.setStatus(ReportStatus.RESOLVED);
 
         reportRepository.save(report);
+
+        return "Die Berichtserstellung wurde gelöst";
     }
 
     @Override
-    public void rejectReport(Long reportId) {
+    public String rejectReport(Long reportId) {
         Report report = reportRepository.findById(reportId).orElseThrow(() -> new NotFoundException("Die Berichtserstellung mit ID " + reportId + " wurde nicht gefunden"));
 
         report.setStatus(ReportStatus.REJECTED);
 
         reportRepository.save(report);
+
+        return "Die Berichtserstellung wurde abgelehnt";
     }
 
     @Override

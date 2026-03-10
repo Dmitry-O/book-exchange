@@ -1,9 +1,9 @@
 package com.example.bookexchange.util;
 
+import com.example.bookexchange.exception.NotFoundException;
 import com.example.bookexchange.models.Exchange;
 import com.example.bookexchange.models.UserExchangeRole;
 import com.example.bookexchange.repositories.ExchangeRepository;
-import jakarta.persistence.EntityNotFoundException;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -26,7 +26,7 @@ public class ExchangeUtil {
             if (exchangeAsReceiver.isPresent()) {
                 return UserExchangeRole.RECEIVER;
             } else {
-                throw new EntityNotFoundException("Der Umtauschantrag wurde nicht gefunden");
+                throw new NotFoundException("Der Umtauschantrag wurde nicht gefunden");
             }
         }
     }

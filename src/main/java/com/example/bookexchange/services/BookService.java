@@ -6,11 +6,9 @@ import com.example.bookexchange.dto.BookSearchDTO;
 import com.example.bookexchange.dto.BookUpdateDTO;
 import org.springframework.data.domain.Page;
 
-import java.util.Optional;
-
 public interface BookService {
 
-    BookDTO addUserBook(Long userId, BookCreateDTO dto);
+    String addUserBook(Long userId, BookCreateDTO dto);
 
     Page<BookDTO> findUserBooks(Long userId, Integer pageIndex, Integer pageSize);
 
@@ -18,7 +16,7 @@ public interface BookService {
 
     Page<BookDTO> findBooks(BookSearchDTO dto, Integer pageIndex, Integer pageSize);
 
-    Boolean deleteUserBookById(Long userId, Long bookId);
+    String deleteUserBookById(Long userId, Long bookId);
 
-    Optional<BookDTO> updateUserBookById(Long userId, Long bookId, BookUpdateDTO dto);
+    String updateUserBookById(Long userId, Long bookId, BookUpdateDTO dto);
 }

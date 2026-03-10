@@ -1,5 +1,6 @@
 package com.example.bookexchange.controllers;
 
+import com.example.bookexchange.authentication.CurrentUser;
 import com.example.bookexchange.dto.*;
 import com.example.bookexchange.models.ReportStatus;
 import com.example.bookexchange.models.User;
@@ -7,7 +8,6 @@ import com.example.bookexchange.models.UserRole;
 import com.example.bookexchange.services.AdminService;
 import lombok.AllArgsConstructor;
 import org.springframework.data.domain.Page;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -38,62 +38,46 @@ public class AdminController {
 
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     @PatchMapping(ADMIN_PATH_USERS_ID_GIVE_ADMIN_RIGHTS)
-    public ResponseEntity<String> superAdminGiveAdminRights(@PathVariable Long userId) {
-        adminService.giveAdminRights(userId);
-
-        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+    public ResponseEntity<ApiMessage> superAdminGiveAdminRights(@PathVariable Long userId) {
+        return ResponseEntity.ok(new ApiMessage(adminService.giveAdminRights(userId)));
     }
 
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     @PatchMapping(ADMIN_PATH_USERS_ID_REVOKE_ADMIN_RIGHTS)
-    public ResponseEntity<String> superAdminRevokeAdminRights(@PathVariable Long userId) {
-        adminService.revokeAdminRights(userId);
-
-        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+    public ResponseEntity<ApiMessage> superAdminRevokeAdminRights(@PathVariable Long userId) {
+        return ResponseEntity.ok(new ApiMessage(adminService.revokeAdminRights(userId)));
     }
 
     @GetMapping(ADMIN_PATH_USERS)
     public Page<UserDTO> adminGetUsers(
-            @AuthenticationPrincipal User user,
+            @CurrentUser Long userId,
             @RequestParam(value = "pageIndex", defaultValue = "0") Integer pageIndex,
             @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize,
             @RequestParam(value = "searchText", required = false) String searchText,
             @RequestParam(value = "roles", required = false) Set<UserRole> roles,
             @RequestParam(value = "onlyBannedUsers", required = false) Boolean onlyBannedUsers
     ) {
-        return adminService.findUsers(user, pageIndex, pageSize, searchText, roles, onlyBannedUsers);
+        return adminService.findUsers(userId, pageIndex, pageSize, searchText, roles, onlyBannedUsers);
     }
 
     @PatchMapping(ADMIN_PATH_USERS_ID_BAN)
-    public ResponseEntity<String> adminBanUser(@AuthenticationPrincipal User adminUser, @PathVariable Long userId, BanUserDTO banUserDTO) {
-        adminService.banUserById(adminUser, userId, banUserDTO);
-
-        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+    public ResponseEntity<ApiMessage> adminBanUser(@AuthenticationPrincipal User adminUser, @PathVariable Long userId, BanUserDTO banUserDTO) {
+        return ResponseEntity.ok(new ApiMessage(adminService.banUserById(adminUser, userId, banUserDTO)));
     }
 
     @PatchMapping(ADMIN_PATH_USERS_ID_UNBAN)
-    public ResponseEntity<String> adminUnbanUser(@PathVariable Long userId) {
-        adminService.unbanUserById(userId);
-
-        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+    public ResponseEntity<ApiMessage> adminUnbanUser(@PathVariable Long userId) {
+        return ResponseEntity.ok(new ApiMessage(adminService.unbanUserById(userId)));
     }
 
     @DeleteMapping(ADMIN_PATH_BOOKS_ID)
-    public ResponseEntity<String> adminDeleteBookById(@PathVariable Long bookId) {
-        if (!adminService.deleteBookById(bookId)) {
-            throw new NotFoundException();
-        }
-
-        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+    public ResponseEntity<ApiMessage> adminDeleteBookById(@PathVariable Long bookId) {
+        return ResponseEntity.ok(new ApiMessage(adminService.deleteBookById(bookId)));
     }
 
     @PatchMapping(ADMIN_PATH_BOOKS_ID)
-    public ResponseEntity<String> adminUpdateBookById(@PathVariable Long bookId, @Validated @RequestBody BookUpdateDTO dto) {
-        if (adminService.updateBookById(bookId, dto).isEmpty()) {
-            throw new NotFoundException("Das Buch mit ID " + bookId + " wurde nicht gefunden");
-        }
-
-        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+    public ResponseEntity<ApiMessage> adminUpdateBookById(@PathVariable Long bookId, @Validated @RequestBody BookUpdateDTO dto) {
+        return ResponseEntity.ok(new ApiMessage(adminService.updateBookById(bookId, dto)));
     }
 
     @GetMapping(ADMIN_PATH_BOOKS_ID)
@@ -117,16 +101,12 @@ public class AdminController {
     }
 
     @PatchMapping(ADMIN_PATH_REPORTS_ID_RESOLVE)
-    public ResponseEntity<String> adminReportResolve(@PathVariable Long reportId) {
-        adminService.resolveReport(reportId);
-
-        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+    public ResponseEntity<ApiMessage> adminReportResolve(@PathVariable Long reportId) {
+        return ResponseEntity.ok(new ApiMessage(adminService.resolveReport(reportId)));
     }
 
     @PatchMapping(ADMIN_PATH_REPORTS_ID_REJECT)
-    public ResponseEntity<String> adminReportReject(@PathVariable Long reportId) {
-        adminService.rejectReport(reportId);
-
-        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+    public ResponseEntity<ApiMessage> adminReportReject(@PathVariable Long reportId) {
+        return ResponseEntity.ok(new ApiMessage(adminService.rejectReport(reportId)));
     }
 }

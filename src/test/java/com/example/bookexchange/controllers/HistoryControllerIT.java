@@ -2,6 +2,7 @@ package com.example.bookexchange.controllers;
 
 import com.example.bookexchange.dto.ExchangeHistoryDTO;
 import com.example.bookexchange.dto.ExchangeHistoryDetailsDTO;
+import com.example.bookexchange.exception.NotFoundException;
 import com.example.bookexchange.models.Exchange;
 import com.example.bookexchange.models.ExchangeStatus;
 import com.example.bookexchange.models.User;
@@ -10,7 +11,6 @@ import com.example.bookexchange.repositories.UserRepository;
 import com.example.bookexchange.util.BookUtil;
 import com.example.bookexchange.util.ExchangeUtilIT;
 import com.example.bookexchange.util.UserUtil;
-import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -103,14 +103,14 @@ class HistoryControllerIT extends AbstractIT {
         exchangeRepository.save(approvedExchange);
         exchangeRepository.save(declinedExchange);
 
-        Page<ExchangeHistoryDTO> exchangeHistoryDTOs = historyController.getExchangeHistory(senderUser, PAGE_INDEX, PAGE_SIZE);
+        Page<ExchangeHistoryDTO> exchangeHistoryDTOs = historyController.getExchangeHistory(senderUser.getId(), PAGE_INDEX, PAGE_SIZE);
 
         assertThat(exchangeHistoryDTOs.getTotalElements()).isEqualTo(2);
     }
 
     @Test
     void getExchangeHistoryNotFound() {
-        Page<ExchangeHistoryDTO> exchangeHistoryDTOs = historyController.getExchangeHistory(senderUser, PAGE_INDEX, PAGE_SIZE);
+        Page<ExchangeHistoryDTO> exchangeHistoryDTOs = historyController.getExchangeHistory(senderUser.getId(), PAGE_INDEX, PAGE_SIZE);
 
         assertThat(exchangeHistoryDTOs.getTotalElements()).isEqualTo(0);
     }
@@ -127,7 +127,7 @@ class HistoryControllerIT extends AbstractIT {
 
         exchangeRepository.save(exchange);
 
-        ExchangeHistoryDetailsDTO exchangeHistoryDetailsDTO = historyController.getExchangeHistoryDetails(senderUser, exchangeId);
+        ExchangeHistoryDetailsDTO exchangeHistoryDetailsDTO = historyController.getExchangeHistoryDetails(senderUser.getId(), exchangeId);
 
         assertThat(exchangeHistoryDetailsDTO).isNotNull();
     }
@@ -138,11 +138,11 @@ class HistoryControllerIT extends AbstractIT {
     void getExchangeHistoryDetailsUserNotFound() {
         Long exchangeId = exchangeUtilIT.createExchange(senderUser.getId(), receiverUser.getId(), senderBookId, receiverBookId);
 
-        assertThrows(EntityNotFoundException.class, () -> historyController.getExchangeHistoryDetails(new User(), exchangeId));
+        assertThrows(NotFoundException.class, () -> historyController.getExchangeHistoryDetails(System.nanoTime(), exchangeId));
     }
 
     @Test
     void getExchangeHistoryDetailsExchangeNotFound() {
-        assertThrows(EntityNotFoundException.class, () -> historyController.getExchangeHistoryDetails(senderUser, System.nanoTime()));
+        assertThrows(NotFoundException.class, () -> historyController.getExchangeHistoryDetails(senderUser.getId(), System.nanoTime()));
     }
 }

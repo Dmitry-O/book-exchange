@@ -11,4 +11,5 @@ public class AppProperties {
 
     private String baseUrl = "http://localhost:8080";
     private String jwtSecretKey;
+    private String emailSentFrom;
 }

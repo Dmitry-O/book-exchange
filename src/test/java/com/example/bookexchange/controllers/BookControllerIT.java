@@ -1,6 +1,7 @@
 package com.example.bookexchange.controllers;
 
 import com.example.bookexchange.dto.*;
+import com.example.bookexchange.exception.NotFoundException;
 import com.example.bookexchange.models.Book;
 import com.example.bookexchange.models.Exchange;
 import com.example.bookexchange.models.ExchangeStatus;
@@ -108,7 +109,7 @@ class BookControllerIT extends AbstractIT {
                 .isExchanged(false)
                 .build();
 
-        ResponseEntity<String> responseEntity = bookController.addUserBook(user, bookCreateDTO);
+        ResponseEntity<String> responseEntity = bookController.addUserBook(user.getId(), bookCreateDTO);
 
         assertThat(responseEntity.getStatusCode()).isEqualTo(HttpStatusCode.valueOf(201));
         assertThat(responseEntity.getHeaders().getLocation()).isNotNull();
@@ -143,7 +144,7 @@ class BookControllerIT extends AbstractIT {
     @Transactional
     @Test
     void getUserBooks() {
-        Page<BookDTO> books = bookController.getUserBooks(user, PAGE_INDEX, PAGE_SIZE);
+        Page<BookDTO> books = bookController.getUserBooks(user.getId(), PAGE_INDEX, PAGE_SIZE);
 
         assertThat(books.getTotalElements()).isEqualTo(1);
     }
@@ -154,7 +155,7 @@ class BookControllerIT extends AbstractIT {
     void getUserBooksNotFound() {
         bookRepository.deleteByUserId(user.getId());
 
-        Page<BookDTO> books = bookController.getUserBooks(user, PAGE_INDEX, PAGE_SIZE);
+        Page<BookDTO> books = bookController.getUserBooks(user.getId(), PAGE_INDEX, PAGE_SIZE);
 
         assertThat(books.getTotalElements()).isEqualTo(0);
     }
@@ -192,14 +193,14 @@ class BookControllerIT extends AbstractIT {
         exchangeRepository.save(exchange);
         bookRepository.save(book);
 
-        Page<BookDTO> exchangedUserBookDTOs = bookController.getExchangedUserBooks(senderUser, PAGE_INDEX, PAGE_SIZE);
+        Page<BookDTO> exchangedUserBookDTOs = bookController.getExchangedUserBooks(senderUser.getId(), PAGE_INDEX, PAGE_SIZE);
 
         assertThat(exchangedUserBookDTOs.getTotalElements()).isEqualTo(1);
     }
 
     @Test
     void getExchangedUserBooksNotFound() {
-        Page<BookDTO> exchangedUserBookDTOs = bookController.getExchangedUserBooks(user, PAGE_INDEX, PAGE_SIZE);
+        Page<BookDTO> exchangedUserBookDTOs = bookController.getExchangedUserBooks(user.getId(), PAGE_INDEX, PAGE_SIZE);
 
         assertThat(exchangedUserBookDTOs.getTotalElements()).isEqualTo(0);
     }
@@ -219,7 +220,7 @@ class BookControllerIT extends AbstractIT {
                 .sortDirection("asc")
                 .build();
 
-        Page<BookDTO> books = bookController.getBooks(user, PAGE_INDEX, PAGE_SIZE, bookSearchDTO);
+        Page<BookDTO> books = bookController.getBooks(PAGE_INDEX, PAGE_SIZE, bookSearchDTO);
 
         assertThat(books.getTotalElements()).isEqualTo(1);
     }
@@ -268,7 +269,7 @@ class BookControllerIT extends AbstractIT {
                 .sortDirection("asc")
                 .build();
 
-        Page<BookDTO> books = bookController.getBooks(user, PAGE_INDEX, PAGE_SIZE, bookSearchDTO);
+        Page<BookDTO> books = bookController.getBooks(PAGE_INDEX, PAGE_SIZE, bookSearchDTO);
 
         assertThat(books.getTotalElements()).isEqualTo(NUMBER_OF_SAME_BOOKS + 1);
     }
@@ -279,7 +280,7 @@ class BookControllerIT extends AbstractIT {
     void getBooksNotFound() {
         bookRepository.deleteAll();
 
-        Page<BookDTO> books = bookController.getBooks(user, PAGE_INDEX, PAGE_SIZE, BookSearchDTO.builder().build());
+        Page<BookDTO> books = bookController.getBooks(PAGE_INDEX, PAGE_SIZE, BookSearchDTO.builder().build());
 
         assertThat(books.getTotalElements()).isEqualTo(0);
     }
@@ -290,7 +291,7 @@ class BookControllerIT extends AbstractIT {
     void deleteBookById() {
         Book book = bookRepository.findById(bookId).get();
 
-        ResponseEntity<String> responseEntity = bookController.deleteBookById(user, book.getId());
+        ResponseEntity<String> responseEntity = bookController.deleteBookById(user.getId(), book.getId());
 
         assertThat(responseEntity.getStatusCode()).isEqualTo(HttpStatusCode.valueOf(204));
         assertThat(bookRepository.findById(book.getId())).isEmpty();
@@ -301,7 +302,7 @@ class BookControllerIT extends AbstractIT {
     @Test
     void deleteBookByIdNotFound() {
         assertThrows(NotFoundException.class, () -> {
-            bookController.deleteBookById(user, System.nanoTime());
+            bookController.deleteBookById(user.getId(), System.nanoTime());
         });
     }
 
@@ -311,7 +312,7 @@ class BookControllerIT extends AbstractIT {
     void updateUserBookById() {
         final String bookName = "Book 2";
 
-        Book book = bookRepository.findAll().get(0);
+        Book book = bookRepository.findAll().getFirst();
 
         BookUpdateDTO bookUpdateDTO = BookUpdateDTO.builder()
                 .name(bookName)
@@ -325,7 +326,7 @@ class BookControllerIT extends AbstractIT {
                 .isGift(book.getIsGift())
                 .build();
 
-        ResponseEntity<String> responseEntity = bookController.updateUserBookById(user, book.getId(), bookUpdateDTO);
+        ResponseEntity<String> responseEntity = bookController.updateUserBookById(user.getId(), book.getId(), bookUpdateDTO);
 
         assertThat(responseEntity.getStatusCode()).isEqualTo(HttpStatusCode.valueOf(204));
 
@@ -336,7 +337,7 @@ class BookControllerIT extends AbstractIT {
 
     @Test
     void updateUserBookByIdNotFound() {
-        assertThrows(NotFoundException.class, () -> bookController.updateUserBookById(user, System.nanoTime(), BookUpdateDTO.builder().build()));
+        assertThrows(NotFoundException.class, () -> bookController.updateUserBookById(user.getId(), System.nanoTime(), BookUpdateDTO.builder().build()));
     }
 
     @Rollback
