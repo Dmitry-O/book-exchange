@@ -37,5 +37,6 @@ public class RefreshToken {
     @ManyToOne
     private User user;
 
+    @NotNull
     private Instant expiryDate;
 }

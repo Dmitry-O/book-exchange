@@ -1,5 +1,6 @@
 package com.example.bookexchange.services;
 
+import com.example.bookexchange.config.AppProperties;
 import com.example.bookexchange.util.UrlBuilder;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
@@ -17,6 +18,7 @@ public class EmailServiceImpl implements EmailService {
 
     private final JavaMailSender mailSender;
     private final SpringTemplateEngine templateEngine;
+    private final AppProperties appProperties;
 
     @Autowired
     private UrlBuilder urlBuilder;
@@ -30,7 +32,7 @@ public class EmailServiceImpl implements EmailService {
             helper.setTo(emailTo);
             helper.setSubject(subject);
             helper.setText(htmlTemplate, true);
-            helper.setFrom("noreply@bookexchange.com");
+            helper.setFrom(appProperties.getEmailSentFrom());
 
             mailSender.send(message);
         } catch (MessagingException e) {

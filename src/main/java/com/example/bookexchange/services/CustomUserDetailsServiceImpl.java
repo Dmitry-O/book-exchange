@@ -1,27 +1,20 @@
 package com.example.bookexchange.services;
 
 import com.example.bookexchange.models.User;
+import com.example.bookexchange.models.UserPrincipal;
 import com.example.bookexchange.repositories.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.jspecify.annotations.NonNull;
-import org.jspecify.annotations.NullMarked;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.stereotype.Service;
 
+@Service
 @RequiredArgsConstructor
-public class CustomUserDetailsServiceImpl implements UserDetailsService {
+public class CustomUserDetailsServiceImpl {
 
     private final UserRepository userRepository;
 
-    @NullMarked
-    @Override
-    public UserDetails loadUserByUsername(String username) {
-        User user = userRepository.findByEmail(username).orElseThrow();
+    public UserPrincipal loadUserByUserId(Long userId) {
+        User user = userRepository.findById(userId).orElseThrow();
 
-        return org.springframework.security.core.userdetails.User
-                .withUsername(user.getEmail())
-                .password(user.getPassword())
-                .authorities("USER")
-                .build();
+        return new UserPrincipal(user);
     }
 }

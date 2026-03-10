@@ -6,24 +6,23 @@ import com.example.bookexchange.models.User;
 import com.example.bookexchange.models.UserRole;
 import org.springframework.data.domain.Page;
 
-import java.util.Optional;
 import java.util.Set;
 
 public interface AdminService {
 
-    void giveAdminRights(Long userId);
+    String giveAdminRights(Long userId);
 
-    void revokeAdminRights(Long userId);
+    String revokeAdminRights(Long userId);
 
-    Page<UserDTO> findUsers(User user, Integer pageIndex, Integer pageSize, String searchText, Set<UserRole> roles, Boolean onlyBannedUsers);
+    Page<UserDTO> findUsers(Long userId, Integer pageIndex, Integer pageSize, String searchText, Set<UserRole> roles, Boolean onlyBannedUsers);
 
-    void banUserById(User adminUser, Long userId, BanUserDTO banUserDTO);
+    String banUserById(User adminUser, Long userId, BanUserDTO banUserDTO);
 
-    void unbanUserById(Long userId);
+    String unbanUserById(Long userId);
 
-    Boolean deleteBookById(Long bookId);
+    String deleteBookById(Long bookId);
 
-    Optional<BookDTO> updateBookById(Long bookId, BookUpdateDTO dto);
+    String updateBookById(Long bookId, BookUpdateDTO dto);
 
     Page<ReportDTO> findReports(Integer pageIndex, Integer pageSize, Set<ReportStatus> statuses, String sortDirection);
 
@@ -31,7 +30,7 @@ public interface AdminService {
 
     UserDTO findUserById(Long userId);
 
-    void resolveReport(Long reportId);
+    String resolveReport(Long reportId);
 
-    void rejectReport(Long reportId);
+    String rejectReport(Long reportId);
 }
