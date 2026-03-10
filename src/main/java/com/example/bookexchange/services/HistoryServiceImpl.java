@@ -2,6 +2,7 @@ package com.example.bookexchange.services;
 
 import com.example.bookexchange.dto.ExchangeHistoryDTO;
 import com.example.bookexchange.dto.ExchangeHistoryDetailsDTO;
+import com.example.bookexchange.exception.NotFoundException;
 import com.example.bookexchange.mappers.BookMapper;
 import com.example.bookexchange.mappers.ExchangeMapper;
 import com.example.bookexchange.models.Exchange;
@@ -9,7 +10,6 @@ import com.example.bookexchange.models.ExchangeStatus;
 import com.example.bookexchange.models.UserExchangeRole;
 import com.example.bookexchange.repositories.ExchangeRepository;
 import com.example.bookexchange.util.ExchangeUtil;
-import jakarta.persistence.EntityNotFoundException;
 import lombok.AllArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -66,7 +66,7 @@ public class HistoryServiceImpl implements HistoryService {
     @Override
     public ExchangeHistoryDetailsDTO getUserExchangeHistoryDetails(Long userId, Long exchangeId) {
         UserExchangeRole userRole = exchangeUtil.identifyUserExchangeRole(userId, exchangeId);
-        Exchange exchange = exchangeRepository.findById(exchangeId).orElseThrow(() -> new EntityNotFoundException("Der Umtauschantrag wurde nicht gefunden"));
+        Exchange exchange = exchangeRepository.findById(exchangeId).orElseThrow(() -> new NotFoundException("Der Umtauschantrag wurde nicht gefunden"));
 
         if (Objects.equals(userRole, UserExchangeRole.SENDER)) {
             if (!exchange.getIsReadBySender()) {
@@ -100,7 +100,7 @@ public class HistoryServiceImpl implements HistoryService {
                         userRole
                 );
             } else {
-                throw new EntityNotFoundException("Der Umtauschantrag wurde nicht gefunden");
+                throw new NotFoundException("Der Umtauschantrag wurde nicht gefunden");
             }
         }
     }

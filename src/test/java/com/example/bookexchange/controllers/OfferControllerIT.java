@@ -2,6 +2,8 @@ package com.example.bookexchange.controllers;
 
 import com.example.bookexchange.dto.ExchangeDTO;
 import com.example.bookexchange.dto.ExchangeDetailsDTO;
+import com.example.bookexchange.exception.BadRequestException;
+import com.example.bookexchange.exception.NotFoundException;
 import com.example.bookexchange.models.Exchange;
 import com.example.bookexchange.models.ExchangeStatus;
 import com.example.bookexchange.models.User;
@@ -9,7 +11,6 @@ import com.example.bookexchange.repositories.ExchangeRepository;
 import com.example.bookexchange.util.BookUtil;
 import com.example.bookexchange.util.ExchangeUtilIT;
 import com.example.bookexchange.util.UserUtil;
-import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -82,14 +83,14 @@ class OfferControllerIT extends AbstractIT {
     void getUserOffers() {
         exchangeUtilIT.createExchange(senderUser.getId(), receiverUser.getId(), senderBookId, receiverBookId);
 
-        Page<ExchangeDTO> exchangeDTOs = offerController.getUserOffers(receiverUser, PAGE_INDEX, PAGE_SIZE);
+        Page<ExchangeDTO> exchangeDTOs = offerController.getUserOffers(receiverUser.getId(), PAGE_INDEX, PAGE_SIZE);
 
         assertThat(exchangeDTOs.getTotalElements()).isEqualTo(1);
     }
 
     @Test
     void getUserOffersNotFound() {
-        Page<ExchangeDTO> exchangeDTOs = offerController.getUserOffers(receiverUser, PAGE_INDEX, PAGE_SIZE);
+        Page<ExchangeDTO> exchangeDTOs = offerController.getUserOffers(receiverUser.getId(), PAGE_INDEX, PAGE_SIZE);
 
         assertThat(exchangeDTOs.getTotalElements()).isEqualTo(0);
     }
@@ -100,14 +101,14 @@ class OfferControllerIT extends AbstractIT {
     void getUserOfferDetails() {
         Long exchangeId = exchangeUtilIT.createExchange(senderUser.getId(), receiverUser.getId(), senderBookId, receiverBookId);
 
-        ExchangeDetailsDTO exchangeDetailsDTO = offerController.getUserOfferDetails(receiverUser, exchangeId);
+        ExchangeDetailsDTO exchangeDetailsDTO = offerController.getUserOfferDetails(receiverUser.getId(), exchangeId);
 
         assertThat(exchangeDetailsDTO).isNotNull();
     }
 
     @Test
     void getUserRequestDetailsNotFound() {
-        assertThrows(EntityNotFoundException.class, () -> offerController.getUserOfferDetails(new User(), System.nanoTime()));
+        assertThrows(NotFoundException.class, () -> offerController.getUserOfferDetails(System.nanoTime(), System.nanoTime()));
     }
 
     @Rollback
@@ -116,7 +117,7 @@ class OfferControllerIT extends AbstractIT {
     void approveUserOffer() {
         Long exchangeId = exchangeUtilIT.createExchange(senderUser.getId(), receiverUser.getId(), senderBookId, receiverBookId);
 
-        ResponseEntity<String> responseEntity = offerController.approveUserOffer(receiverUser, exchangeId);
+        ResponseEntity<String> responseEntity = offerController.approveUserOffer(receiverUser.getId(), exchangeId);
 
         assertThat(responseEntity.getStatusCode()).isEqualTo(HttpStatusCode.valueOf(204));
 
@@ -131,12 +132,12 @@ class OfferControllerIT extends AbstractIT {
     void approveUserOfferUserNotFound() {
         Long exchangeId = exchangeUtilIT.createExchange(senderUser.getId(), receiverUser.getId(), senderBookId, receiverBookId);
 
-        assertThrows(EntityNotFoundException.class, () -> offerController.approveUserOffer(new User(), exchangeId));
+        assertThrows(NotFoundException.class, () -> offerController.approveUserOffer(System.nanoTime(), exchangeId));
     }
 
     @Test
     void approveUserOfferExchangeNotFound() {
-        assertThrows(EntityNotFoundException.class, () -> offerController.approveUserOffer(receiverUser, System.nanoTime()));
+        assertThrows(NotFoundException.class, () -> offerController.approveUserOffer(receiverUser.getId(), System.nanoTime()));
     }
 
     @Rollback
@@ -150,7 +151,7 @@ class OfferControllerIT extends AbstractIT {
         exchange.setStatus(ExchangeStatus.DECLINED);
         exchangeRepository.save(exchange);
 
-        assertThrows(IllegalStateException.class, () -> offerController.approveUserOffer(receiverUser, exchangeId));
+        assertThrows(BadRequestException.class, () -> offerController.approveUserOffer(receiverUser.getId(), exchangeId));
     }
 
     @Rollback
@@ -164,7 +165,7 @@ class OfferControllerIT extends AbstractIT {
         exchange.setStatus(ExchangeStatus.APPROVED);
         exchangeRepository.save(exchange);
 
-        assertThrows(IllegalStateException.class, () -> offerController.approveUserOffer(receiverUser, exchangeId));
+        assertThrows(BadRequestException.class, () -> offerController.approveUserOffer(receiverUser.getId(), exchangeId));
     }
 
     @Rollback
@@ -173,7 +174,7 @@ class OfferControllerIT extends AbstractIT {
     void declineUserOffer() {
         Long exchangeId = exchangeUtilIT.createExchange(senderUser.getId(), receiverUser.getId(), senderBookId, receiverBookId);
 
-        ResponseEntity responseEntity = offerController.declineUserOffer(receiverUser, exchangeId);
+        ResponseEntity responseEntity = offerController.declineUserOffer(receiverUser.getId(), exchangeId);
 
         assertThat(responseEntity.getStatusCode()).isEqualTo(HttpStatusCode.valueOf(204));
 
@@ -189,12 +190,12 @@ class OfferControllerIT extends AbstractIT {
     void declineUserOfferUserNotFound() {
         Long exchangeId = exchangeUtilIT.createExchange(senderUser.getId(), receiverUser.getId(), senderBookId, receiverBookId);
 
-        assertThrows(EntityNotFoundException.class, () -> offerController.declineUserOffer(new User(), exchangeId));
+        assertThrows(NotFoundException.class, () -> offerController.declineUserOffer(System.nanoTime(), exchangeId));
     }
 
     @Test
     void declineUserOfferExchangeNotFound() {
-        assertThrows(EntityNotFoundException.class, () -> offerController.declineUserOffer(receiverUser, System.nanoTime()));
+        assertThrows(NotFoundException.class, () -> offerController.declineUserOffer(receiverUser.getId(), System.nanoTime()));
     }
 
     @Rollback
@@ -208,7 +209,7 @@ class OfferControllerIT extends AbstractIT {
         exchange.setStatus(ExchangeStatus.DECLINED);
         exchangeRepository.save(exchange);
 
-        assertThrows(IllegalStateException.class, () -> offerController.declineUserOffer(receiverUser, exchangeId));
+        assertThrows(BadRequestException.class, () -> offerController.declineUserOffer(receiverUser.getId(), exchangeId));
     }
 
     @Rollback
@@ -222,6 +223,6 @@ class OfferControllerIT extends AbstractIT {
         exchange.setStatus(ExchangeStatus.APPROVED);
         exchangeRepository.save(exchange);
 
-        assertThrows(IllegalStateException.class, () -> offerController.declineUserOffer(receiverUser, exchangeId));
+        assertThrows(BadRequestException.class, () -> offerController.declineUserOffer(receiverUser.getId(), exchangeId));
     }
 }

@@ -7,11 +7,11 @@ import org.springframework.data.domain.Page;
 
 public interface RequestService {
 
-    ExchangeDTO createRequest(Long senderUserId, RequestCreateDTO dto);
+    String createRequest(Long senderUserId, RequestCreateDTO dto);
 
     ExchangeDetailsDTO getSenderRequestDetails(Long senderUserId, Long exchangeId);
 
     Page<ExchangeDTO> getSenderRequests(Long senderUserId, Integer pageIndex, Integer pageSize);
 
-    void declineUserRequest(Long senderUserId, Long exchangeId);
+    String declineUserRequest(Long senderUserId, Long exchangeId);
 }

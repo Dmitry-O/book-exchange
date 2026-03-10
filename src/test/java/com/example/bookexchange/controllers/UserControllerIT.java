@@ -2,11 +2,11 @@ package com.example.bookexchange.controllers;
 
 import com.example.bookexchange.dto.UserDTO;
 import com.example.bookexchange.dto.UserUpdateDTO;
+import com.example.bookexchange.exception.EntityExistsException;
+import com.example.bookexchange.exception.NotFoundException;
 import com.example.bookexchange.models.User;
 import com.example.bookexchange.repositories.UserRepository;
 import com.example.bookexchange.util.UserUtil;
-import jakarta.persistence.EntityExistsException;
-import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -66,7 +66,7 @@ class UserControllerIT extends AbstractIT {
 
         User user = userRepository.findAll().getFirst();
 
-        UserDTO userDTO = userController.getUser(user);
+        UserDTO userDTO = userController.getUser(user.getId());
 
         assertThat(userDTO).isNotNull();
     }
@@ -76,7 +76,7 @@ class UserControllerIT extends AbstractIT {
         User user = new User();
         user.setId(Long.MAX_VALUE);
 
-        assertThrows(EntityNotFoundException.class, () -> userController.getUser(user));
+        assertThrows(NotFoundException.class, () -> userController.getUser(user.getId()));
     }
 
     //TODO: To be refactored
@@ -152,7 +152,7 @@ class UserControllerIT extends AbstractIT {
                 .photoBase64(user.getPhotoBase64())
                 .build();
 
-        ResponseEntity<String> responseEntity = userController.updateUser(user, userUpdateDTO);
+        ResponseEntity<String> responseEntity = userController.updateUser(user.getId(), userUpdateDTO);
 
         assertThat(responseEntity.getStatusCode()).isEqualTo(HttpStatusCode.valueOf(204));
 
@@ -163,7 +163,7 @@ class UserControllerIT extends AbstractIT {
 
     @Test
     void updateUserNotFound() {
-        assertThrows(EntityNotFoundException.class, () -> userController.updateUser(new User(), UserUpdateDTO.builder().build()));
+        assertThrows(NotFoundException.class, () -> userController.updateUser(System.nanoTime(), UserUpdateDTO.builder().build()));
     }
 
     @Rollback
@@ -183,7 +183,7 @@ class UserControllerIT extends AbstractIT {
                 .photoBase64(user.getPhotoBase64())
                 .build();
 
-        assertThrows(EntityExistsException.class, () -> userController.updateUser(user, userUpdateDTO));
+        assertThrows(EntityExistsException.class, () -> userController.updateUser(user.getId(), userUpdateDTO));
     }
 
     @Rollback
@@ -224,7 +224,7 @@ class UserControllerIT extends AbstractIT {
 
         User user = userRepository.findAll().getFirst();
 
-        ResponseEntity<String> responseEntity = userController.deleteUser(user);
+        ResponseEntity<String> responseEntity = userController.deleteUser(user.getId());
 
         assertThat(responseEntity.getStatusCode()).isEqualTo(HttpStatusCode.valueOf(204));
         assertThat(userRepository.findById(user.getId())).isEmpty();
@@ -232,6 +232,6 @@ class UserControllerIT extends AbstractIT {
 
     @Test
     void deleteUserNotFound() {
-        assertThrows(EntityNotFoundException.class, () -> userController.deleteUser(new User()));
+        assertThrows(NotFoundException.class, () -> userController.deleteUser(System.nanoTime()));
     }
 }

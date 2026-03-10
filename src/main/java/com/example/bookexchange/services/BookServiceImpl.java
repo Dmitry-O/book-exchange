@@ -4,6 +4,7 @@ import com.example.bookexchange.dto.BookCreateDTO;
 import com.example.bookexchange.dto.BookDTO;
 import com.example.bookexchange.dto.BookSearchDTO;
 import com.example.bookexchange.dto.BookUpdateDTO;
+import com.example.bookexchange.exception.NotFoundException;
 import com.example.bookexchange.mappers.BookMapper;
 import com.example.bookexchange.models.Book;
 import com.example.bookexchange.models.User;
@@ -19,9 +20,6 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReference;
-
 @Service
 @AllArgsConstructor
 public class BookServiceImpl extends BaseServiceImpl<User, Long> implements BookService {
@@ -32,14 +30,14 @@ public class BookServiceImpl extends BaseServiceImpl<User, Long> implements Book
 
     @Transactional
     @Override
-    public BookDTO addUserBook(Long userId, BookCreateDTO dto) {
+    public String addUserBook(Long userId, BookCreateDTO dto) {
         User user = findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
 
         Book book = bookMapper.bookDtoToBook(dto);
         book.setUser(user);
-        Book savedBook = bookRepository.save(book);
+        bookRepository.save(book);
 
-        return bookMapper.bookToBookDto(savedBook);
+        return "Das Buch wurde erstellt";
     }
 
     @Override
@@ -83,21 +81,19 @@ public class BookServiceImpl extends BaseServiceImpl<User, Long> implements Book
 
     @Transactional
     @Override
-    public Boolean deleteUserBookById(Long userId, Long bookId) {
-        if (bookRepository.existsById(bookId)) {
-            bookRepository.deleteByIdAndUserId(bookId, userId);
-
-            return true;
+    public String deleteUserBookById(Long userId, Long bookId) {
+        if (!bookRepository.existsById(bookId)) {
+            throw new NotFoundException("Das Buch mit ID " + bookId + " wurde nicht gefunden");
         }
 
-        return false;
+        bookRepository.deleteByIdAndUserId(bookId, userId);
+
+        return "Das Buch mit ID " + bookId + " wurde gelöst";
     }
 
     @Transactional
     @Override
-    public Optional<BookDTO> updateUserBookById(Long userId, Long bookId, BookUpdateDTO dto) {
-        AtomicReference<Optional<BookDTO>> atomicReference = new AtomicReference<>();
-
+    public String updateUserBookById(Long userId, Long bookId, BookUpdateDTO dto) {
         bookRepository.findByIdAndUserId(bookId, userId).ifPresentOrElse(foundBook -> {
             foundBook.setName(!dto.getName().isEmpty() ? dto.getName() : foundBook.getName());
             foundBook.setDescription(!dto.getDescription().isEmpty() ? dto.getDescription() : foundBook.getDescription());
@@ -109,15 +105,11 @@ public class BookServiceImpl extends BaseServiceImpl<User, Long> implements Book
             foundBook.setIsGift(dto.getIsGift() != null ?  dto.getIsGift() : foundBook.getIsGift());
             foundBook.setContactDetails(!dto.getContactDetails().isEmpty() ? dto.getContactDetails() : foundBook.getContactDetails());
 
-            atomicReference.set(
-                    Optional.of(
-                            bookMapper.bookToBookDto(
-                                    bookRepository.save(foundBook)
-                            )
-                    )
-            );
-        }, () -> atomicReference.set(Optional.empty()));
+            bookMapper.bookToBookDto(bookRepository.save(foundBook));
+        }, () -> {
+            throw new NotFoundException("Das Buch mit ID " + bookId + " oder mit user ID + " + userId + " wurde nicht gefunden");
+        });
 
-        return atomicReference.get();
+        return "Das Buch mit ID " + bookId + " wurde aktualiziert";
     }
 }

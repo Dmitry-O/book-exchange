@@ -3,6 +3,8 @@ package com.example.bookexchange.controllers;
 import com.example.bookexchange.dto.ExchangeDTO;
 import com.example.bookexchange.dto.ExchangeDetailsDTO;
 import com.example.bookexchange.dto.RequestCreateDTO;
+import com.example.bookexchange.exception.BadRequestException;
+import com.example.bookexchange.exception.NotFoundException;
 import com.example.bookexchange.models.Exchange;
 import com.example.bookexchange.models.ExchangeStatus;
 import com.example.bookexchange.models.User;
@@ -10,7 +12,6 @@ import com.example.bookexchange.repositories.ExchangeRepository;
 import com.example.bookexchange.util.BookUtil;
 import com.example.bookexchange.util.ExchangeUtilIT;
 import com.example.bookexchange.util.UserUtil;
-import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -108,7 +109,7 @@ class RequestControllerIT extends AbstractIT {
                 .receiverBookId(receiverBookId)
                 .build();
 
-        ResponseEntity<String> responseEntity = requestController.createRequest(senderUser, requestCreateDTO);
+        ResponseEntity<String> responseEntity = requestController.createRequest(senderUser.getId(), requestCreateDTO);
 
         assertThat(responseEntity.getStatusCode()).isEqualTo(HttpStatusCode.valueOf(201));
         assertThat(responseEntity.getHeaders().getLocation()).isNotNull();
@@ -145,14 +146,14 @@ class RequestControllerIT extends AbstractIT {
     void getUserRequestDetails() {
         Long exchangeId = exchangeUtilIT.createExchange(senderUser.getId(), receiverUser.getId(), senderBookId, receiverBookId);
 
-        ExchangeDetailsDTO exchangeDTO = requestController.getUserRequestDetails(senderUser, exchangeId);
+        ExchangeDetailsDTO exchangeDTO = requestController.getUserRequestDetails(senderUser.getId(), exchangeId);
 
         assertThat(exchangeDTO).isNotNull();
     }
 
     @Test
     void getUserRequestDetailsNotFound() {
-        assertThrows(EntityNotFoundException.class, () -> requestController.getUserRequestDetails(new User(), System.nanoTime()));
+        assertThrows(NotFoundException.class, () -> requestController.getUserRequestDetails(System.nanoTime(), System.nanoTime()));
     }
 
     @Rollback
@@ -161,14 +162,14 @@ class RequestControllerIT extends AbstractIT {
     void getUserRequests() {
         exchangeUtilIT.createExchange(senderUser.getId(), receiverUser.getId(), senderBookId, receiverBookId);
 
-        Page<ExchangeDTO> exchangeDTOs = requestController.getUserRequests(senderUser, PAGE_INDEX, PAGE_SIZE);
+        Page<ExchangeDTO> exchangeDTOs = requestController.getUserRequests(senderUser.getId(), PAGE_INDEX, PAGE_SIZE);
 
         assertThat(exchangeDTOs.getTotalElements()).isEqualTo(1);
     }
 
     @Test
     void getUserRequestsNotFound() {
-        Page<ExchangeDTO> exchangeDTOs = requestController.getUserRequests(senderUser, PAGE_INDEX, PAGE_SIZE);
+        Page<ExchangeDTO> exchangeDTOs = requestController.getUserRequests(senderUser.getId(), PAGE_INDEX, PAGE_SIZE);
 
         assertThat(exchangeDTOs.getTotalElements()).isEqualTo(0);
     }
@@ -179,7 +180,7 @@ class RequestControllerIT extends AbstractIT {
     void declineUserRequest() {
         Long exchangeId = exchangeUtilIT.createExchange(senderUser.getId(), receiverUser.getId(), senderBookId, receiverBookId);
 
-        ResponseEntity<String> responseEntity = requestController.declineUserRequest(senderUser, exchangeId);
+        ResponseEntity<String> responseEntity = requestController.declineUserRequest(senderUser.getId(), exchangeId);
 
         assertThat(responseEntity.getStatusCode()).isEqualTo(HttpStatusCode.valueOf(204));
 
@@ -195,12 +196,12 @@ class RequestControllerIT extends AbstractIT {
     void declineUserRequestUserNotFound() {
         Long exchangeId = exchangeUtilIT.createExchange(senderUser.getId(), receiverUser.getId(), senderBookId, receiverBookId);
 
-        assertThrows(EntityNotFoundException.class, () -> requestController.declineUserRequest(new User(), exchangeId));
+        assertThrows(NotFoundException.class, () -> requestController.declineUserRequest(System.nanoTime(), exchangeId));
     }
 
     @Test
     void declineUserRequestExchangeNotFound() {
-        assertThrows(EntityNotFoundException.class, () -> requestController.declineUserRequest(senderUser, System.nanoTime()));
+        assertThrows(NotFoundException.class, () -> requestController.declineUserRequest(senderUser.getId(), System.nanoTime()));
     }
 
     @Rollback
@@ -214,7 +215,7 @@ class RequestControllerIT extends AbstractIT {
         exchange.setStatus(ExchangeStatus.DECLINED);
         exchangeRepository.save(exchange);
 
-        assertThrows(IllegalStateException.class, () -> requestController.declineUserRequest(senderUser, exchangeId));
+        assertThrows(BadRequestException.class, () -> requestController.declineUserRequest(senderUser.getId(), exchangeId));
     }
 
     @Rollback
@@ -228,6 +229,6 @@ class RequestControllerIT extends AbstractIT {
         exchange.setStatus(ExchangeStatus.APPROVED);
         exchangeRepository.save(exchange);
 
-        assertThrows(IllegalStateException.class, () -> requestController.declineUserRequest(senderUser, exchangeId));
+        assertThrows(BadRequestException.class, () -> requestController.declineUserRequest(senderUser.getId(), exchangeId));
     }
 }

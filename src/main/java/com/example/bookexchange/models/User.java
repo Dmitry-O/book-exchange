@@ -72,7 +72,7 @@ public class User {
     )
     @Column(name = "role")
     @Enumerated(EnumType.STRING)
-    private Set<UserRole> roles;
+    private Set<UserRole> roles = new HashSet<>();
 
     @JsonIgnore
     private Instant bannedUntil;

@@ -3,7 +3,6 @@ package com.example.bookexchange.controllers;
 import com.example.bookexchange.dto.*;
 import com.example.bookexchange.services.UserService;
 import lombok.AllArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -14,7 +13,7 @@ public class AuthController {
 
     private final UserService userService;
 
-    public static final String AUTH_PATH ="/api/v1/auth";
+    public static final String AUTH_PATH = "/api/v1/auth";
     public static final String AUTH_PATH_REGISTER = AUTH_PATH + "/register";
     public static final String AUTH_PATH_LOGIN = AUTH_PATH + "/login";
     public static final String AUTH_PATH_REFRESH_TOKEN = AUTH_PATH + "/refresh_token";
@@ -24,8 +23,8 @@ public class AuthController {
     public static final String AUTH_PATH_RESEND_CONFIRMATION_EMAIL = AUTH_PATH + "/resend_confirmation_email";
 
     @PostMapping(AUTH_PATH_REGISTER)
-    public String register(@Validated @RequestBody UserCreateDTO dto) {
-        return userService.createUser(dto);
+    public ResponseEntity<ApiMessage> register(@Validated @RequestBody UserCreateDTO dto) {
+        return ResponseEntity.ok(new ApiMessage(userService.createUser(dto)));
     }
 
     @PostMapping(AUTH_PATH_LOGIN)
@@ -34,31 +33,27 @@ public class AuthController {
     }
 
     @PostMapping(AUTH_PATH_REFRESH_TOKEN)
-    public String refreshAccessToken(@Validated @RequestBody AuthRefreshTokenDTO dto) {
-        return userService.refreshAccessToken(dto.getRefreshToken());
+    public ResponseEntity<ApiMessage> refreshAccessToken(@Validated @RequestBody AuthRefreshTokenDTO dto) {
+        return ResponseEntity.ok(new ApiMessage(userService.refreshAccessToken(dto.getRefreshToken())));
     }
 
     @GetMapping(AUTH_PATH_CONFIRM_REGISTRATION)
-    public ResponseEntity<String> confirmEmail(@RequestParam String token) {
-        userService.confirmRegistration(token);
-
-        return new ResponseEntity<>("Die Registrierung wurde vollständig abgeschlossen", HttpStatus.OK);
+    public ResponseEntity<ApiMessage> confirmEmail(@RequestParam String token) {
+        return ResponseEntity.ok(new ApiMessage(userService.confirmRegistration(token)));
     }
 
     @PatchMapping(AUTH_PATH_FORGOT_PASSWORD)
-    public String forgotPassword(@Validated @RequestBody UserForgotPasswordDTO dto) {
-        return userService.forgotPassword(dto);
+    public ResponseEntity<ApiMessage> forgotPassword(@Validated @RequestBody UserForgotPasswordDTO dto) {
+        return ResponseEntity.ok(new ApiMessage(userService.forgotPassword(dto)));
     }
 
     @PatchMapping(AUTH_PATH_RESET_PASSWORD)
-    public ResponseEntity<String> resetPassword(@RequestParam String token, @Validated @RequestBody UserResetForgottenPasswordDTO dto) {
-        userService.resetForgottenPassword(token, dto);
-
-        return new ResponseEntity<>("Ihr Passwort wurde erfolgreich geändert", HttpStatus.OK);
+    public ResponseEntity<ApiMessage> resetPassword(@RequestParam String token, @Validated @RequestBody UserResetForgottenPasswordDTO dto) {
+        return ResponseEntity.ok(new ApiMessage(userService.resetForgottenPassword(token, dto)));
     }
 
     @PatchMapping(AUTH_PATH_RESEND_CONFIRMATION_EMAIL)
-    public String resendEmailConfirmation(@Validated @RequestBody UserResendEmailConfirmationDTO dto) {
-        return userService.resendEmailConfirmation(dto);
+    public ResponseEntity<ApiMessage> resendEmailConfirmation(@Validated @RequestBody UserResendEmailConfirmationDTO dto) {
+        return ResponseEntity.ok(new ApiMessage(userService.resendEmailConfirmation(dto)));
     }
 }

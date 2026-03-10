@@ -2,6 +2,8 @@ package com.example.bookexchange.services;
 
 import com.example.bookexchange.dto.ExchangeDTO;
 import com.example.bookexchange.dto.ExchangeDetailsDTO;
+import com.example.bookexchange.exception.BadRequestException;
+import com.example.bookexchange.exception.NotFoundException;
 import com.example.bookexchange.mappers.BookMapper;
 import com.example.bookexchange.mappers.ExchangeMapper;
 import com.example.bookexchange.models.Book;
@@ -10,7 +12,6 @@ import com.example.bookexchange.models.ExchangeStatus;
 import com.example.bookexchange.models.User;
 import com.example.bookexchange.repositories.ExchangeRepository;
 import com.example.bookexchange.repositories.UserRepository;
-import jakarta.persistence.EntityNotFoundException;
 import lombok.AllArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -38,7 +39,7 @@ public class OfferServiceImpl implements OfferService {
 
     @Override
     public ExchangeDetailsDTO getReceiverOfferDetails(Long receiverUserId, Long exchangeId) {
-        Exchange exchange = exchangeRepository.findByIdAndReceiverUserId(exchangeId, receiverUserId).orElseThrow(() -> new EntityNotFoundException("Der Umtauschantrag wurde nicht gefunden"));
+        Exchange exchange = exchangeRepository.findByIdAndReceiverUserId(exchangeId, receiverUserId).orElseThrow(() -> new NotFoundException("Der Umtauschantrag wurde nicht gefunden"));
 
         return ExchangeMapper.fromEntityDetails(
                 exchange,
@@ -49,8 +50,8 @@ public class OfferServiceImpl implements OfferService {
     }
 
     @Override
-    public void approveUserOffer(Long receiverUserId, Long exchangeId) {
-        Exchange exchange = exchangeRepository.findByIdAndReceiverUserId(exchangeId, receiverUserId).orElseThrow(() -> new EntityNotFoundException("Der Umtauschantrag mit ID " + exchangeId + " und mit einer Empfängerbenutzer mit ID " + receiverUserId + " wurde nicht gefunden"));
+    public String approveUserOffer(Long receiverUserId, Long exchangeId) {
+        Exchange exchange = exchangeRepository.findByIdAndReceiverUserId(exchangeId, receiverUserId).orElseThrow(() -> new NotFoundException("Der Umtauschantrag mit ID " + exchangeId + " und mit einer Empfängerbenutzer mit ID " + receiverUserId + " wurde nicht gefunden"));
         Book senderBook = exchange.getSenderBook();
         Book receiverBook = exchange.getReceiverBook();
 
@@ -77,21 +78,25 @@ public class OfferServiceImpl implements OfferService {
                 exchangeRepository.save(e);
             });
         } else {
-            throw new IllegalStateException("Der Umtauschantrag kann nicht bestätigt werden");
+            throw new BadRequestException("Der Umtauschantrag kann nicht bestätigt werden");
         }
+
+        return "Der Umtauschantrag wurde bestätigt";
     }
 
     @Override
-    public void declineUserOffer(Long receiverUserId, Long exchangeId) {
-        Exchange exchange = exchangeRepository.findByIdAndReceiverUserId(exchangeId, receiverUserId).orElseThrow(() -> new EntityNotFoundException("Der Umtauschantrag mit ID " + exchangeId + " und mit einer Empfängerbenutzer mit ID " + receiverUserId + " wurde nicht gefunden"));
-        User declinerUser = userRepository.findById(receiverUserId).orElseThrow(() -> new EntityNotFoundException("Der Benutzer mit ID " + receiverUserId + " wurde nicht gefunden"));
+    public String declineUserOffer(Long receiverUserId, Long exchangeId) {
+        Exchange exchange = exchangeRepository.findByIdAndReceiverUserId(exchangeId, receiverUserId).orElseThrow(() -> new NotFoundException("Der Umtauschantrag mit ID " + exchangeId + " und mit einer Empfängerbenutzer mit ID " + receiverUserId + " wurde nicht gefunden"));
+        User declinerUser = userRepository.findById(receiverUserId).orElseThrow(() -> new NotFoundException("Der Benutzer mit ID " + receiverUserId + " wurde nicht gefunden"));
 
         if (exchange.getStatus().equals(ExchangeStatus.PENDING)) {
             exchange.setStatus(ExchangeStatus.DECLINED);
             exchange.setDeclinerUser(declinerUser);
             exchangeRepository.save(exchange);
         } else {
-            throw new IllegalStateException("Der Umtauschantrag kann nicht storniert werden");
+            throw new BadRequestException("Der Umtauschantrag kann nicht abgelehnt werden");
         }
+
+        return "Der Umtauschantrag wurde abgelehnt";
     }
 }
