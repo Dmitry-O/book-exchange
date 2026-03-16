@@ -1,10 +1,8 @@
 package com.example.bookexchange.services;
 
 import com.example.bookexchange.dto.ExchangeDTO;
-import com.example.bookexchange.dto.ExchangeDetailsDTO;
 import com.example.bookexchange.exception.BadRequestException;
 import com.example.bookexchange.exception.NotFoundException;
-import com.example.bookexchange.mappers.BookMapper;
 import com.example.bookexchange.mappers.ExchangeMapper;
 import com.example.bookexchange.models.Book;
 import com.example.bookexchange.models.Exchange;
@@ -12,11 +10,13 @@ import com.example.bookexchange.models.ExchangeStatus;
 import com.example.bookexchange.models.User;
 import com.example.bookexchange.repositories.ExchangeRepository;
 import com.example.bookexchange.repositories.UserRepository;
+import com.example.bookexchange.util.Helper;
 import lombok.AllArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -26,32 +26,32 @@ public class OfferServiceImpl implements OfferService {
 
     private final ExchangeRepository exchangeRepository;
     private final UserRepository userRepository;
-    private final BookMapper bookMapper;
+    private final ExchangeMapper exchangeMapper;
+    private final Helper helper;
 
+    @Transactional(readOnly = true)
     @Override
     public Page<ExchangeDTO> getUserOffers(Long receiverUserId, Integer pageIndex, Integer pageSize) {
         Pageable pageable = PageRequest.of(pageIndex, pageSize);
 
         Page<Exchange> exchangesPage = exchangeRepository.findByReceiverUserIdAndStatus(receiverUserId, ExchangeStatus.PENDING, pageable);
 
-        return exchangesPage.map(ExchangeMapper::fromEntity);
+        return exchangesPage.map(exchangeMapper::exchangeToExchangeDto);
     }
 
+    @Transactional(readOnly = true)
     @Override
-    public ExchangeDetailsDTO getReceiverOfferDetails(Long receiverUserId, Long exchangeId) {
-        Exchange exchange = exchangeRepository.findByIdAndReceiverUserId(exchangeId, receiverUserId).orElseThrow(() -> new NotFoundException("Der Umtauschantrag wurde nicht gefunden"));
-
-        return ExchangeMapper.fromEntityDetails(
-                exchange,
-                exchange.getSenderBook() != null ? bookMapper.bookToBookDto(exchange.getSenderBook()) : null,
-                bookMapper.bookToBookDto(exchange.getReceiverBook()),
-                exchange.getSenderUser().getNickname()
-        );
+    public Exchange getReceiverOfferDetails(Long receiverUserId, Long exchangeId) {
+        return exchangeRepository.findByIdAndReceiverUserId(exchangeId, receiverUserId).orElseThrow(() -> new NotFoundException("Der Umtauschantrag wurde nicht gefunden"));
     }
 
+    @Transactional
     @Override
-    public String approveUserOffer(Long receiverUserId, Long exchangeId) {
+    public String approveUserOffer(Long receiverUserId, Long exchangeId, Long version) {
         Exchange exchange = exchangeRepository.findByIdAndReceiverUserId(exchangeId, receiverUserId).orElseThrow(() -> new NotFoundException("Der Umtauschantrag mit ID " + exchangeId + " und mit einer Empfängerbenutzer mit ID " + receiverUserId + " wurde nicht gefunden"));
+
+        helper.checkEntityVersion(exchange.getVersion(), version);
+
         Book senderBook = exchange.getSenderBook();
         Book receiverBook = exchange.getReceiverBook();
 
@@ -84,10 +84,13 @@ public class OfferServiceImpl implements OfferService {
         return "Der Umtauschantrag wurde bestätigt";
     }
 
+    @Transactional
     @Override
-    public String declineUserOffer(Long receiverUserId, Long exchangeId) {
+    public String declineUserOffer(Long receiverUserId, Long exchangeId, Long version) {
         Exchange exchange = exchangeRepository.findByIdAndReceiverUserId(exchangeId, receiverUserId).orElseThrow(() -> new NotFoundException("Der Umtauschantrag mit ID " + exchangeId + " und mit einer Empfängerbenutzer mit ID " + receiverUserId + " wurde nicht gefunden"));
         User declinerUser = userRepository.findById(receiverUserId).orElseThrow(() -> new NotFoundException("Der Benutzer mit ID " + receiverUserId + " wurde nicht gefunden"));
+
+        helper.checkEntityVersion(exchange.getVersion(), version);
 
         if (exchange.getStatus().equals(ExchangeStatus.PENDING)) {
             exchange.setStatus(ExchangeStatus.DECLINED);

@@ -2,12 +2,13 @@ package com.example.bookexchange.specification;
 
 import com.example.bookexchange.dto.BookSearchDTO;
 import com.example.bookexchange.models.Book;
+import com.example.bookexchange.models.BookType;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
 
 public class BookSpecificationBuilder {
 
-    public static Specification<Book> build(BookSearchDTO dto) {
+    public static Specification<Book> build(BookSearchDTO dto, BookType bookType) {
         return (root, query, cb) -> {
             Predicate predicate = cb.conjunction();
 
@@ -38,6 +39,10 @@ public class BookSpecificationBuilder {
                 Predicate nameLike = cb.like(cb.lower(root.get("name")), like);
                 Predicate descriptionLike = cb.like(cb.lower(root.get("description")), like);
                 predicate = cb.and(predicate, cb.or(nameLike, descriptionLike));
+            }
+
+            if (bookType != BookType.ALL) {
+                predicate = cb.and(predicate, bookType == BookType.ACTIVE ? cb.isNull(root.get("deletedAt")) : cb.isNotNull(root.get("deletedAt")));
             }
 
             return predicate;

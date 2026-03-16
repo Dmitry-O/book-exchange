@@ -1,9 +1,7 @@
 package com.example.bookexchange.services;
 
 import com.example.bookexchange.dto.*;
-import com.example.bookexchange.models.ReportStatus;
-import com.example.bookexchange.models.User;
-import com.example.bookexchange.models.UserRole;
+import com.example.bookexchange.models.*;
 import org.springframework.data.domain.Page;
 
 import java.util.Set;
@@ -14,23 +12,33 @@ public interface AdminService {
 
     String revokeAdminRights(Long userId);
 
-    Page<UserDTO> findUsers(Long userId, Integer pageIndex, Integer pageSize, String searchText, Set<UserRole> roles, Boolean onlyBannedUsers);
+    Page<UserAdminDTO> findUsers(Long userId, Integer pageIndex, Integer pageSize, String searchText, Set<UserRole> roles, Boolean onlyBannedUsers, UserType userType);
 
-    String banUserById(User adminUser, Long userId, BanUserDTO banUserDTO);
+    String banUserById(User adminUser, Long userId, BanUserDTO banUserDTO, Long version);
 
-    String unbanUserById(Long userId);
+    String unbanUserById(Long userId, Long version);
 
-    String deleteBookById(Long bookId);
+    String deleteBookById(Long bookId, Long version);
 
-    String updateBookById(Long bookId, BookUpdateDTO dto);
+    String updateBookById(Long bookId, BookUpdateDTO dto, Long version);
 
-    Page<ReportDTO> findReports(Integer pageIndex, Integer pageSize, Set<ReportStatus> statuses, String sortDirection);
+    Page<ReportAdminDTO> findReports(Integer pageIndex, Integer pageSize, Set<ReportStatus> statuses, String sortDirection);
 
-    BookDTO findBookById(Long bookId);
+    Report findReportById(Long reportId);
 
-    UserDTO findUserById(Long userId);
+    Book findBookById(Long bookId);
 
-    String resolveReport(Long reportId);
+    User findUserById(Long userId);
 
-    String rejectReport(Long reportId);
+    String resolveReport(Long reportId, Long version);
+
+    String rejectReport(Long reportId, Long version);
+
+    Page<BookAdminDTO> findBooks(BookSearchDTO dto, Integer pageIndex, Integer pageSize, BookType bookType);
+
+    String restoreBookById(Long bookId, Long version);
+
+    Page<ExchangeAdminDTO> findExchanges(Integer pageIndex, Integer pageSize, Set<ExchangeStatus> exchangeStatuses);
+
+    ExchangeAdminDTO findExchangeById(Long exchangeId);
 }

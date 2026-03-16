@@ -16,6 +16,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -29,7 +30,9 @@ public class HistoryServiceImpl implements HistoryService {
     private final ExchangeRepository exchangeRepository;
     private final ExchangeUtil exchangeUtil;
     private final BookMapper bookMapper;
+    private final ExchangeMapper exchangeMapper;
 
+    @Transactional(readOnly = true)
     @Override
     public Page<ExchangeHistoryDTO> getUserExchangeHistory(Long userId, Integer pageIndex, Integer pageSize) {
         Pageable pageable = PageRequest.of(pageIndex, pageSize);
@@ -43,13 +46,13 @@ public class HistoryServiceImpl implements HistoryService {
 
         allExchanges.addAll(
                 exchangesAsSender.stream()
-                        .map(exchange -> ExchangeMapper.fromEntityHistory(exchange, UserExchangeRole.SENDER))
+                        .map(exchange -> exchangeMapper.exchangeToExchangeHistoryDto(exchange, UserExchangeRole.SENDER))
                         .toList()
         );
 
         allExchanges.addAll(
                 exchangesAsReceiver.stream()
-                        .map(exchange -> ExchangeMapper.fromEntityHistory(exchange, UserExchangeRole.RECEIVER))
+                        .map(exchange -> exchangeMapper.exchangeToExchangeHistoryDto(exchange, UserExchangeRole.RECEIVER))
                         .toList()
         );
 
@@ -63,6 +66,7 @@ public class HistoryServiceImpl implements HistoryService {
         return new PageImpl<>(paginatedList, pageable, allExchanges.size());
     }
 
+    @Transactional(readOnly = true)
     @Override
     public ExchangeHistoryDetailsDTO getUserExchangeHistoryDetails(Long userId, Long exchangeId) {
         UserExchangeRole userRole = exchangeUtil.identifyUserExchangeRole(userId, exchangeId);
@@ -75,10 +79,8 @@ public class HistoryServiceImpl implements HistoryService {
                 exchangeRepository.save(exchange);
             }
 
-            return ExchangeMapper.fromEntityHistoryDetails(
+            return exchangeMapper.exchangeToExchangeHistoryDetailsDto(
                     exchange,
-                    exchange.getSenderBook() != null ? bookMapper.bookToBookDto(exchange.getSenderBook()) : null,
-                    bookMapper.bookToBookDto(exchange.getReceiverBook()),
                     exchange.getReceiverUser().getNickname(),
                     exchange.getReceiverBook().getContactDetails(),
                     userRole
@@ -91,12 +93,10 @@ public class HistoryServiceImpl implements HistoryService {
                     exchangeRepository.save(exchange);
                 }
 
-                return ExchangeMapper.fromEntityHistoryDetails(
+                return exchangeMapper.exchangeToExchangeHistoryDetailsDto(
                         exchange,
-                        exchange.getSenderBook() != null ? bookMapper.bookToBookDto(exchange.getSenderBook()) : null,
-                        bookMapper.bookToBookDto(exchange.getReceiverBook()),
                         exchange.getSenderUser().getNickname(),
-                        exchange.getSenderBook() != null ? exchange.getSenderBook().getContactDetails() : null,
+                        exchange.getSenderBook().getContactDetails(),
                         userRole
                 );
             } else {

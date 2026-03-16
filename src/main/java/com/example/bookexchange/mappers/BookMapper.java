@@ -2,11 +2,15 @@ package com.example.bookexchange.mappers;
 
 import com.example.bookexchange.dto.BookCreateDTO;
 import com.example.bookexchange.dto.BookDTO;
+import com.example.bookexchange.dto.BookUpdateDTO;
 import com.example.bookexchange.models.Book;
-import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
+import org.mapstruct.*;
 
-@Mapper
+@Mapper(
+    componentModel = "spring",
+    builder = @Builder(disableBuilder = true),
+    nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE
+)
 public interface BookMapper {
 
     @Mapping(target = "isGift", defaultValue = "false")
@@ -14,4 +18,15 @@ public interface BookMapper {
     Book bookDtoToBook(BookCreateDTO dto);
 
     BookDTO bookToBookDto(Book book);
+
+    @Mapping(target = "name", source = "dto.name")
+    @Mapping(target = "description", source = "dto.description")
+    @Mapping(target = "author", source = "dto.author")
+    @Mapping(target = "category", source = "dto.category")
+    @Mapping(target = "publicationYear", source = "dto.publicationYear")
+    @Mapping(target = "photoBase64", source = "dto.photoBase64")
+    @Mapping(target = "city", source = "dto.city")
+    @Mapping(target = "contactDetails", source = "dto.contactDetails")
+    @Mapping(target = "isGift", source = "dto.isGift")
+    void updateBookDtoToBook(BookUpdateDTO dto, @MappingTarget Book book);
 }

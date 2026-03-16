@@ -4,14 +4,12 @@ import com.example.bookexchange.dto.*;
 import com.example.bookexchange.exception.BadRequestException;
 import com.example.bookexchange.exception.EntityExistsException;
 import com.example.bookexchange.exception.NotFoundException;
-import com.example.bookexchange.mappers.BookMapper;
-import com.example.bookexchange.mappers.ReportMapper;
-import com.example.bookexchange.mappers.UserMapper;
+import com.example.bookexchange.mappers.*;
 import com.example.bookexchange.models.*;
-import com.example.bookexchange.repositories.BookRepository;
-import com.example.bookexchange.repositories.ReportRepository;
-import com.example.bookexchange.repositories.UserRepository;
+import com.example.bookexchange.repositories.*;
+import com.example.bookexchange.specification.BookSpecificationBuilder;
 import com.example.bookexchange.specification.UserSpecificationBuilder;
+import com.example.bookexchange.util.Helper;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -22,7 +20,9 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.util.HashSet;
 import java.util.Set;
 
 @Slf4j
@@ -33,9 +33,13 @@ public class AdminServiceImpl extends BaseServiceImpl<User, Long> implements Adm
     private final UserRepository userRepository;
     private final BookRepository bookRepository;
     private final ReportRepository reportRepository;
+    private final ExchangeRepository exchangeRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
     private final UserMapper userMapper;
     private final BookMapper bookMapper;
     private final ReportMapper reportMapper;
+    private final AdminMapper adminMapper;
+    private final Helper helper;
 
     @Transactional
     @Override
@@ -67,13 +71,14 @@ public class AdminServiceImpl extends BaseServiceImpl<User, Long> implements Adm
         return "Dem Benutzer " + user.getEmail() + " wurden die Administratorrechte entzogen";
     }
 
+    @Transactional(readOnly = true)
     @Override
-    public Page<UserDTO> findUsers(Long userId, Integer pageIndex, Integer pageSize, String searchText, Set<UserRole> roles, Boolean onlyBannedUsers) {
+    public Page<UserAdminDTO> findUsers(Long userId, Integer pageIndex, Integer pageSize, String searchText, Set<UserRole> roles, Boolean onlyBannedUsers, UserType userType) {
         User user = findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
 
         Boolean isUserSuperAdmin = user.getRoles().contains(UserRole.SUPER_ADMIN);
 
-        Specification<User> specification = UserSpecificationBuilder.build(searchText, roles, onlyBannedUsers, isUserSuperAdmin);
+        Specification<User> specification = UserSpecificationBuilder.build(searchText, roles, onlyBannedUsers, isUserSuperAdmin, userType);
 
         Pageable pageable;
 
@@ -81,15 +86,37 @@ public class AdminServiceImpl extends BaseServiceImpl<User, Long> implements Adm
 
         Page<User> userPage = userRepository.findAll(specification, pageable);
 
-        log.info("ADMIN Service ENTERED");
+        return userPage.map(adminMapper::userToUserAdminDto);
+    }
 
-        return userPage.map(userMapper::userToUserDto);
+    @Transactional(readOnly = true)
+    @Override
+    public Page<BookAdminDTO> findBooks(BookSearchDTO dto, Integer pageIndex, Integer pageSize, BookType bookType) {
+        Specification<Book> specification = BookSpecificationBuilder.build(dto, bookType);
+
+        Pageable pageable;
+
+        if (dto.getSortBy() != null && dto.getSortDirection() != null) {
+            Sort.Direction direction = dto.getSortDirection().equalsIgnoreCase(("desc"))
+                    ? Sort.Direction.DESC
+                    : Sort.Direction.ASC;
+
+            pageable = PageRequest.of(pageIndex, pageSize, Sort.by(direction, dto.getSortBy()));
+        } else {
+            pageable = PageRequest.of(pageIndex, pageSize);
+        }
+
+        Page<Book> bookPage = bookRepository.findAll(specification, pageable);
+
+        return bookPage.map(adminMapper::bookToBookAdminDto);
     }
 
     @Transactional
     @Override
-    public String banUserById(User adminUser, Long userId, BanUserDTO banUserDTO) {
+    public String banUserById(User adminUser, Long userId, BanUserDTO banUserDTO, Long version) {
         User user = findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
+
+        helper.checkEntityVersion(user.getVersion(), version);
 
         if (adminUser.getId().equals(user.getId())){
             throw new BadRequestException("Sie können sich nicht selbst sperren");
@@ -105,15 +132,17 @@ public class AdminServiceImpl extends BaseServiceImpl<User, Long> implements Adm
 
         user.setBanReason(banUserDTO.getBanReason());
 
-        userRepository.save(user);
+        refreshTokenRepository.deleteAll(new HashSet<>(user.getRefreshTokens()));
 
         return "Der Benutzer " + user.getEmail() + " wurde gesperrt";
     }
 
     @Transactional
     @Override
-    public String unbanUserById(Long userId) {
+    public String unbanUserById(Long userId, Long version) {
         User user = findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
+
+        helper.checkEntityVersion(user.getVersion(), version);
 
         user.setBannedUntil(null);
         user.setBannedPermanently(false);
@@ -126,31 +155,25 @@ public class AdminServiceImpl extends BaseServiceImpl<User, Long> implements Adm
 
     @Transactional
     @Override
-    public String deleteBookById(Long bookId) {
-        if (bookRepository.existsById(bookId)) {
-            bookRepository.deleteById(bookId);
+    public String deleteBookById(Long bookId, Long version) {
+        Book book = bookRepository.findById(bookId).orElseThrow(() -> new NotFoundException("Das Buch mit ID " + bookId + " wurde nicht gefunden"));
 
-            return "Das Buch mit ID " + bookId + " wurde gelöscht";
-        }
+        helper.checkEntityVersion(book.getVersion(), version);
 
-        return "Das Buch mit ID " + bookId + " wurde nicht gefunden";
+        book.setDeletedAt(Instant.now());
+
+        return "Das Buch mit ID " + bookId + " wurde gelöscht";
     }
 
     @Transactional
     @Override
-    public String updateBookById(Long bookId, BookUpdateDTO dto) {
+    public String updateBookById(Long bookId, BookUpdateDTO dto, Long version) {
         bookRepository.findById(bookId).ifPresentOrElse(foundBook -> {
-            foundBook.setName(!dto.getName().isEmpty() ? dto.getName() : foundBook.getName());
-            foundBook.setDescription(!dto.getDescription().isEmpty() ? dto.getDescription() : foundBook.getDescription());
-            foundBook.setAuthor(!dto.getAuthor().isEmpty() ? dto.getAuthor() : foundBook.getAuthor());
-            foundBook.setCategory(!dto.getCategory().isEmpty() ? dto.getCategory() : foundBook.getCategory());
-            foundBook.setPublicationYear(dto.getPublicationYear() != null ? dto.getPublicationYear() : foundBook.getPublicationYear());
-            foundBook.setPhotoBase64(!dto.getPhotoBase64().isEmpty() ? dto.getPhotoBase64() : foundBook.getPhotoBase64());
-            foundBook.setCity(!dto.getCity().isEmpty() ? dto.getCity() : foundBook.getCity());
-            foundBook.setIsGift(dto.getIsGift() != null ?  dto.getIsGift() : foundBook.getIsGift());
-            foundBook.setContactDetails(!dto.getContactDetails().isEmpty() ? dto.getContactDetails() : foundBook.getContactDetails());
+            helper.checkEntityVersion(foundBook.getVersion(), version);
 
-            bookMapper.bookToBookDto(bookRepository.save(foundBook));
+            bookMapper.updateBookDtoToBook(dto, foundBook);
+
+            bookRepository.save(foundBook);
         }, () -> {
             throw new NotFoundException("Das Buch mit ID " + bookId + " wurde nicht gefunden");
         });
@@ -158,23 +181,24 @@ public class AdminServiceImpl extends BaseServiceImpl<User, Long> implements Adm
         return "Das Buch mit ID " + bookId + " wurde aktualisiert";
     }
 
+    @Transactional(readOnly = true)
     @Override
-    public BookDTO findBookById(Long bookId) {
-        Book book = bookRepository.findById(bookId).orElseThrow(() -> new NotFoundException("Das Buch mit ID " + bookId + " wurde nicht gefunden"));
-
-        return bookMapper.bookToBookDto(book);
+    public Book findBookById(Long bookId) {
+        return bookRepository.findById(bookId).orElseThrow(() -> new NotFoundException("Das Buch mit ID " + bookId + " wurde nicht gefunden"));
     }
 
+    @Transactional(readOnly = true)
     @Override
-    public UserDTO findUserById(Long userId) {
-        User user = findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
-
-        return userMapper.userToUserDto(user);
+    public User findUserById(Long userId) {
+        return findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
     }
 
+    @Transactional
     @Override
-    public String resolveReport(Long reportId) {
+    public String resolveReport(Long reportId, Long version) {
         Report report = reportRepository.findById(reportId).orElseThrow(() -> new NotFoundException("Die Berichtserstellung mit ID " + reportId + " wurde nicht gefunden"));
+
+        helper.checkEntityVersion(report.getVersion(), version);
 
         report.setStatus(ReportStatus.RESOLVED);
 
@@ -183,9 +207,12 @@ public class AdminServiceImpl extends BaseServiceImpl<User, Long> implements Adm
         return "Die Berichtserstellung wurde gelöst";
     }
 
+    @Transactional
     @Override
-    public String rejectReport(Long reportId) {
+    public String rejectReport(Long reportId, Long version) {
         Report report = reportRepository.findById(reportId).orElseThrow(() -> new NotFoundException("Die Berichtserstellung mit ID " + reportId + " wurde nicht gefunden"));
+
+        helper.checkEntityVersion(report.getVersion(), version);
 
         report.setStatus(ReportStatus.REJECTED);
 
@@ -194,8 +221,9 @@ public class AdminServiceImpl extends BaseServiceImpl<User, Long> implements Adm
         return "Die Berichtserstellung wurde abgelehnt";
     }
 
+    @Transactional(readOnly = true)
     @Override
-    public Page<ReportDTO> findReports(Integer pageIndex, Integer pageSize, Set<ReportStatus> statuses, String sortDirection) {
+    public Page<ReportAdminDTO> findReports(Integer pageIndex, Integer pageSize, Set<ReportStatus> reportStatuses, String sortDirection) {
         Pageable pageable;
 
         Sort.Direction direction = sortDirection.equalsIgnoreCase(("desc"))
@@ -204,8 +232,53 @@ public class AdminServiceImpl extends BaseServiceImpl<User, Long> implements Adm
 
         pageable = PageRequest.of(pageIndex, pageSize, Sort.by(direction, "createdAt"));
 
-        Page<Report> reportPage = reportRepository.findByStatusIn(statuses, pageable);
+        Page<Report> reportPage;
+
+        if (reportStatuses != null) {
+            reportPage = reportRepository.findByStatusIn(reportStatuses, pageable);
+        } else {
+            reportPage = reportRepository.findAll(pageable);
+        }
 
         return reportPage.map(reportMapper::reportToReportDto);
+    }
+
+    @Transactional
+    @Override
+    public String restoreBookById(Long bookId, Long version) {
+        Book book = bookRepository.findById(bookId).orElseThrow(() -> new NotFoundException("Das Buch mit ID " + bookId + " wurde nicht gefunden"));
+
+        helper.checkEntityVersion(book.getVersion(), version);
+
+        book.setDeletedAt(null);
+
+        return "Das Buch mit  ID " + bookId + " wurde wiederhergestellt";
+    }
+
+    @Override
+    public Page<ExchangeAdminDTO> findExchanges(Integer pageIndex, Integer pageSize, Set<ExchangeStatus> exchangeStatuses) {
+        Pageable pageable = PageRequest.of(pageIndex, pageSize);
+
+        Page<Exchange> pendingExchangesPage;
+
+        if (exchangeStatuses != null) {
+            pendingExchangesPage = exchangeRepository.findByStatusIn(exchangeStatuses, pageable);
+        } else {
+            pendingExchangesPage = exchangeRepository.findAll(pageable);
+        }
+
+        return pendingExchangesPage.map(adminMapper::exchangeToExchangeAdminDto);
+    }
+
+    @Override
+    public ExchangeAdminDTO findExchangeById(Long exchangeId) {
+        Exchange exchange = exchangeRepository.findById(exchangeId).orElseThrow(() -> new NotFoundException("Der Umtauschantrag mit ID " + exchangeId + " wurde nicht gefunden"));
+
+        return adminMapper.exchangeToExchangeAdminDto(exchange);
+    }
+
+    @Override
+    public Report findReportById(Long reportId) {
+        return reportRepository.findById(reportId).orElseThrow(() -> new NotFoundException("Die Berichtserstellung mit ID " + reportId + " wurde nicht gefunden"));
     }
 }

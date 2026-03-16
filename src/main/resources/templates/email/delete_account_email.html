@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<h2>Account deletion instruction</h2>
+<p>
+    You can delete your account by clicking the link below:
+</p>
+<a th:href="${resetPasswordUrl}">
+    Delete Account
+</a>
+<p>
+    If you didn't initiate the account deletion, ignore this email.
+</p>
+</body>
+</html>

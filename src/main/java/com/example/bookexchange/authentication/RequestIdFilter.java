@@ -22,8 +22,13 @@ public class RequestIdFilter extends OncePerRequestFilter {
     ) throws ServletException, IOException {
         String requestId = UUID.randomUUID().toString();
 
+        RequestContext.setRequestId(requestId);
         request.setAttribute("requestId", requestId);
 
-        filterChain.doFilter(request, response);
+        try {
+            filterChain.doFilter(request, response);
+        } finally {
+            RequestContext.clear();
+        }
     }
 }

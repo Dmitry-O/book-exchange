@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 public interface ExchangeRepository extends JpaRepository<Exchange, Long>, JpaSpecificationExecutor<Exchange> {
 
@@ -32,5 +33,5 @@ public interface ExchangeRepository extends JpaRepository<Exchange, Long>, JpaSp
 
     List<Exchange> findByIdNotAndReceiverBookIdAndStatus(Long exchangeId,  Long receiverUserId, ExchangeStatus status);
 
-    Optional<Exchange> findById(Long exchangeId);
+    Page<Exchange> findByStatusIn(Set<ExchangeStatus> exchangeStatuses, Pageable pageable);
 }
