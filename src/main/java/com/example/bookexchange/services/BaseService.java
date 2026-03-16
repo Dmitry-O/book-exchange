@@ -1,9 +1,9 @@
 package com.example.bookexchange.services;
 
-import org.springframework.data.repository.CrudRepository;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface BaseService<T, ID> {
 
-    T findOrThrow(CrudRepository<T, ID> repo, ID id, String errorMessage);
+    T findOrThrow(JpaRepository<T, ID> repo, ID id, String errorMessage);
 }
 

@@ -5,16 +5,14 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
-import org.hibernate.annotations.CreationTimestamp;
 
-import java.time.Instant;
-
-@Builder
-@Data
+@EqualsAndHashCode(onlyExplicitlyIncluded = true, callSuper = false)
+@Getter
+@Setter
 @Entity
 @AllArgsConstructor
 @NoArgsConstructor
-public class Report {
+public class Report extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -34,11 +32,7 @@ public class Report {
     @NotBlank
     private String comment;
 
-    @CreationTimestamp
-    private Instant createdAt;
-
     @NotNull
-    @Builder.Default
     @Enumerated(EnumType.STRING)
     private ReportStatus status = ReportStatus.OPEN;
 

@@ -2,6 +2,7 @@ package com.example.bookexchange.specification;
 
 import com.example.bookexchange.models.User;
 import com.example.bookexchange.models.UserRole;
+import com.example.bookexchange.models.UserType;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
@@ -10,7 +11,7 @@ import java.time.Instant;
 import java.util.Set;
 
 public class UserSpecificationBuilder {
-    public static Specification<User> build(String searchText, Set<UserRole> roles, Boolean onlyBannedUsers, Boolean isUserSuperAdmin) {
+    public static Specification<User> build(String searchText, Set<UserRole> roles, Boolean onlyBannedUsers, Boolean isUserSuperAdmin, UserType userType) {
         return (root, query, cb) -> {
             Predicate predicate = cb.conjunction();
 
@@ -35,6 +36,10 @@ public class UserSpecificationBuilder {
                 Predicate emailLike = cb.like(cb.lower(root.get("email")), like);
                 Predicate nicknameLike = cb.like(cb.lower(root.get("nickname")), like);
                 predicate = cb.and(predicate, cb.or(emailLike, nicknameLike));
+            }
+
+            if (userType != UserType.ALL) {
+                predicate = cb.and(predicate, userType == UserType.ACTIVE ? cb.isNull(root.get("deletedAt")) : cb.isNotNull(root.get("deletedAt")));
             }
 
             return predicate;

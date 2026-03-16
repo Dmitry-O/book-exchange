@@ -7,10 +7,13 @@ import com.example.bookexchange.dto.BookUpdateDTO;
 import com.example.bookexchange.exception.NotFoundException;
 import com.example.bookexchange.mappers.BookMapper;
 import com.example.bookexchange.models.Book;
+import com.example.bookexchange.models.BookType;
+import com.example.bookexchange.models.MessageKey;
 import com.example.bookexchange.models.User;
 import com.example.bookexchange.repositories.BookRepository;
 import com.example.bookexchange.repositories.UserRepository;
 import com.example.bookexchange.specification.BookSpecificationBuilder;
+import com.example.bookexchange.util.Helper;
 import lombok.AllArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -20,6 +23,8 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+
 @Service
 @AllArgsConstructor
 public class BookServiceImpl extends BaseServiceImpl<User, Long> implements BookService {
@@ -27,6 +32,7 @@ public class BookServiceImpl extends BaseServiceImpl<User, Long> implements Book
     private final BookRepository bookRepository;
     private final UserRepository userRepository;
     private final BookMapper bookMapper;
+    private final Helper helper;
 
     @Transactional
     @Override
@@ -40,6 +46,7 @@ public class BookServiceImpl extends BaseServiceImpl<User, Long> implements Book
         return "Das Buch wurde erstellt";
     }
 
+    @Transactional(readOnly = true)
     @Override
     public Page<BookDTO> findUserBooks(Long userId, Integer pageIndex, Integer pageSize) {
         Pageable pageable = PageRequest.of(pageIndex, pageSize);
@@ -49,6 +56,13 @@ public class BookServiceImpl extends BaseServiceImpl<User, Long> implements Book
         return bookPage.map(bookMapper::bookToBookDto);
     }
 
+    @Transactional(readOnly = true)
+    @Override
+    public Book findUserBookById(Long userId, Long bookId) {
+        return bookRepository.findByIdAndUserId(bookId, userId).orElseThrow(() -> new NotFoundException("Das Buch mit ID + " + bookId + " wurde nicht gefunden"));
+    }
+
+    @Transactional(readOnly = true)
     @Override
     public Page<BookDTO> findExchangedUserBooks(Long userId, Integer pageIndex, Integer pageSize) {
         Pageable pageable = PageRequest.of(pageIndex, pageSize);
@@ -58,9 +72,10 @@ public class BookServiceImpl extends BaseServiceImpl<User, Long> implements Book
         return bookPage.map(bookMapper::bookToBookDto);
     }
 
+    @Transactional(readOnly = true)
     @Override
     public Page<BookDTO> findBooks(BookSearchDTO dto, Integer pageIndex, Integer pageSize) {
-        Specification<Book> specification = BookSpecificationBuilder.build(dto);
+        Specification<Book> specification = BookSpecificationBuilder.build(dto, BookType.ACTIVE);
 
         Pageable pageable;
 
@@ -81,31 +96,25 @@ public class BookServiceImpl extends BaseServiceImpl<User, Long> implements Book
 
     @Transactional
     @Override
-    public String deleteUserBookById(Long userId, Long bookId) {
-        if (!bookRepository.existsById(bookId)) {
-            throw new NotFoundException("Das Buch mit ID " + bookId + " wurde nicht gefunden");
-        }
+    public String deleteUserBookById(Long userId, Long bookId, Long version) {
+        Book book = bookRepository.findByIdAndUserId(bookId, userId).orElseThrow(() -> new NotFoundException("Das Buch mit ID " + bookId + " für Benutzer mit ID " + userId + " wurde nicht gefunden"));
 
-        bookRepository.deleteByIdAndUserId(bookId, userId);
+        helper.checkEntityVersion(book.getVersion(), version);
+
+        book.setDeletedAt(Instant.now());
 
         return "Das Buch mit ID " + bookId + " wurde gelöst";
     }
 
     @Transactional
     @Override
-    public String updateUserBookById(Long userId, Long bookId, BookUpdateDTO dto) {
+    public String updateUserBookById(Long userId, Long bookId, BookUpdateDTO dto, Long version) {
         bookRepository.findByIdAndUserId(bookId, userId).ifPresentOrElse(foundBook -> {
-            foundBook.setName(!dto.getName().isEmpty() ? dto.getName() : foundBook.getName());
-            foundBook.setDescription(!dto.getDescription().isEmpty() ? dto.getDescription() : foundBook.getDescription());
-            foundBook.setAuthor(!dto.getAuthor().isEmpty() ? dto.getAuthor() : foundBook.getAuthor());
-            foundBook.setCategory(!dto.getCategory().isEmpty() ? dto.getCategory() : foundBook.getCategory());
-            foundBook.setPublicationYear(dto.getPublicationYear() != null ? dto.getPublicationYear() : foundBook.getPublicationYear());
-            foundBook.setPhotoBase64(!dto.getPhotoBase64().isEmpty() ? dto.getPhotoBase64() : foundBook.getPhotoBase64());
-            foundBook.setCity(!dto.getCity().isEmpty() ? dto.getCity() : foundBook.getCity());
-            foundBook.setIsGift(dto.getIsGift() != null ?  dto.getIsGift() : foundBook.getIsGift());
-            foundBook.setContactDetails(!dto.getContactDetails().isEmpty() ? dto.getContactDetails() : foundBook.getContactDetails());
+            helper.checkEntityVersion(foundBook.getVersion(), version);
 
-            bookMapper.bookToBookDto(bookRepository.save(foundBook));
+            bookMapper.updateBookDtoToBook(dto, foundBook);
+
+            bookRepository.save(foundBook);
         }, () -> {
             throw new NotFoundException("Das Buch mit ID " + bookId + " oder mit user ID + " + userId + " wurde nicht gefunden");
         });

@@ -14,23 +14,18 @@ public class ExchangeDetailsDTO {
     @NotNull
     private Long id;
 
-    @JsonProperty("exchangeStatus")
+    @JsonProperty("status")
     @NotNull
-    private ExchangeStatus exchangeStatus;
+    private ExchangeStatus status;
 
     @JsonProperty("userNickname")
     @NotBlank
-    @NotNull
     @Size(min = 5, max = 20)
     private String userNickname;
 
     @JsonProperty("senderBook")
-    @NotBlank
-    @NotNull
     private BookDTO senderBook;
 
     @JsonProperty("receiverBook")
-    @NotBlank
-    @NotNull
     private BookDTO receiverBook;
 }

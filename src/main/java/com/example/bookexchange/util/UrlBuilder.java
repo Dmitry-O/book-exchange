@@ -3,6 +3,8 @@ package com.example.bookexchange.util;
 import com.example.bookexchange.config.AppProperties;
 import com.example.bookexchange.controllers.AdminController;
 import com.example.bookexchange.controllers.AuthController;
+import com.example.bookexchange.exception.BadRequestException;
+import com.example.bookexchange.models.EmailType;
 import com.example.bookexchange.models.TargetType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -22,15 +24,15 @@ public class UrlBuilder {
         };
     }
 
-    public String buildEmailConfirmationUrl(String token) {
+    public String buildEmailVerificationUrl(String token, EmailType emailType) {
         String base = appProperties.getBaseUrl();
+        String endpoint = switch (emailType) {
+            case EmailType.CONFIRM_EMAIL -> AuthController.AUTH_PATH_CONFIRM_REGISTRATION;
+            case EmailType.RESET_PASSWORD -> AuthController.AUTH_PATH_RESET_PASSWORD;
+            case EmailType.DELETE_ACCOUNT -> AuthController.AUTH_PATH_DELETE_ACCOUNT;
+            default -> throw new BadRequestException("Es wurde ein ungültiger E-Mail-Typ angegeben");
+        };
 
-        return base + AuthController.AUTH_PATH_CONFIRM_REGISTRATION + "?token=" + token;
-    }
-
-    public String buildResetPasswordUrl(String token) {
-        String base = appProperties.getBaseUrl();
-
-        return base + AuthController.AUTH_PATH_RESET_PASSWORD + "?token=" + token;
+        return base + endpoint + "?token=" + token;
     }
 }

@@ -7,10 +7,8 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.ToString;
+import lombok.*;
+import org.hibernate.annotations.*;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -18,13 +16,14 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-@Builder
-@Data
+@EqualsAndHashCode(onlyExplicitlyIncluded = true, callSuper = false)
+@Getter
+@Setter
 @Entity
-@Table(name = "APP_USER")
+@Table(name = "app_user")
 @AllArgsConstructor
 @ToString(exclude = {"books", "sentExchanges", "receivedExchanges", "declinedExchanges", "refreshTokens", "reports", "verificationToken"})
-public class User {
+public class User extends SoftDeletableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -63,7 +62,7 @@ public class User {
 
     @OneToMany(mappedBy = "user")
     @JsonIgnore
-    private List<RefreshToken> refreshTokens = new ArrayList<>();
+    private Set<RefreshToken> refreshTokens = new HashSet<>();
 
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(

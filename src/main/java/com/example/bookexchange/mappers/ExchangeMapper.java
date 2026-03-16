@@ -1,96 +1,59 @@
 package com.example.bookexchange.mappers;
 
 import com.example.bookexchange.dto.*;
-import com.example.bookexchange.models.Book;
 import com.example.bookexchange.models.Exchange;
 import com.example.bookexchange.models.UserExchangeRole;
+import org.mapstruct.*;
 
-import java.util.Objects;
+@Mapper(componentModel = "spring")
+public abstract class ExchangeMapper {
 
-public class ExchangeMapper {
+    @Mapping(target = "senderBookName", source = "senderBook.name")
+    @Mapping(target = "senderBookPhotoBase64", source = "senderBook.photoBase64")
+    @Mapping(target = "receiverBookName", source = "receiverBook.name")
+    @Mapping(target = "receiverBookPhotoBase64", source = "receiverBook.photoBase64")
+    public abstract ExchangeDTO exchangeToExchangeDto(Exchange exchange);
 
-    public static ExchangeDTO fromEntity(Exchange exchange) {
-        ExchangeDTO dto = new ExchangeDTO();
+    @Mapping(target = "status", source = "exchange.status")
+    @Mapping(target = "id", source = "exchange.id")
+    @Mapping(target = "userNickname", source = "userNickname")
+    @Mapping(target = "senderBook", source = "exchange.senderBook")
+    @Mapping(target = "receiverBook", source = "exchange.receiverBook")
+    public abstract ExchangeDetailsDTO exchangeToExchangeDetailsDto(Exchange exchange, String userNickname);
 
-        Book senderBook = exchange.getSenderBook();
-        Book receiverBook = exchange.getReceiverBook();
+    @Mapping(target = "senderBookName", source = "exchange.senderBook.name")
+    @Mapping(target = "senderBookPhotoBase64", source = "exchange.senderBook.photoBase64")
+    @Mapping(target = "receiverBookName", source = "exchange.receiverBook.name")
+    @Mapping(target = "receiverBookPhotoBase64", source = "exchange.receiverBook.photoBase64")
+    public abstract ExchangeHistoryDTO exchangeToExchangeHistoryDto(Exchange exchange, UserExchangeRole userRole);
 
-        dto.setId(exchange.getId());
-        dto.setReceiverBookName(receiverBook.getName());
-        dto.setReceiverBookPhotoBase64(receiverBook.getPhotoBase64());
-
-        if (senderBook != null) {
-            dto.setSenderBookName(senderBook.getName());
-            dto.setSenderBookPhotoBase64(senderBook.getPhotoBase64());
-        }
-
-        return dto;
-    }
-
-    public static ExchangeDetailsDTO fromEntityDetails(
+    @Mapping(target = "id", source = "exchange.id")
+    @Mapping(target = "status", source = "exchange.status")
+    @Mapping(target = "senderBook", source = "exchange.senderBook")
+    @Mapping(target = "receiverBook", source = "exchange.receiverBook")
+    @Mapping(target = "userNickname", source = "userNickname")
+    @Mapping(target = "contactDetails", source = "contactDetails")
+    @Mapping(target = "userExchangeRole", source = "userExchangeRole")
+    public abstract ExchangeHistoryDetailsDTO exchangeToExchangeHistoryDetailsDto(
             Exchange exchange,
-            BookDTO senderBook,
-            BookDTO receiverBook,
-            String userNickname
-    ) {
-        ExchangeDetailsDTO dto = new ExchangeDetailsDTO();
-
-        dto.setId(exchange.getId());
-        dto.setExchangeStatus(exchange.getStatus());
-        dto.setUserNickname(userNickname);
-        dto.setReceiverBook(receiverBook);
-
-        if (senderBook != null) {
-            dto.setSenderBook(senderBook);
-        }
-
-        return dto;
-    }
-
-    public static ExchangeHistoryDTO fromEntityHistory(Exchange exchange, UserExchangeRole userRole) {
-        ExchangeHistoryDTO dto = new ExchangeHistoryDTO();
-
-        Book senderBook = exchange.getSenderBook();
-        Book receiverBook = exchange.getReceiverBook();
-
-        dto.setId(exchange.getId());
-        dto.setReceiverBookName(receiverBook.getName());
-        dto.setReceiverBookPhotoBase64(receiverBook.getPhotoBase64());
-
-        if (senderBook != null) {
-            dto.setSenderBookName(senderBook.getName());
-            dto.setSenderBookPhotoBase64(senderBook.getPhotoBase64());
-        }
-
-        if (Objects.equals(userRole, UserExchangeRole.SENDER)) {
-            dto.setIsRead(exchange.getIsReadBySender());
-        }
-
-        if (Objects.equals(userRole, UserExchangeRole.RECEIVER)) {
-            dto.setIsRead(exchange.getIsReadByReceiver());
-        }
-
-        return dto;
-    }
-
-    public static ExchangeHistoryDetailsDTO fromEntityHistoryDetails(
-            Exchange exchange,
-            BookDTO senderBook,
-            BookDTO receiverBook,
             String userNickname,
             String contactDetails,
             UserExchangeRole userExchangeRole
+    );
+
+    @AfterMapping
+    protected void setIsRead(
+            @MappingTarget ExchangeHistoryDTO dto,
+            Exchange exchange,
+            UserExchangeRole userRole
     ) {
-        ExchangeHistoryDetailsDTO dto = new ExchangeHistoryDetailsDTO();
 
-        dto.setId(exchange.getId());
-        dto.setUserNickname(userNickname);
-        dto.setStatus(exchange.getStatus());
-        dto.setSenderBook(senderBook);
-        dto.setReceiverBook(receiverBook);
-        dto.setContactDetails(contactDetails);
-        dto.setUserExchangeRole(userExchangeRole);
+        if (userRole == UserExchangeRole.SENDER) {
+            dto.setIsRead(exchange.getIsReadBySender());
+        }
 
-        return dto;
+        if (userRole == UserExchangeRole.RECEIVER) {
+            dto.setIsRead(exchange.getIsReadByReceiver());
+        }
     }
 }

@@ -14,12 +14,12 @@ import tools.jackson.databind.annotation.JsonDeserialize;
 
 import java.time.Instant;
 
-@JsonDeserialize(builder = ReportDTO.ReportDTOBuilder.class)
+@JsonDeserialize(builder = ReportAdminDTO.ReportAdminDTOBuilder.class)
 @Builder
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class ReportDTO {
+public class ReportAdminDTO {
 
     @JsonProperty("id")
     @NotNull
@@ -53,4 +53,7 @@ public class ReportDTO {
     @JsonProperty("reporter")
     @NotNull
     private UserDTO reporter;
+
+    @JsonProperty("meta")
+    private MetaDTO meta;
 }

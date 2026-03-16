@@ -44,12 +44,12 @@ public class JwtFilter extends OncePerRequestFilter {
 
         try {
             String token = header.substring(7);
-            String userId = jwtService.extractUserId(token);
+            Long userId = jwtService.extractUserId(token);
 
             Authentication existingAuth = SecurityContextHolder.getContext().getAuthentication();
-            if (existingAuth == null || existingAuth instanceof AnonymousAuthenticationToken) {
 
-                UserPrincipal userDetails = customUserDetailsService.loadUserByUserId(Long.valueOf(userId));
+            if (existingAuth == null || existingAuth instanceof AnonymousAuthenticationToken) {
+                UserPrincipal userDetails = customUserDetailsService.loadUserByUserId(userId);
 
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(

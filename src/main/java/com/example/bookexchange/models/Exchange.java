@@ -2,15 +2,15 @@ package com.example.bookexchange.models;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
-@Data
+@EqualsAndHashCode(onlyExplicitlyIncluded = true, callSuper = false)
+@Getter
+@Setter
 @AllArgsConstructor
 @NoArgsConstructor
 @Entity
-public class Exchange {
+public class Exchange extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -26,23 +26,23 @@ public class Exchange {
     @Column(nullable = false)
     private Boolean isReadByReceiver = Boolean.FALSE;
 
-    @ManyToOne
-    @JoinColumn(name = "sender_user_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "sender_user_id")
     private User senderUser;
 
-    @ManyToOne
-    @JoinColumn(name = "receiver_user_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "receiver_user_id")
     private User receiverUser;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "decliner_user_id")
     private User declinerUser;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sender_book_id")
     private Book senderBook;
 
-    @ManyToOne
-    @JoinColumn(name = "receiver_book_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "receiver_book_id")
     private Book receiverBook;
 }

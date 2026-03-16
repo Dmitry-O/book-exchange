@@ -1,6 +1,8 @@
 package com.example.bookexchange.services;
 
 import com.example.bookexchange.config.AppProperties;
+import com.example.bookexchange.exception.BadRequestException;
+import com.example.bookexchange.models.EmailType;
 import com.example.bookexchange.util.UrlBuilder;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
@@ -40,31 +42,36 @@ public class EmailServiceImpl implements EmailService {
         }
     }
 
-    public void sendVerificationEmail(String emailTo, String token) {
-        String verificationUrl = urlBuilder.buildEmailConfirmationUrl(token);
+    public void buildAndSendEmail(String emailTo, String token, EmailType emailType) {
+        String url = urlBuilder.buildEmailVerificationUrl(token, emailType), subject, template = "email/", templateVariableName;
+
+        switch (emailType) {
+            case EmailType.CONFIRM_EMAIL -> {
+                template += "verification_email";
+                subject = "Verify your email";
+                templateVariableName = "verificationUrl";
+            }
+            case EmailType.RESET_PASSWORD -> {
+                template += "reset_password_email";
+                subject = "Reset your password";
+                templateVariableName = "resetPasswordUrl";
+            }
+            case EmailType.DELETE_ACCOUNT -> {
+                template += "delete_account_email";
+                subject = "Verify deleting your account";
+                templateVariableName = "deleteAccountUrl";
+            }
+            default -> throw new BadRequestException("Es wurde ein ungültiger E-Mail-Typ angegeben");
+        }
 
         Context context = new Context();
-        context.setVariable("verificationUrl", verificationUrl);
+        context.setVariable(templateVariableName, url);
 
         String htmlTemplate = templateEngine.process(
-                "email/verification_email",
+                template,
                 context
         );
 
-        sendEmail(emailTo, "Verify your email", htmlTemplate);
-    }
-
-    public void sendResetPasswordEmail(String emailTo, String token) {
-        String resetPasswordUrl = urlBuilder.buildResetPasswordUrl(token);
-
-        Context context = new Context();
-        context.setVariable("resetPasswordUrl", resetPasswordUrl);
-
-        String htmlTemplate = templateEngine.process(
-                "email/reset_password_email",
-                context
-        );
-
-        sendEmail(emailTo, "Reset your password", htmlTemplate);
+        sendEmail(emailTo, subject, htmlTemplate);
     }
 }

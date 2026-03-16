@@ -7,16 +7,19 @@ import com.example.bookexchange.exception.ForbiddenException;
 import com.example.bookexchange.exception.NotFoundException;
 import com.example.bookexchange.mappers.UserMapper;
 import com.example.bookexchange.models.*;
+import com.example.bookexchange.repositories.BookRepository;
 import com.example.bookexchange.repositories.RefreshTokenRepository;
 import com.example.bookexchange.repositories.UserRepository;
 import com.example.bookexchange.repositories.VerificationTokenRepository;
+import com.example.bookexchange.util.Helper;
 import lombok.AllArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.UUID;
+import java.time.temporal.ChronoUnit;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.time.temporal.ChronoUnit.*;
@@ -25,6 +28,7 @@ import static java.time.temporal.ChronoUnit.*;
 @AllArgsConstructor
 public class UserServiceImpl extends BaseServiceImpl<User, Long> implements UserService {
 
+    private final BookRepository bookRepository;
     private UserRepository userRepository;
     private RefreshTokenRepository refreshTokenRepository;
     private VerificationTokenRepository verificationTokenRepository;
@@ -32,13 +36,12 @@ public class UserServiceImpl extends BaseServiceImpl<User, Long> implements User
     private PasswordEncoder passwordEncoder;
     private JwtService jwtService;
     private EmailService emailService;
+    private final Helper helper;
 
     @Transactional(readOnly = true)
     @Override
-    public UserDTO getUser(Long userId) {
-        User user = findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
-
-        return userMapper.userToUserDto(user);
+    public User getUser(Long userId) {
+        return findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
     }
 
     @Transactional
@@ -71,15 +74,17 @@ public class UserServiceImpl extends BaseServiceImpl<User, Long> implements User
         user.addRole(UserRole.USER);
         User savedUser = userRepository.save(user);
 
-        emailService.sendVerificationEmail(user.getEmail(), createVerificationToken(savedUser, TokenType.CONFIRM_EMAIL));
+        emailService.buildAndSendEmail(user.getEmail(), createVerificationToken(savedUser, TokenType.CONFIRM_EMAIL), EmailType.CONFIRM_EMAIL);
 
         return "Ihr Konto wurde erfolgreich registriert. Bitte bestätigen Sie jetzt Ihre E-mail Adresse";
     }
 
     @Transactional
     @Override
-    public String updateUser(Long userId, UserUpdateDTO dto) {
+    public String updateUser(Long userId, UserUpdateDTO dto, Long version) {
         User user = findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
+
+        helper.checkEntityVersion(user.getVersion(), version);
 
         if (!user.getNickname().equals(dto.getNickname())) {
             String nickname = dto.getNickname();
@@ -100,18 +105,33 @@ public class UserServiceImpl extends BaseServiceImpl<User, Long> implements User
 
     @Transactional
     @Override
-    public String deleteUser(Long userId) {
-        findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
+    public String deleteUser(Long userId, Boolean isAdminDeleting, Long version) {
+        User user = findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
 
-        userRepository.deleteById(userId);
+        helper.checkEntityVersion(user.getVersion(), version);
 
-        return "Ihr Profil wurde gelöscht";
+        user.setEmail("anonymized@anonymized.anonymized");
+        user.setNickname("anonymized");
+        user.setPhotoBase64(null);
+        user.setPassword("");
+        user.setDeletedAt(Instant.now());
+
+        for (Book book : new HashSet<>(user.getBooks())) {
+            if (book.getDeletedAt() == null) {
+                book.setDeletedAt(Instant.now());
+            }
+        }
+
+        refreshTokenRepository.deleteAll(new HashSet<>(user.getRefreshTokens()));
+        verificationTokenRepository.deleteAll(new HashSet<>(user.getVerificationToken()));
+
+        return isAdminDeleting ? "Der Benutzer mit ID " + userId + " wurde gelöst" : "Ihr Profil wurde gelöscht";
     }
 
     @Transactional
     @Override
     public AuthResponseDTO loginUser(AuthRequestDTO requestDTO) {
-        User user = userRepository.findByEmail(requestDTO.getEmail()).orElseThrow();
+        User user = userRepository.findByEmail(requestDTO.getEmail()).orElseThrow(() -> new NotFoundException("Sie haben eine falsche Email Adresse gegeben. Versuchen Sie bitte nochmal."));
 
         if (!passwordEncoder.matches(requestDTO.getPassword(), user.getPassword())) {
             throw new BadRequestException("Falsches Passwort");
@@ -160,8 +180,21 @@ public class UserServiceImpl extends BaseServiceImpl<User, Long> implements User
     @Override
     public String createVerificationToken(User user, TokenType tokenType) {
         VerificationToken verificationToken = new VerificationToken();
+        long tokenLiveTime;
 
-        Instant expiryDate = Instant.now().plus(tokenType == TokenType.CONFIRM_EMAIL ? 24 : 15, tokenType == TokenType.CONFIRM_EMAIL ? HOURS : MINUTES);
+        ChronoUnit timeUnit = switch (tokenType) {
+            case TokenType.CONFIRM_EMAIL -> {
+                tokenLiveTime = 24L;
+                yield HOURS;
+            }
+            case TokenType.RESET_PASSWORD, TokenType.DELETE_ACCOUNT -> {
+                tokenLiveTime = 15L;
+                yield MINUTES;
+            }
+            default -> throw new BadRequestException("Es wurde ein ungültiges Token angegeben");
+        };
+
+        Instant expiryDate = Instant.now().plus(tokenLiveTime, timeUnit);
 
         verificationToken.setToken(UUID.randomUUID().toString());
         verificationToken.setExpiryDate(expiryDate);
@@ -188,8 +221,10 @@ public class UserServiceImpl extends BaseServiceImpl<User, Long> implements User
 
     @Transactional
     @Override
-    public String resetPassword(Long userId, UserResetPasswordDTO dto) {
+    public String resetPassword(Long userId, UserResetPasswordDTO dto, Long version) {
         User user = userRepository.findById(userId).orElseThrow(() -> new NotFoundException("Der Benutzer mit ID " + userId + " wurde nicht gefunden"));
+
+        helper.checkEntityVersion(user.getVersion(), version);
 
         if (dto.getCurrentPassword().equals(dto.getNewPassword())) {
             throw new BadRequestException("Die Passwörter dürfen nicht identisch sein");
@@ -234,7 +269,7 @@ public class UserServiceImpl extends BaseServiceImpl<User, Long> implements User
             throw new ForbiddenException("Ihr Konto wurde noch nicht verifiziert");
         }
 
-        emailService.sendResetPasswordEmail(user.getEmail(), createVerificationToken(user, TokenType.RESET_PASSWORD));
+        emailService.buildAndSendEmail(user.getEmail(), createVerificationToken(user, TokenType.RESET_PASSWORD), EmailType.RESET_PASSWORD);
 
         return "Wir haben Ihnen eine Anleitung zum Zurücksetzen des Passworts auf Ihre E-mail Adresse geschikt";
     }
@@ -272,8 +307,36 @@ public class UserServiceImpl extends BaseServiceImpl<User, Long> implements User
 
         verificationTokenRepository.findByUserAndType(user, TokenType.CONFIRM_EMAIL).ifPresent(verificationToken -> verificationTokenRepository.deleteById(verificationToken.getId()));
 
-        emailService.sendVerificationEmail(user.getEmail(), createVerificationToken(user, TokenType.CONFIRM_EMAIL));
+        emailService.buildAndSendEmail(user.getEmail(), createVerificationToken(user, TokenType.CONFIRM_EMAIL), EmailType.CONFIRM_EMAIL);
 
         return "Bitte überprüfen Sie jetzt Ihre E-mail Adresse";
+    }
+
+    @Transactional
+    @Override
+    public String initiateDeleteAccount(UserInitiateDeleteAccountDTO dto) {
+        User user = userRepository.findByEmail(dto.getEmail()).orElseThrow(() -> new NotFoundException("Der Benutzer mit Email " + dto.getEmail() + " wurde nicht gefunden"));
+
+        emailService.buildAndSendEmail(user.getEmail(), createVerificationToken(user, TokenType.DELETE_ACCOUNT), EmailType.DELETE_ACCOUNT);
+
+        return "Wir haben Ihnen eine Anleitung zum Löschen Ihres Kontos auf Ihre E-mail Adresse geschikt";
+    }
+
+    @Transactional
+    @Override
+    public String deleteAccount(String token) {
+        VerificationToken verificationToken = verificationTokenRepository.findByToken(token).orElseThrow(() -> new NotFoundException("Das Token wurde nicht gefunden"));
+
+        return deleteUser(verificationToken.getUser().getId(), false, null);
+    }
+
+    @Transactional
+    @Override
+    public String logout(Long userId, RefreshTokenDTO dto) {
+        RefreshToken refreshToken = refreshTokenRepository.findByTokenAndUserId(dto.getToken(), userId).orElseThrow(() -> new NotFoundException("Das token wurde nicht gefunden"));
+
+        refreshTokenRepository.delete(refreshToken);
+
+        return "Sie haben sich erfolgreich abgemeldet";
     }
 }

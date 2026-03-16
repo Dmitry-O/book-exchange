@@ -21,6 +21,8 @@ public class AuthController {
     public static final String AUTH_PATH_FORGOT_PASSWORD = AUTH_PATH + "/forgot_password";
     public static final String AUTH_PATH_RESET_PASSWORD = AUTH_PATH + "/reset_password";
     public static final String AUTH_PATH_RESEND_CONFIRMATION_EMAIL = AUTH_PATH + "/resend_confirmation_email";
+    public static final String AUTH_PATH_INITIATE_DELETE_ACCOUNT = AUTH_PATH + "/initiate_delete_account";
+    public static final String AUTH_PATH_DELETE_ACCOUNT = AUTH_PATH + "/delete_account";
 
     @PostMapping(AUTH_PATH_REGISTER)
     public ResponseEntity<ApiMessage> register(@Validated @RequestBody UserCreateDTO dto) {
@@ -55,5 +57,15 @@ public class AuthController {
     @PatchMapping(AUTH_PATH_RESEND_CONFIRMATION_EMAIL)
     public ResponseEntity<ApiMessage> resendEmailConfirmation(@Validated @RequestBody UserResendEmailConfirmationDTO dto) {
         return ResponseEntity.ok(new ApiMessage(userService.resendEmailConfirmation(dto)));
+    }
+
+    @PatchMapping(AUTH_PATH_INITIATE_DELETE_ACCOUNT)
+    public ResponseEntity<ApiMessage> initiateDeleteAccount(@Validated @RequestBody UserInitiateDeleteAccountDTO dto) {
+        return ResponseEntity.ok(new ApiMessage(userService.initiateDeleteAccount(dto)));
+    }
+
+    @PatchMapping(AUTH_PATH_DELETE_ACCOUNT)
+    public ResponseEntity<ApiMessage> deleteAccount(@RequestParam String token) {
+        return ResponseEntity.ok(new ApiMessage(userService.deleteAccount(token)));
     }
 }

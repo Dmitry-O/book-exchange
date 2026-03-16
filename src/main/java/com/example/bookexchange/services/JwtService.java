@@ -8,5 +8,5 @@ public interface JwtService {
 
     String generateToken(User user);
 
-    String extractUserId(String token);
+    Long extractUserId(String token);
 }

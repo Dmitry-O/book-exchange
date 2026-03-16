@@ -10,5 +10,5 @@ import java.util.Set;
 
 public interface ReportRepository extends JpaRepository<Report, Long> {
 
-    Page<Report> findByStatusIn(Set<ReportStatus> statuses, Pageable pageable);
+    Page<Report> findByStatusIn(Set<ReportStatus> reportStatuses, Pageable pageable);
 }
