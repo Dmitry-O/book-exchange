@@ -4,10 +4,7 @@ import com.example.bookexchange.dto.ExchangeDTO;
 import com.example.bookexchange.exception.BadRequestException;
 import com.example.bookexchange.exception.NotFoundException;
 import com.example.bookexchange.mappers.ExchangeMapper;
-import com.example.bookexchange.models.Book;
-import com.example.bookexchange.models.Exchange;
-import com.example.bookexchange.models.ExchangeStatus;
-import com.example.bookexchange.models.User;
+import com.example.bookexchange.models.*;
 import com.example.bookexchange.repositories.ExchangeRepository;
 import com.example.bookexchange.repositories.UserRepository;
 import com.example.bookexchange.util.Helper;
@@ -28,6 +25,7 @@ public class OfferServiceImpl implements OfferService {
     private final UserRepository userRepository;
     private final ExchangeMapper exchangeMapper;
     private final Helper helper;
+    private final MessageService messageService;
 
     @Transactional(readOnly = true)
     @Override
@@ -42,13 +40,13 @@ public class OfferServiceImpl implements OfferService {
     @Transactional(readOnly = true)
     @Override
     public Exchange getReceiverOfferDetails(Long receiverUserId, Long exchangeId) {
-        return exchangeRepository.findByIdAndReceiverUserId(exchangeId, receiverUserId).orElseThrow(() -> new NotFoundException("Der Umtauschantrag wurde nicht gefunden"));
+        return exchangeRepository.findByIdAndReceiverUserId(exchangeId, receiverUserId).orElseThrow(() -> new NotFoundException(MessageKey.EXCHANGE_NOT_FOUND));
     }
 
     @Transactional
     @Override
     public String approveUserOffer(Long receiverUserId, Long exchangeId, Long version) {
-        Exchange exchange = exchangeRepository.findByIdAndReceiverUserId(exchangeId, receiverUserId).orElseThrow(() -> new NotFoundException("Der Umtauschantrag mit ID " + exchangeId + " und mit einer Empfängerbenutzer mit ID " + receiverUserId + " wurde nicht gefunden"));
+        Exchange exchange = exchangeRepository.findByIdAndReceiverUserId(exchangeId, receiverUserId).orElseThrow(() -> new NotFoundException(MessageKey.EXCHANGE_NOT_FOUND));
 
         helper.checkEntityVersion(exchange.getVersion(), version);
 
@@ -78,17 +76,17 @@ public class OfferServiceImpl implements OfferService {
                 exchangeRepository.save(e);
             });
         } else {
-            throw new BadRequestException("Der Umtauschantrag kann nicht bestätigt werden");
+            throw new BadRequestException(MessageKey.EXCHANGE_CANT_BE_APPROVED);
         }
 
-        return "Der Umtauschantrag wurde bestätigt";
+        return messageService.getMessage(MessageKey.EXCHANGE_APPROVED);
     }
 
     @Transactional
     @Override
     public String declineUserOffer(Long receiverUserId, Long exchangeId, Long version) {
-        Exchange exchange = exchangeRepository.findByIdAndReceiverUserId(exchangeId, receiverUserId).orElseThrow(() -> new NotFoundException("Der Umtauschantrag mit ID " + exchangeId + " und mit einer Empfängerbenutzer mit ID " + receiverUserId + " wurde nicht gefunden"));
-        User declinerUser = userRepository.findById(receiverUserId).orElseThrow(() -> new NotFoundException("Der Benutzer mit ID " + receiverUserId + " wurde nicht gefunden"));
+        Exchange exchange = exchangeRepository.findByIdAndReceiverUserId(exchangeId, receiverUserId).orElseThrow(() -> new NotFoundException(MessageKey.EXCHANGE_NOT_FOUND));
+        User declinerUser = userRepository.findById(receiverUserId).orElseThrow(() -> new NotFoundException(MessageKey.USER_ACCOUNT_NOT_FOUND));
 
         helper.checkEntityVersion(exchange.getVersion(), version);
 
@@ -97,9 +95,9 @@ public class OfferServiceImpl implements OfferService {
             exchange.setDeclinerUser(declinerUser);
             exchangeRepository.save(exchange);
         } else {
-            throw new BadRequestException("Der Umtauschantrag kann nicht abgelehnt werden");
+            throw new BadRequestException(MessageKey.EXCHANGE_CANT_BE_DECLINED);
         }
 
-        return "Der Umtauschantrag wurde abgelehnt";
+        return messageService.getMessage(MessageKey.EXCHANGE_DECLINED);
     }
 }

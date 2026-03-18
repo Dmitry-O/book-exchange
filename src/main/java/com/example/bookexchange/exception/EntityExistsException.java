@@ -1,10 +1,11 @@
 package com.example.bookexchange.exception;
 
+import com.example.bookexchange.models.MessageKey;
 import org.springframework.http.HttpStatus;
 
 public class EntityExistsException extends ApiException {
 
-    public EntityExistsException(String message) {
-        super(HttpStatus.CONFLICT, message);
+    public EntityExistsException(MessageKey messageKey, Object... args) {
+        super(HttpStatus.CONFLICT, messageKey, args);
     }
 }

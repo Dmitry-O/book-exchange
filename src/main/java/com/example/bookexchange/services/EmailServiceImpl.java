@@ -3,6 +3,7 @@ package com.example.bookexchange.services;
 import com.example.bookexchange.config.AppProperties;
 import com.example.bookexchange.exception.BadRequestException;
 import com.example.bookexchange.models.EmailType;
+import com.example.bookexchange.models.MessageKey;
 import com.example.bookexchange.util.UrlBuilder;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
@@ -61,7 +62,7 @@ public class EmailServiceImpl implements EmailService {
                 subject = "Verify deleting your account";
                 templateVariableName = "deleteAccountUrl";
             }
-            default -> throw new BadRequestException("Es wurde ein ungültiger E-Mail-Typ angegeben");
+            default -> throw new BadRequestException(MessageKey.SYSTEM_WRONG_EMAIL_TYPE);
         }
 
         Context context = new Context();

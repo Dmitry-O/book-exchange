@@ -15,6 +15,8 @@ public class UserPrincipal implements UserDetails {
     private final String email;
     private final String password;
     private final Collection<? extends GrantedAuthority> authorities;
+    @Getter
+    private final String locale;
 
     public UserPrincipal(User user) {
         this.id = user.getId();
@@ -24,6 +26,7 @@ public class UserPrincipal implements UserDetails {
                 .map(Enum::name)
                 .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
                 .toList();
+        this.locale = user.getLocale();
     }
 
     @NullMarked

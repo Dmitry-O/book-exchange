@@ -3,6 +3,7 @@ package com.example.bookexchange.services;
 import com.example.bookexchange.config.AppProperties;
 import com.example.bookexchange.exception.BadRequestException;
 import com.example.bookexchange.exception.NotFoundException;
+import com.example.bookexchange.models.MessageKey;
 import com.example.bookexchange.models.User;
 import com.example.bookexchange.repositories.UserRepository;
 import io.jsonwebtoken.Jwts;
@@ -45,10 +46,10 @@ public class JwtServiceImpl implements JwtService {
                     .getSubject()
          );
 
-        User user = userRepository.findById(userId).orElseThrow(() -> new NotFoundException("Der Benutzer mit ID " + userId + " wurde nicht gefunden"));
+        User user = userRepository.findById(userId).orElseThrow(() -> new NotFoundException(MessageKey.SYSTEM_USER_NOT_FOUND, userId));
 
         if (user.getDeletedAt() != null) {
-            throw new BadRequestException("Ihr Konto wurde nicht gefunden");
+            throw new BadRequestException(MessageKey.USER_ACCOUNT_NOT_FOUND);
         }
 
         return userId;

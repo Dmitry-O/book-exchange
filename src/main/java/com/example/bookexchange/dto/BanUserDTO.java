@@ -9,6 +9,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import tools.jackson.databind.annotation.JsonDeserialize;
 
 @JsonDeserialize(builder = BanUserDTO.BanUserDTOBuilder.class)
@@ -21,12 +22,12 @@ public class BanUserDTO {
     @JsonProperty("bannedUntil")
     @NotBlank
     @Size(min = 22, max = 32)
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
     private String bannedUntil;
 
     @JsonProperty("bannedPermanently")
-    @NotBlank
     @BooleanFlag
-    private boolean bannedPermanently;
+    private boolean bannedPermanently = false;
 
     @JsonProperty("banReason")
     @NotBlank

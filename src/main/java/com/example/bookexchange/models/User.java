@@ -95,6 +95,9 @@ public class User extends SoftDeletableEntity {
     @JsonManagedReference
     private Set<VerificationToken> verificationToken = new HashSet<>();
 
+    @JsonIgnore
+    private String locale;
+
     public User() {
 
     }

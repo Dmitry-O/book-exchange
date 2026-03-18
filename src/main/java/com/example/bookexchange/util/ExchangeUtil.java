@@ -2,6 +2,7 @@ package com.example.bookexchange.util;
 
 import com.example.bookexchange.exception.NotFoundException;
 import com.example.bookexchange.models.Exchange;
+import com.example.bookexchange.models.MessageKey;
 import com.example.bookexchange.models.UserExchangeRole;
 import com.example.bookexchange.repositories.ExchangeRepository;
 import lombok.AllArgsConstructor;
@@ -26,7 +27,7 @@ public class ExchangeUtil {
             if (exchangeAsReceiver.isPresent()) {
                 return UserExchangeRole.RECEIVER;
             } else {
-                throw new NotFoundException("Der Umtauschantrag wurde nicht gefunden");
+                throw new NotFoundException(MessageKey.EXCHANGE_NOT_FOUND);
             }
         }
     }

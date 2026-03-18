@@ -34,16 +34,18 @@ public class BookServiceImpl extends BaseServiceImpl<User, Long> implements Book
     private final BookMapper bookMapper;
     private final Helper helper;
 
+    private final MessageService messageService;
+
     @Transactional
     @Override
     public String addUserBook(Long userId, BookCreateDTO dto) {
-        User user = findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
+        User user = findOrThrow(userRepository, userId, MessageKey.USER_ACCOUNT_NOT_FOUND);
 
         Book book = bookMapper.bookDtoToBook(dto);
         book.setUser(user);
         bookRepository.save(book);
 
-        return "Das Buch wurde erstellt";
+        return messageService.getMessage(MessageKey.BOOK_CREATED);
     }
 
     @Transactional(readOnly = true)
@@ -59,7 +61,7 @@ public class BookServiceImpl extends BaseServiceImpl<User, Long> implements Book
     @Transactional(readOnly = true)
     @Override
     public Book findUserBookById(Long userId, Long bookId) {
-        return bookRepository.findByIdAndUserId(bookId, userId).orElseThrow(() -> new NotFoundException("Das Buch mit ID + " + bookId + " wurde nicht gefunden"));
+        return bookRepository.findByIdAndUserId(bookId, userId).orElseThrow(() -> new NotFoundException(MessageKey.BOOK_NOT_FOUND));
     }
 
     @Transactional(readOnly = true)
@@ -97,13 +99,13 @@ public class BookServiceImpl extends BaseServiceImpl<User, Long> implements Book
     @Transactional
     @Override
     public String deleteUserBookById(Long userId, Long bookId, Long version) {
-        Book book = bookRepository.findByIdAndUserId(bookId, userId).orElseThrow(() -> new NotFoundException("Das Buch mit ID " + bookId + " für Benutzer mit ID " + userId + " wurde nicht gefunden"));
+        Book book = bookRepository.findByIdAndUserId(bookId, userId).orElseThrow(() -> new NotFoundException(MessageKey.BOOK_NOT_FOUND));
 
         helper.checkEntityVersion(book.getVersion(), version);
 
         book.setDeletedAt(Instant.now());
 
-        return "Das Buch mit ID " + bookId + " wurde gelöst";
+        return messageService.getMessage(MessageKey.BOOK_DELETED);
     }
 
     @Transactional
@@ -116,9 +118,9 @@ public class BookServiceImpl extends BaseServiceImpl<User, Long> implements Book
 
             bookRepository.save(foundBook);
         }, () -> {
-            throw new NotFoundException("Das Buch mit ID " + bookId + " oder mit user ID + " + userId + " wurde nicht gefunden");
+            throw new NotFoundException(MessageKey.BOOK_NOT_FOUND);
         });
 
-        return "Das Buch mit ID " + bookId + " wurde aktualiziert";
+        return messageService.getMessage(MessageKey.BOOK_UPDATED);
     }
 }

@@ -3,6 +3,8 @@ package com.example.bookexchange.authentication;
 import com.example.bookexchange.controllers.AuthController;
 import com.example.bookexchange.controllers.BookController;
 import com.example.bookexchange.dto.ApiErrorDTO;
+import com.example.bookexchange.models.MessageKey;
+import com.example.bookexchange.services.MessageService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -29,6 +31,11 @@ import java.util.concurrent.ConcurrentHashMap;
 public class RateLimitFilter extends OncePerRequestFilter {
 
     private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();
+    private final MessageService messageService;
+
+    public RateLimitFilter(MessageService messageService) {
+        this.messageService = messageService;
+    }
 
     private Bucket createLoginBucket() {
         Bandwidth limit = Bandwidth.classic(5,
@@ -94,7 +101,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 ApiErrorDTO error = ApiErrorDTO.builder()
                         .status(HttpStatus.TOO_MANY_REQUESTS.value())
                         .error(HttpStatus.TOO_MANY_REQUESTS.name())
-                        .message("Too many requests")
+                        .message(messageService.getMessage(MessageKey.SYSTEM_TOO_MANY_REQUESTS))
                         .path(path)
                         .timestamp(Instant.now())
                         .requestId(requestId)

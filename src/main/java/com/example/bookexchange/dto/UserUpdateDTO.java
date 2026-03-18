@@ -19,17 +19,17 @@ import tools.jackson.databind.annotation.JsonDeserialize;
 public class UserUpdateDTO {
 
     @JsonProperty("email")
-    @NotBlank
-    @NotNull
     @Email
     private String email;
 
     @JsonProperty("nickname")
-    @NotBlank
-    @NotNull
     @Size(min = 5, max = 20)
     private String nickname;
 
     @JsonProperty("photoBase64")
     private String photoBase64;
+
+    @JsonProperty("locale")
+    @NotBlank
+    private String locale;
 }

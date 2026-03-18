@@ -27,6 +27,7 @@ public class UserCreateDTO {
     @JsonProperty("password")
     @NotBlank
     @NotNull
+    @Size(min = 8)
     private String password;
 
     @JsonProperty("nickname")
@@ -34,4 +35,8 @@ public class UserCreateDTO {
     @NotNull
     @Size(min = 5, max = 20)
     private String nickname;
+
+    @JsonProperty("locale")
+    @NotBlank
+    private String locale;
 }

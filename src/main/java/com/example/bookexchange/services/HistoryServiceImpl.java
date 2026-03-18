@@ -3,10 +3,10 @@ package com.example.bookexchange.services;
 import com.example.bookexchange.dto.ExchangeHistoryDTO;
 import com.example.bookexchange.dto.ExchangeHistoryDetailsDTO;
 import com.example.bookexchange.exception.NotFoundException;
-import com.example.bookexchange.mappers.BookMapper;
 import com.example.bookexchange.mappers.ExchangeMapper;
 import com.example.bookexchange.models.Exchange;
 import com.example.bookexchange.models.ExchangeStatus;
+import com.example.bookexchange.models.MessageKey;
 import com.example.bookexchange.models.UserExchangeRole;
 import com.example.bookexchange.repositories.ExchangeRepository;
 import com.example.bookexchange.util.ExchangeUtil;
@@ -29,7 +29,6 @@ public class HistoryServiceImpl implements HistoryService {
 
     private final ExchangeRepository exchangeRepository;
     private final ExchangeUtil exchangeUtil;
-    private final BookMapper bookMapper;
     private final ExchangeMapper exchangeMapper;
 
     @Transactional(readOnly = true)
@@ -70,7 +69,7 @@ public class HistoryServiceImpl implements HistoryService {
     @Override
     public ExchangeHistoryDetailsDTO getUserExchangeHistoryDetails(Long userId, Long exchangeId) {
         UserExchangeRole userRole = exchangeUtil.identifyUserExchangeRole(userId, exchangeId);
-        Exchange exchange = exchangeRepository.findById(exchangeId).orElseThrow(() -> new NotFoundException("Der Umtauschantrag wurde nicht gefunden"));
+        Exchange exchange = exchangeRepository.findById(exchangeId).orElseThrow(() -> new NotFoundException(MessageKey.EXCHANGE_NOT_FOUND));
 
         if (Objects.equals(userRole, UserExchangeRole.SENDER)) {
             if (!exchange.getIsReadBySender()) {
@@ -100,7 +99,7 @@ public class HistoryServiceImpl implements HistoryService {
                         userRole
                 );
             } else {
-                throw new NotFoundException("Der Umtauschantrag wurde nicht gefunden");
+                throw new NotFoundException(MessageKey.EXCHANGE_NOT_FOUND);
             }
         }
     }
