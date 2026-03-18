@@ -6,10 +6,7 @@ import com.example.bookexchange.exception.BadRequestException;
 import com.example.bookexchange.exception.EntityExistsException;
 import com.example.bookexchange.exception.NotFoundException;
 import com.example.bookexchange.mappers.ExchangeMapper;
-import com.example.bookexchange.models.Book;
-import com.example.bookexchange.models.Exchange;
-import com.example.bookexchange.models.ExchangeStatus;
-import com.example.bookexchange.models.User;
+import com.example.bookexchange.models.*;
 import com.example.bookexchange.repositories.BookRepository;
 import com.example.bookexchange.repositories.ExchangeRepository;
 import com.example.bookexchange.repositories.UserRepository;
@@ -30,6 +27,7 @@ public class RequestServiceImpl implements RequestService {
     private final BookRepository bookRepository;
     private final ExchangeMapper exchangeMapper;
     private final Helper helper;
+    private final MessageService messageService;
 
     @Transactional
     @Override
@@ -40,38 +38,38 @@ public class RequestServiceImpl implements RequestService {
 
         Book senderBook = null;
 
-        Book receiverBook = bookRepository.findByIdAndUserId(receiverBookId, receiverUserId).orElseThrow(() -> new NotFoundException("Das Buch mit ID " + receiverBookId + " oder der Benutzer mit ID " + receiverUserId + " wurde nicht gefunden"));
+        Book receiverBook = bookRepository.findByIdAndUserId(receiverBookId, receiverUserId).orElseThrow(() -> new NotFoundException(MessageKey.BOOK_NOT_FOUND));
 
         if (receiverBook.getIsExchanged()) {
-            throw new BadRequestException("Das Buch mit ID " + receiverBookId + " wurde bereits umgetauscht");
+            throw new BadRequestException(MessageKey.BOOK_ALREADY_EXCHANGED);
         }
 
         Boolean isReceiverBookGift = receiverBook.getIsGift();
 
         if (isReceiverBookGift) {
-            exchangeRepository.findBySenderUserIdAndReceiverUserIdAndReceiverBookIdAndStatusNot(senderUserId, receiverUserId, receiverBookId, ExchangeStatus.DECLINED).ifPresent(exchange -> { throw new NotFoundException("Für dieses Buch besteht bereits ein Umtauschantrag"); });
+            exchangeRepository.findBySenderUserIdAndReceiverUserIdAndReceiverBookIdAndStatusNot(senderUserId, receiverUserId, receiverBookId, ExchangeStatus.DECLINED).ifPresent(exchange -> { throw new NotFoundException(MessageKey.BOOK_EXCHANGE_ALREADY_EXISTS); });
         } else {
-            senderBook = bookRepository.findByIdAndUserId(senderBookId, senderUserId).orElseThrow(() -> new NotFoundException("Das Buch mit ID " + senderBookId + " oder mit user ID + " + senderUserId + " wurde nicht gefunden"));
+            senderBook = bookRepository.findByIdAndUserId(senderBookId, senderUserId).orElseThrow(() -> new NotFoundException(MessageKey.BOOK_NOT_FOUND));
 
             if (senderBook.getIsExchanged()) {
-                throw new BadRequestException("Das Buch mit ID " + senderBookId + " wurde bereits umgetauscht");
+                throw new BadRequestException(MessageKey.BOOK_ALREADY_EXCHANGED);
             }
 
-            exchangeRepository.findBySenderUserIdAndSenderBookIdAndReceiverUserIdAndReceiverBookIdAndStatusNot(senderUserId, senderBookId, receiverUserId, receiverBookId, ExchangeStatus.DECLINED).ifPresent(exchange -> { throw new NotFoundException("Der Umtauschantrag zwischen diesen Büchern besteht bereits"); });
+            exchangeRepository.findBySenderUserIdAndSenderBookIdAndReceiverUserIdAndReceiverBookIdAndStatusNot(senderUserId, senderBookId, receiverUserId, receiverBookId, ExchangeStatus.DECLINED).ifPresent(exchange -> { throw new NotFoundException(MessageKey.EXCHANGE_BETWEEN_BOOKS_EXISTS); });
         }
 
         if (senderUserId.equals(receiverUserId)) {
-            throw new BadRequestException("Der Benutzer kann keine Anfrage an sich selbst senden");
+            throw new BadRequestException(MessageKey.EXCHANGE_CANT_BE_WITH_YOURSELF);
         }
 
-        bookRepository.findByIdAndUserId(receiverBookId, senderUserId).ifPresent(book -> { throw new EntityExistsException("Der Absenderbenutzer mit ID " + senderUserId + " hat schon das Buch mit ID  " + receiverBookId + " in seiner Liste"); });
+        bookRepository.findByIdAndUserId(receiverBookId, senderUserId).ifPresent(book -> { throw new EntityExistsException(MessageKey.BOOK_ALREADY_IN_YOUR_LIST); });
 
         User senderUser = userRepository.findById(senderUserId).orElseThrow(
-                () -> new NotFoundException("Der Absenderbenutzer mit ID " + senderUserId + " wurde nicht gefunden")
+            () -> new NotFoundException(MessageKey.USER_ACCOUNT_NOT_FOUND)
         );
 
         User receiverUser = userRepository.findById(receiverUserId).orElseThrow(
-                () -> new NotFoundException("Der Empfängerbenutzer mit ID " + receiverUserId + " wurde nicht gefunden")
+                () -> new NotFoundException(MessageKey.USER_RECEIVER_NOT_FOUND)
         );
 
         Exchange exchange = new Exchange();
@@ -83,22 +81,22 @@ public class RequestServiceImpl implements RequestService {
 
         if (!isReceiverBookGift) {
             if (senderBookId.equals(receiverBookId)) {
-                throw new BadRequestException("Ein Umtauschantrag desselben Buches ist nicht möglich");
+                throw new BadRequestException(MessageKey.BOOK_CANT_EXCHANGE_SAME_BOOK);
             }
 
-            bookRepository.findByIdAndUserId(senderBookId, receiverUserId).ifPresent(book ->  { throw new NotFoundException("Der Empfängerbenutzer mit ID " + receiverUserId + " hat schon das Buch mit book ID + " + senderBookId + " in seiner Liste"); });
+            bookRepository.findByIdAndUserId(senderBookId, receiverUserId).ifPresent(book ->  { throw new NotFoundException(MessageKey.BOOK_ALREADY_IN_RECEIVERS_LIST); });
 
             exchange.setSenderBook(senderBook);
         }
 
-        return "Der Umtauschantrag wurde erstellt";
+        return messageService.getMessage(MessageKey.EXCHANGE_CREATED);
     }
 
     @Transactional(readOnly = true)
     @Override
     public Exchange getSenderRequestDetails(Long senderUserId, Long exchangeId) {
-        Exchange exchange = exchangeRepository.findByIdAndSenderUserId(exchangeId, senderUserId).orElseThrow(() -> new NotFoundException("Der Umtauschantrag mit ID " + exchangeId + " und mit einem Absenderbenutzer mit ID " + senderUserId + " wurde nicht gefunden"));
-        userRepository.findById(senderUserId).orElseThrow(() -> new NotFoundException("Der Benutzer mit ID " + senderUserId + " wurde nicht gefunden"));
+        Exchange exchange = exchangeRepository.findByIdAndSenderUserId(exchangeId, senderUserId).orElseThrow(() -> new NotFoundException(MessageKey.EXCHANGE_NOT_FOUND));
+        userRepository.findById(senderUserId).orElseThrow(() -> new NotFoundException(MessageKey.USER_ACCOUNT_NOT_FOUND));
 
         return exchange;
     }
@@ -116,8 +114,8 @@ public class RequestServiceImpl implements RequestService {
     @Transactional
     @Override
     public String declineUserRequest(Long senderUserId, Long exchangeId, Long version) {
-        Exchange exchange = exchangeRepository.findByIdAndSenderUserId(exchangeId, senderUserId).orElseThrow(() -> new NotFoundException("Der Umtauschantrag mit ID " + exchangeId + " und mit einem Absenderbenutzer mit ID " + senderUserId + " wurde nicht gefunden"));
-        User declinerUser = userRepository.findById(senderUserId).orElseThrow(() -> new NotFoundException("Der Benutzer mit ID " + senderUserId + " wurde nicht gefunden"));
+        Exchange exchange = exchangeRepository.findByIdAndSenderUserId(exchangeId, senderUserId).orElseThrow(() -> new NotFoundException(MessageKey.EXCHANGE_NOT_FOUND));
+        User declinerUser = userRepository.findById(senderUserId).orElseThrow(() -> new NotFoundException(MessageKey.USER_ACCOUNT_NOT_FOUND));
 
         helper.checkEntityVersion(exchange.getVersion(), version);
 
@@ -126,9 +124,9 @@ public class RequestServiceImpl implements RequestService {
             exchange.setDeclinerUser(declinerUser);
             exchangeRepository.save(exchange);
         } else {
-            throw new BadRequestException("Der Umtauschantrag kann nicht abgelehnt werden");
+            throw new BadRequestException(MessageKey.EXCHANGE_CANT_BE_DECLINED);
         }
 
-        return "Der Umtauschantrag wurde abgelehnt";
+        return messageService.getMessage(MessageKey.EXCHANGE_DECLINED);
     }
 }

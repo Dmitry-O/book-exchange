@@ -35,46 +35,47 @@ public class AdminServiceImpl extends BaseServiceImpl<User, Long> implements Adm
     private final ReportRepository reportRepository;
     private final ExchangeRepository exchangeRepository;
     private final RefreshTokenRepository refreshTokenRepository;
-    private final UserMapper userMapper;
     private final BookMapper bookMapper;
     private final ReportMapper reportMapper;
     private final AdminMapper adminMapper;
     private final Helper helper;
 
+    private final MessageService messageService;
+
     @Transactional
     @Override
     public String giveAdminRights(Long userId) {
-        User user = findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
+        User user = findOrThrow(userRepository, userId, MessageKey.ADMIN_USER_NOT_FOUND);
 
         if (!user.getRoles().contains(UserRole.ADMIN)) {
             user.addRole(UserRole.ADMIN);
             userRepository.save(user);
         } else {
-            throw new EntityExistsException("Der Benutzer mit ID " + userId + " ist bereits Administrator");
+            throw new EntityExistsException(MessageKey.ADMIN_USER_ALREADY_ADMIN, user.getEmail());
         }
 
-        return "Dem Benutzer " + user.getEmail() + " wurden Administratorrechte gewährt";
+        return messageService.getMessage(MessageKey.ADMIN_RIGHTS_GIVEN, user.getEmail());
     }
 
     @Transactional
     @Override
     public String revokeAdminRights(Long userId) {
-        User user = findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
+        User user = findOrThrow(userRepository, userId, MessageKey.ADMIN_USER_NOT_FOUND);
 
         if (user.getRoles().contains(UserRole.ADMIN)) {
             user.removeRole(UserRole.ADMIN);
             userRepository.save(user);
         } else {
-            throw new BadRequestException("Der Benutzer " + user.getEmail() + " ist kein Administrator");
+            throw new BadRequestException(MessageKey.ADMIN_USER_NOT_ADMIN, user.getEmail());
         }
 
-        return "Dem Benutzer " + user.getEmail() + " wurden die Administratorrechte entzogen";
+        return messageService.getMessage(MessageKey.ADMIN_RIGHTS_REVOKED, user.getEmail());
     }
 
     @Transactional(readOnly = true)
     @Override
     public Page<UserAdminDTO> findUsers(Long userId, Integer pageIndex, Integer pageSize, String searchText, Set<UserRole> roles, Boolean onlyBannedUsers, UserType userType) {
-        User user = findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
+        User user = findOrThrow(userRepository, userId, MessageKey.ADMIN_USER_NOT_FOUND);
 
         Boolean isUserSuperAdmin = user.getRoles().contains(UserRole.SUPER_ADMIN);
 
@@ -114,12 +115,12 @@ public class AdminServiceImpl extends BaseServiceImpl<User, Long> implements Adm
     @Transactional
     @Override
     public String banUserById(User adminUser, Long userId, BanUserDTO banUserDTO, Long version) {
-        User user = findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
+        User user = findOrThrow(userRepository, userId, MessageKey.ADMIN_USER_NOT_FOUND);
 
         helper.checkEntityVersion(user.getVersion(), version);
 
         if (adminUser.getId().equals(user.getId())){
-            throw new BadRequestException("Sie können sich nicht selbst sperren");
+            throw new BadRequestException(MessageKey.ADMIN_CANT_BAN_YOURSELF);
         }
 
         if (banUserDTO.isBannedPermanently()) {
@@ -127,20 +128,20 @@ public class AdminServiceImpl extends BaseServiceImpl<User, Long> implements Adm
         } else if (banUserDTO.getBannedUntil() != null) {
             user.setBannedUntil(OffsetDateTime.parse(banUserDTO.getBannedUntil()).toInstant());
         } else {
-            throw new BadRequestException("Die Anfrage ist ungültig");
+            throw new BadRequestException(MessageKey.ADMIN_REQUEST_NOT_VALID);
         }
 
         user.setBanReason(banUserDTO.getBanReason());
 
         refreshTokenRepository.deleteAll(new HashSet<>(user.getRefreshTokens()));
 
-        return "Der Benutzer " + user.getEmail() + " wurde gesperrt";
+        return messageService.getMessage(MessageKey.ADMIN_USER_BANNED, user.getEmail());
     }
 
     @Transactional
     @Override
     public String unbanUserById(Long userId, Long version) {
-        User user = findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
+        User user = findOrThrow(userRepository, userId, MessageKey.ADMIN_USER_NOT_FOUND);
 
         helper.checkEntityVersion(user.getVersion(), version);
 
@@ -150,53 +151,49 @@ public class AdminServiceImpl extends BaseServiceImpl<User, Long> implements Adm
 
         userRepository.save(user);
 
-        return "Der Benutzer " + user.getEmail() + " wurde entsperrt";
+        return messageService.getMessage(MessageKey.ADMIN_USER_UNBANNED, user.getEmail());
     }
 
     @Transactional
     @Override
     public String deleteBookById(Long bookId, Long version) {
-        Book book = bookRepository.findById(bookId).orElseThrow(() -> new NotFoundException("Das Buch mit ID " + bookId + " wurde nicht gefunden"));
+        Book book = bookRepository.findById(bookId).orElseThrow(() -> new NotFoundException(MessageKey.ADMIN_BOOK_NOT_FOUND, bookId));
 
         helper.checkEntityVersion(book.getVersion(), version);
 
         book.setDeletedAt(Instant.now());
 
-        return "Das Buch mit ID " + bookId + " wurde gelöscht";
+        return messageService.getMessage(MessageKey.ADMIN_BOOK_DELETED, book.getName());
     }
 
     @Transactional
     @Override
     public String updateBookById(Long bookId, BookUpdateDTO dto, Long version) {
-        bookRepository.findById(bookId).ifPresentOrElse(foundBook -> {
-            helper.checkEntityVersion(foundBook.getVersion(), version);
+        Book book = bookRepository.findById(bookId).orElseThrow(() -> new NotFoundException(MessageKey.ADMIN_BOOK_NOT_FOUND, bookId));
 
-            bookMapper.updateBookDtoToBook(dto, foundBook);
+        helper.checkEntityVersion(book.getVersion(), version);
+        bookMapper.updateBookDtoToBook(dto, book);
+        bookRepository.save(book);
 
-            bookRepository.save(foundBook);
-        }, () -> {
-            throw new NotFoundException("Das Buch mit ID " + bookId + " wurde nicht gefunden");
-        });
-
-        return "Das Buch mit ID " + bookId + " wurde aktualisiert";
+        return messageService.getMessage(MessageKey.ADMIN_BOOK_UPDATED, book.getName());
     }
 
     @Transactional(readOnly = true)
     @Override
     public Book findBookById(Long bookId) {
-        return bookRepository.findById(bookId).orElseThrow(() -> new NotFoundException("Das Buch mit ID " + bookId + " wurde nicht gefunden"));
+        return bookRepository.findById(bookId).orElseThrow(() -> new NotFoundException(MessageKey.ADMIN_BOOK_NOT_FOUND, bookId));
     }
 
     @Transactional(readOnly = true)
     @Override
     public User findUserById(Long userId) {
-        return findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
+        return findOrThrow(userRepository, userId, MessageKey.ADMIN_USER_NOT_FOUND);
     }
 
     @Transactional
     @Override
     public String resolveReport(Long reportId, Long version) {
-        Report report = reportRepository.findById(reportId).orElseThrow(() -> new NotFoundException("Die Berichtserstellung mit ID " + reportId + " wurde nicht gefunden"));
+        Report report = reportRepository.findById(reportId).orElseThrow(() -> new NotFoundException(MessageKey.ADMIN_REPORT_NOT_FOUND, reportId));
 
         helper.checkEntityVersion(report.getVersion(), version);
 
@@ -204,13 +201,13 @@ public class AdminServiceImpl extends BaseServiceImpl<User, Long> implements Adm
 
         reportRepository.save(report);
 
-        return "Die Berichtserstellung wurde gelöst";
+        return messageService.getMessage(MessageKey.ADMIN_REPORT_RESOLVED);
     }
 
     @Transactional
     @Override
     public String rejectReport(Long reportId, Long version) {
-        Report report = reportRepository.findById(reportId).orElseThrow(() -> new NotFoundException("Die Berichtserstellung mit ID " + reportId + " wurde nicht gefunden"));
+        Report report = reportRepository.findById(reportId).orElseThrow(() -> new NotFoundException(MessageKey.ADMIN_REPORT_NOT_FOUND, reportId));
 
         helper.checkEntityVersion(report.getVersion(), version);
 
@@ -218,7 +215,7 @@ public class AdminServiceImpl extends BaseServiceImpl<User, Long> implements Adm
 
         reportRepository.save(report);
 
-        return "Die Berichtserstellung wurde abgelehnt";
+        return messageService.getMessage(MessageKey.ADMIN_REPORT_REJECTED);
     }
 
     @Transactional(readOnly = true)
@@ -246,13 +243,13 @@ public class AdminServiceImpl extends BaseServiceImpl<User, Long> implements Adm
     @Transactional
     @Override
     public String restoreBookById(Long bookId, Long version) {
-        Book book = bookRepository.findById(bookId).orElseThrow(() -> new NotFoundException("Das Buch mit ID " + bookId + " wurde nicht gefunden"));
+        Book book = bookRepository.findById(bookId).orElseThrow(() -> new NotFoundException(MessageKey.ADMIN_BOOK_NOT_FOUND, bookId));
 
         helper.checkEntityVersion(book.getVersion(), version);
 
         book.setDeletedAt(null);
 
-        return "Das Buch mit  ID " + bookId + " wurde wiederhergestellt";
+        return messageService.getMessage(MessageKey.ADMIN_BOOK_RESTORED, book.getName());
     }
 
     @Override
@@ -272,13 +269,13 @@ public class AdminServiceImpl extends BaseServiceImpl<User, Long> implements Adm
 
     @Override
     public ExchangeAdminDTO findExchangeById(Long exchangeId) {
-        Exchange exchange = exchangeRepository.findById(exchangeId).orElseThrow(() -> new NotFoundException("Der Umtauschantrag mit ID " + exchangeId + " wurde nicht gefunden"));
+        Exchange exchange = exchangeRepository.findById(exchangeId).orElseThrow(() -> new NotFoundException(MessageKey.ADMIN_EXCHANGE_NOT_FOUND, exchangeId));
 
         return adminMapper.exchangeToExchangeAdminDto(exchange);
     }
 
     @Override
     public Report findReportById(Long reportId) {
-        return reportRepository.findById(reportId).orElseThrow(() -> new NotFoundException("Die Berichtserstellung mit ID " + reportId + " wurde nicht gefunden"));
+        return reportRepository.findById(reportId).orElseThrow(() -> new NotFoundException(MessageKey.ADMIN_REPORT_NOT_FOUND, reportId));
     }
 }

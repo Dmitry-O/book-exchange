@@ -2,14 +2,12 @@ package com.example.bookexchange.dto;
 
 import com.example.bookexchange.models.ExchangeStatus;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 @Data
 public class ExchangeAdminDTO {
 
     @JsonProperty("id")
-    @NotNull
     private Long id;
 
     @JsonProperty("senderBook")

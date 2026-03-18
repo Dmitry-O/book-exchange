@@ -7,7 +7,6 @@ import com.example.bookexchange.exception.ForbiddenException;
 import com.example.bookexchange.exception.NotFoundException;
 import com.example.bookexchange.mappers.UserMapper;
 import com.example.bookexchange.models.*;
-import com.example.bookexchange.repositories.BookRepository;
 import com.example.bookexchange.repositories.RefreshTokenRepository;
 import com.example.bookexchange.repositories.UserRepository;
 import com.example.bookexchange.repositories.VerificationTokenRepository;
@@ -28,7 +27,7 @@ import static java.time.temporal.ChronoUnit.*;
 @AllArgsConstructor
 public class UserServiceImpl extends BaseServiceImpl<User, Long> implements UserService {
 
-    private final BookRepository bookRepository;
+    private final MessageService messageService;
     private UserRepository userRepository;
     private RefreshTokenRepository refreshTokenRepository;
     private VerificationTokenRepository verificationTokenRepository;
@@ -41,7 +40,7 @@ public class UserServiceImpl extends BaseServiceImpl<User, Long> implements User
     @Transactional(readOnly = true)
     @Override
     public User getUser(Long userId) {
-        return findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
+        return findOrThrow(userRepository, userId, MessageKey.USER_ACCOUNT_NOT_FOUND);
     }
 
     @Transactional
@@ -54,9 +53,9 @@ public class UserServiceImpl extends BaseServiceImpl<User, Long> implements User
 
         userRepository.findByEmail(email).ifPresent(user -> {
             if (passwordEncoder.matches(dto.getPassword(), user.getPassword()) && !user.isEmailVerified()) {
-                messageToReturn.set("Wir haben Ihnen eine E-mail gesendet, da Sie zuerst Ihre E-mail Adresse bestätigen müssen. Bitte überprüfen Sie Ihre eingehende Nachrichten und befolgen Sie die Anweisungen.");
+                messageToReturn.set(messageService.getMessage(MessageKey.EMAIL_VERIFY_ACCOUNT));
             } else {
-                throw new EntityExistsException("Es gibt bereits ein Benutzer mit diesem Email. Wählen Sie bitte ein anderes");
+                throw new EntityExistsException(MessageKey.AUTH_EMAIL_ALREADY_EXISTS);
             }
         });
 
@@ -65,7 +64,7 @@ public class UserServiceImpl extends BaseServiceImpl<User, Long> implements User
         }
 
         userRepository.findByNickname(nickname).ifPresent(user -> {
-            throw new EntityExistsException("Es gibt bereits ein Benutzer mit diesem Nickname. Wählen Sie bitte einen anderen");
+            throw new EntityExistsException(MessageKey.AUTH_NICKNAME_ALREADY_EXISTS);
         });
 
         dto.setPassword(passwordEncoder.encode(dto.getPassword()));
@@ -76,13 +75,13 @@ public class UserServiceImpl extends BaseServiceImpl<User, Long> implements User
 
         emailService.buildAndSendEmail(user.getEmail(), createVerificationToken(savedUser, TokenType.CONFIRM_EMAIL), EmailType.CONFIRM_EMAIL);
 
-        return "Ihr Konto wurde erfolgreich registriert. Bitte bestätigen Sie jetzt Ihre E-mail Adresse";
+        return messageService.getMessage(MessageKey.AUTH_ACCOUNT_REGISTERED);
     }
 
     @Transactional
     @Override
     public String updateUser(Long userId, UserUpdateDTO dto, Long version) {
-        User user = findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
+        User user = findOrThrow(userRepository, userId, MessageKey.USER_ACCOUNT_NOT_FOUND);
 
         helper.checkEntityVersion(user.getVersion(), version);
 
@@ -90,23 +89,24 @@ public class UserServiceImpl extends BaseServiceImpl<User, Long> implements User
             String nickname = dto.getNickname();
 
             if (userRepository.findByNickname(nickname).isPresent()) {
-                throw new EntityExistsException("Es gibt bereits ein Benutzer mit diesem nickname. Wählen Sie bitte einen anderen");
+                throw new EntityExistsException(MessageKey.AUTH_NICKNAME_ALREADY_EXISTS);
             }
         }
 
         if (dto.getEmail() != null) user.setEmail(dto.getEmail());
         if (dto.getNickname() != null) user.setNickname(dto.getNickname());
         if (dto.getPhotoBase64() != null) user.setPhotoBase64(dto.getPhotoBase64());
+        if (dto.getLocale() != null) user.setLocale(dto.getLocale());
 
         userRepository.save(user);
 
-        return "Ihr Profil wurde aktualiziert";
+        return messageService.getMessage(MessageKey.USER_PROFILE_UPDATED);
     }
 
     @Transactional
     @Override
     public String deleteUser(Long userId, Boolean isAdminDeleting, Long version) {
-        User user = findOrThrow(userRepository, userId, "Der Benutzer mit ID " + userId + " wurde nicht gefunden");
+        User user = findOrThrow(userRepository, userId, MessageKey.USER_ACCOUNT_NOT_FOUND);
 
         helper.checkEntityVersion(user.getVersion(), version);
 
@@ -125,31 +125,31 @@ public class UserServiceImpl extends BaseServiceImpl<User, Long> implements User
         refreshTokenRepository.deleteAll(new HashSet<>(user.getRefreshTokens()));
         verificationTokenRepository.deleteAll(new HashSet<>(user.getVerificationToken()));
 
-        return isAdminDeleting ? "Der Benutzer mit ID " + userId + " wurde gelöst" : "Ihr Profil wurde gelöscht";
+        return isAdminDeleting ? messageService.getMessage(MessageKey.ADMIN_USER_DELETED, user.getEmail()) : messageService.getMessage(MessageKey.USER_ACCOUNT_DELETED);
     }
 
     @Transactional
     @Override
     public AuthResponseDTO loginUser(AuthRequestDTO requestDTO) {
-        User user = userRepository.findByEmail(requestDTO.getEmail()).orElseThrow(() -> new NotFoundException("Sie haben eine falsche Email Adresse gegeben. Versuchen Sie bitte nochmal."));
+        User user = userRepository.findByEmail(requestDTO.getEmail()).orElseThrow(() -> new NotFoundException(MessageKey.AUTH_WRONG_EMAIL));
 
         if (!passwordEncoder.matches(requestDTO.getPassword(), user.getPassword())) {
-            throw new BadRequestException("Falsches Passwort");
+            throw new BadRequestException(MessageKey.AUTH_WRONG_PASSWORD);
         }
 
         if (!user.isEmailVerified()) {
             verificationTokenRepository.findByUserAndType(user, TokenType.CONFIRM_EMAIL).ifPresent(verificationToken -> verificationTokenRepository.deleteById(verificationToken.getId()));
 
-            throw new ForbiddenException("Ihr Konto wurde noch nicht verifiziert");
+            throw new ForbiddenException(MessageKey.AUTH_ACCOUNT_NOT_VERIFIED);
         }
 
         Instant bannedUntil = user.getBannedUntil();
-        String banReason = user.getBanReason() != null ? (" Grund für die Sperrung: " + user.getBanReason()) : null;
+        String banReason = user.getBanReason() != null ? user.getBanReason() : null;
 
         if (user.isBannedPermanently()) {
-            throw new ForbiddenException("Der Bunutzer wurde dauerhaft gesperrt." + banReason);
+            throw new ForbiddenException(MessageKey.AUTH_PERMANENTLY_BANNED, banReason);
         } else if (bannedUntil != null && bannedUntil.isAfter(Instant.now())) {
-            throw new ForbiddenException("Der Bunutzer wurde bis " + bannedUntil + " gesperrt." + banReason);
+            throw new ForbiddenException(MessageKey.AUTH_TEMPORARILY_BANNED, bannedUntil, banReason);
         } else if (bannedUntil != null && bannedUntil.isBefore(Instant.now())) {
             user.setBannedUntil(null);
             user.setBanReason(null);
@@ -191,7 +191,7 @@ public class UserServiceImpl extends BaseServiceImpl<User, Long> implements User
                 tokenLiveTime = 15L;
                 yield MINUTES;
             }
-            default -> throw new BadRequestException("Es wurde ein ungültiges Token angegeben");
+            default -> throw new BadRequestException(MessageKey.AUTH_WRONG_TOKEN);
         };
 
         Instant expiryDate = Instant.now().plus(tokenLiveTime, timeUnit);
@@ -213,7 +213,7 @@ public class UserServiceImpl extends BaseServiceImpl<User, Long> implements User
         if (refreshToken.getExpiryDate().isBefore(Instant.now())) {
             refreshTokenRepository.delete(refreshToken);
 
-            throw new BadRequestException("Das Refresh Token ist abgelaufen");
+            throw new BadRequestException(MessageKey.AUTH_REFRESH_TOKEN_EXPIRED);
         }
 
         return jwtService.generateToken(refreshToken.getUser());
@@ -222,33 +222,33 @@ public class UserServiceImpl extends BaseServiceImpl<User, Long> implements User
     @Transactional
     @Override
     public String resetPassword(Long userId, UserResetPasswordDTO dto, Long version) {
-        User user = userRepository.findById(userId).orElseThrow(() -> new NotFoundException("Der Benutzer mit ID " + userId + " wurde nicht gefunden"));
+        User user = userRepository.findById(userId).orElseThrow(() -> new NotFoundException(MessageKey.USER_ACCOUNT_NOT_FOUND));
 
         helper.checkEntityVersion(user.getVersion(), version);
 
         if (dto.getCurrentPassword().equals(dto.getNewPassword())) {
-            throw new BadRequestException("Die Passwörter dürfen nicht identisch sein");
+            throw new BadRequestException(MessageKey.AUTH_SAME_PASSWORDS);
         } else if (!passwordEncoder.matches(dto.getCurrentPassword(), user.getPassword())) {
-            throw new BadRequestException("Das aktuelle Passwort ist falsch");
+            throw new BadRequestException(MessageKey.AUTH_WRONG_ACTUAL_PASSWORD);
         }
 
         user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
         userRepository.save(user);
 
-        return "Ihr Passwort wurde geändert";
+        return messageService.getMessage(MessageKey.AUTH_PASSWORD_CHANGED);
     }
 
     @Transactional
     @Override
     public String confirmRegistration(String token) {
-        VerificationToken verificationToken = verificationTokenRepository.findByToken(token).orElseThrow(() -> new NotFoundException("Das Token wurde nicht gefunden"));
+        VerificationToken verificationToken = verificationTokenRepository.findByToken(token).orElseThrow(() -> new NotFoundException(MessageKey.AUTH_TOKEN_NOT_FOUND));
 
         if (verificationToken.getExpiryDate().isBefore(Instant.now())) {
             verificationTokenRepository.deleteById(verificationToken.getId());
 
-            throw new BadRequestException("Das Token ist bereits abgelaufen");
+            throw new BadRequestException(MessageKey.AUTH_TOKEN_EXPIRED);
         } else if (!verificationToken.getType().equals(TokenType.CONFIRM_EMAIL)) {
-            throw new BadRequestException("Das Token ist ungültig");
+            throw new BadRequestException(MessageKey.AUTH_TOKEN_NOT_VALID);
         }
 
         User user = verificationToken.getUser();
@@ -257,34 +257,34 @@ public class UserServiceImpl extends BaseServiceImpl<User, Long> implements User
 
         verificationTokenRepository.deleteById(verificationToken.getId());
 
-        return "Die Registrierung wurde vollständig abgeschlossen";
+        return messageService.getMessage(MessageKey.AUTH_REGISTRATION_COMPLETED);
     }
 
     @Transactional
     @Override
     public String forgotPassword(UserForgotPasswordDTO dto) {
-        User user = userRepository.findByEmail(dto.getEmail()).orElseThrow(() -> new NotFoundException("Der Benutzer mit Email " + dto.getEmail() + " wurde nicht gefunden"));
+        User user = userRepository.findByEmail(dto.getEmail()).orElseThrow(() -> new NotFoundException(MessageKey.AUTH_EMAIL_NOT_FOUND));
 
         if (!user.isEmailVerified()) {
-            throw new ForbiddenException("Ihr Konto wurde noch nicht verifiziert");
+            throw new ForbiddenException(MessageKey.AUTH_ACCOUNT_NOT_VERIFIED);
         }
 
         emailService.buildAndSendEmail(user.getEmail(), createVerificationToken(user, TokenType.RESET_PASSWORD), EmailType.RESET_PASSWORD);
 
-        return "Wir haben Ihnen eine Anleitung zum Zurücksetzen des Passworts auf Ihre E-mail Adresse geschikt";
+        return messageService.getMessage(MessageKey.EMAIL_RESET_PASSWORD);
     }
 
     @Transactional
     @Override
     public String resetForgottenPassword(String token, UserResetForgottenPasswordDTO dto) {
-        VerificationToken verificationToken = verificationTokenRepository.findByToken(token).orElseThrow(() -> new NotFoundException("Das Token wurde nicht gefunden"));
+        VerificationToken verificationToken = verificationTokenRepository.findByToken(token).orElseThrow(() -> new NotFoundException(MessageKey.AUTH_TOKEN_NOT_FOUND));
 
         if (verificationToken.getExpiryDate().isBefore(Instant.now())) {
             verificationTokenRepository.deleteById(verificationToken.getId());
 
-            throw new BadRequestException("Das Token ist bereits abgelaufen");
+            throw new BadRequestException(MessageKey.AUTH_TOKEN_EXPIRED);
         } else if (!verificationToken.getType().equals(TokenType.RESET_PASSWORD)) {
-            throw new BadRequestException("Das Token ist ungültig");
+            throw new BadRequestException(MessageKey.AUTH_TOKEN_NOT_VALID);
         }
 
         User user = verificationToken.getUser();
@@ -293,39 +293,39 @@ public class UserServiceImpl extends BaseServiceImpl<User, Long> implements User
 
         verificationTokenRepository.deleteById(verificationToken.getId());
 
-        return "Ihr Passwort wurde erfolgreich geändert";
+        return messageService.getMessage(MessageKey.AUTH_PASSWORD_CHANGED);
     }
 
     @Transactional
     @Override
     public String resendEmailConfirmation(UserResendEmailConfirmationDTO dto) {
-        User user = userRepository.findByEmail(dto.getEmail()).orElseThrow(() -> new NotFoundException("Der Benutzer mit Email " + dto.getEmail() + " wurde nicht gefunden"));
+        User user = userRepository.findByEmail(dto.getEmail()).orElseThrow(() -> new NotFoundException(MessageKey.AUTH_EMAIL_NOT_FOUND));
 
         if (user.isEmailVerified()) {
-            throw new BadRequestException("Ihr Konto wurde bereits verifiziert");
+            throw new BadRequestException(MessageKey.AUTH_ACCOUNT_ALREADY_VERIFIED);
         }
 
         verificationTokenRepository.findByUserAndType(user, TokenType.CONFIRM_EMAIL).ifPresent(verificationToken -> verificationTokenRepository.deleteById(verificationToken.getId()));
 
         emailService.buildAndSendEmail(user.getEmail(), createVerificationToken(user, TokenType.CONFIRM_EMAIL), EmailType.CONFIRM_EMAIL);
 
-        return "Bitte überprüfen Sie jetzt Ihre E-mail Adresse";
+        return messageService.getMessage(MessageKey.EMAIL_VERIFY_ACCOUNT);
     }
 
     @Transactional
     @Override
     public String initiateDeleteAccount(UserInitiateDeleteAccountDTO dto) {
-        User user = userRepository.findByEmail(dto.getEmail()).orElseThrow(() -> new NotFoundException("Der Benutzer mit Email " + dto.getEmail() + " wurde nicht gefunden"));
+        User user = userRepository.findByEmail(dto.getEmail()).orElseThrow(() -> new NotFoundException(MessageKey.AUTH_EMAIL_NOT_FOUND));
 
         emailService.buildAndSendEmail(user.getEmail(), createVerificationToken(user, TokenType.DELETE_ACCOUNT), EmailType.DELETE_ACCOUNT);
 
-        return "Wir haben Ihnen eine Anleitung zum Löschen Ihres Kontos auf Ihre E-mail Adresse geschikt";
+        return messageService.getMessage(MessageKey.EMAIL_DELETE_ACCOUNT);
     }
 
     @Transactional
     @Override
     public String deleteAccount(String token) {
-        VerificationToken verificationToken = verificationTokenRepository.findByToken(token).orElseThrow(() -> new NotFoundException("Das Token wurde nicht gefunden"));
+        VerificationToken verificationToken = verificationTokenRepository.findByToken(token).orElseThrow(() -> new NotFoundException(MessageKey.AUTH_TOKEN_NOT_FOUND));
 
         return deleteUser(verificationToken.getUser().getId(), false, null);
     }
@@ -333,10 +333,10 @@ public class UserServiceImpl extends BaseServiceImpl<User, Long> implements User
     @Transactional
     @Override
     public String logout(Long userId, RefreshTokenDTO dto) {
-        RefreshToken refreshToken = refreshTokenRepository.findByTokenAndUserId(dto.getToken(), userId).orElseThrow(() -> new NotFoundException("Das token wurde nicht gefunden"));
+        RefreshToken refreshToken = refreshTokenRepository.findByTokenAndUserId(dto.getToken(), userId).orElseThrow(() -> new NotFoundException(MessageKey.AUTH_TOKEN_NOT_FOUND));
 
         refreshTokenRepository.delete(refreshToken);
 
-        return "Sie haben sich erfolgreich abgemeldet";
+        return messageService.getMessage(MessageKey.AUTH_LOGOUT);
     }
 }

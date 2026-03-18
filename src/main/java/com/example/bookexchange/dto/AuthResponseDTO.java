@@ -1,6 +1,5 @@
 package com.example.bookexchange.dto;
 
-import jakarta.validation.constraints.NotBlank;
 import lombok.Builder;
 import lombok.Data;
 import tools.jackson.databind.annotation.JsonDeserialize;
@@ -10,11 +9,7 @@ import tools.jackson.databind.annotation.JsonDeserialize;
 @Data
 public class AuthResponseDTO {
 
-    @NotBlank
-    @NotBlank
     private String accessToken;
 
-    @NotBlank
-    @NotBlank
     private String refreshToken;
 }

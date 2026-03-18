@@ -1,5 +1,7 @@
 package com.example.bookexchange.authentication;
 
+import com.example.bookexchange.exception.BadRequestException;
+import com.example.bookexchange.models.MessageKey;
 import com.example.bookexchange.models.UserPrincipal;
 import com.example.bookexchange.services.CustomUserDetailsServiceImpl;
 import com.example.bookexchange.services.JwtService;
@@ -11,7 +13,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.NonNull;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
-import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -65,7 +66,7 @@ public class JwtFilter extends OncePerRequestFilter {
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }
         } catch (JwtException e) {
-            throw new BadCredentialsException("Invalid or expired token");
+            throw new BadRequestException(MessageKey.SYSTEM_INVALID_TOKEN);
         }
 
         filterChain.doFilter(request, response);

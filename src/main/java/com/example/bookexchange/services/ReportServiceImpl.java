@@ -2,6 +2,7 @@ package com.example.bookexchange.services;
 
 import com.example.bookexchange.dto.ReportCreateDTO;
 import com.example.bookexchange.exception.NotFoundException;
+import com.example.bookexchange.models.MessageKey;
 import com.example.bookexchange.models.Report;
 import com.example.bookexchange.models.User;
 import com.example.bookexchange.repositories.ReportRepository;
@@ -16,11 +17,12 @@ public class ReportServiceImpl implements ReportService {
 
     private final ReportRepository reportRepository;
     private final UserRepository userRepository;
+    private final MessageService messageService;
 
     @Transactional
     @Override
     public String createReport(Long reporterId, Long targetId, ReportCreateDTO reportCreateDTO) {
-        User reporter = userRepository.findById(reporterId).orElseThrow(() -> new NotFoundException("Der Benutzer mit ID " + reporterId + " wurde nicht gefunden"));
+        User reporter = userRepository.findById(reporterId).orElseThrow(() -> new NotFoundException(MessageKey.USER_ACCOUNT_NOT_FOUND));
 
         Report report = new Report(
             null,
@@ -34,6 +36,6 @@ public class ReportServiceImpl implements ReportService {
 
         reportRepository.save(report);
 
-        return "Ihre Beschwerde wurde gesendet";
+        return messageService.getMessage(MessageKey.REPORT_SENT);
     }
 }

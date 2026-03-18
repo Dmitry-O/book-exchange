@@ -2,10 +2,6 @@ package com.example.bookexchange.dto;
 
 import com.example.bookexchange.models.UserRole;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -22,19 +18,12 @@ import java.util.Set;
 public class UserDTO {
 
     @JsonProperty("id")
-    @NotNull
     private Long id;
 
     @JsonProperty("email")
-    @NotBlank
-    @NotNull
-    @Email
     private String email;
 
     @JsonProperty("nickname")
-    @NotBlank
-    @NotNull
-    @Size(min = 5, max = 20)
     private String nickname;
 
     @JsonProperty("photoBase64")

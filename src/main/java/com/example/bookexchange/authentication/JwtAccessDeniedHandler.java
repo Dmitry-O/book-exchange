@@ -1,6 +1,8 @@
 package com.example.bookexchange.authentication;
 
 import com.example.bookexchange.dto.ApiErrorDTO;
+import com.example.bookexchange.models.MessageKey;
+import com.example.bookexchange.services.MessageService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -19,6 +21,12 @@ import java.time.Instant;
 @Component
 public class JwtAccessDeniedHandler implements AccessDeniedHandler {
 
+    private final MessageService messageService;
+
+    public JwtAccessDeniedHandler(MessageService messageService) {
+        this.messageService = messageService;
+    }
+
     @Override
     public void handle(@NonNull HttpServletRequest request, @NonNull HttpServletResponse response, @NonNull AccessDeniedException accessDeniedException) throws IOException, ServletException {
         String requestId = (String) request.getAttribute("requestId");
@@ -26,7 +34,7 @@ public class JwtAccessDeniedHandler implements AccessDeniedHandler {
         ApiErrorDTO error = ApiErrorDTO.builder()
                 .status(HttpServletResponse.SC_FORBIDDEN)
                 .error(HttpStatus.FORBIDDEN.name())
-                .message("Forbidden")
+                .message(messageService.getMessage(MessageKey.SYSTEM_ACCESS_FORBIDDEN))
                 .path(request.getRequestURI())
                 .timestamp(Instant.now())
                 .requestId(requestId)

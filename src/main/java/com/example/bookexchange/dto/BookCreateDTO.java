@@ -60,8 +60,8 @@ public class BookCreateDTO {
     private String contactDetails;
 
     @JsonProperty("isGift")
-    private Boolean isGift = Boolean.FALSE;
+    private Boolean isGift = false;
 
     @JsonProperty("isExchanged")
-    private Boolean isExchanged = Boolean.FALSE;
+    private Boolean isExchanged = false;
 }
