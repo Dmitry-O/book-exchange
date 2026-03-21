@@ -1,7 +1,6 @@
 package com.example.bookexchange.controllers;
 
 import com.example.bookexchange.dto.*;
-import com.example.bookexchange.exception.NotFoundException;
 import com.example.bookexchange.models.Book;
 import com.example.bookexchange.models.Exchange;
 import com.example.bookexchange.models.ExchangeStatus;

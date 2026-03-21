@@ -1,11 +1,11 @@
 package com.example.bookexchange.util;
 
 import com.example.bookexchange.dto.UserCreateDTO;
-import com.example.bookexchange.exception.EntityExistsException;
 import com.example.bookexchange.mappers.UserMapper;
 import com.example.bookexchange.models.User;
 import com.example.bookexchange.repositories.UserRepository;
 import com.example.bookexchange.services.UserService;
+import jakarta.persistence.EntityExistsException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;

@@ -1,25 +1,25 @@
 package com.example.bookexchange.services;
 
+import com.example.bookexchange.core.result.Result;
 import com.example.bookexchange.dto.BookCreateDTO;
 import com.example.bookexchange.dto.BookDTO;
 import com.example.bookexchange.dto.BookSearchDTO;
 import com.example.bookexchange.dto.BookUpdateDTO;
-import com.example.bookexchange.models.Book;
 import org.springframework.data.domain.Page;
 
 public interface BookService {
 
-    String addUserBook(Long userId, BookCreateDTO dto);
+    Result<BookDTO> addUserBook(Long userId, BookCreateDTO dto);
 
-    Page<BookDTO> findUserBooks(Long userId, Integer pageIndex, Integer pageSize);
+    Result<Page<BookDTO>> findUserBooks(Long userId, Integer pageIndex, Integer pageSize);
 
-    Page<BookDTO> findExchangedUserBooks(Long userId,  Integer pageIndex, Integer pageSize);
+    Result<Page<BookDTO>> findExchangedUserBooks(Long userId,  Integer pageIndex, Integer pageSize);
 
-    Page<BookDTO> findBooks(BookSearchDTO dto, Integer pageIndex, Integer pageSize);
+    Result<Page<BookDTO>> findBooks(BookSearchDTO dto, Integer pageIndex, Integer pageSize);
 
-    String deleteUserBookById(Long userId, Long bookId, Long version);
+    Result<Void> deleteUserBookById(Long userId, Long bookId, Long version);
 
-    String updateUserBookById(Long userId, Long bookId, BookUpdateDTO dto, Long version);
+    Result<BookDTO> updateUserBookById(Long userId, Long bookId, BookUpdateDTO dto, Long version);
 
-    Book findUserBookById(Long userId, Long bookId);
+    Result<BookDTO> findUserBookById(Long userId, Long bookId);
 }

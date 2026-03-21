@@ -1,17 +1,16 @@
 package com.example.bookexchange.services;
 
+import com.example.bookexchange.core.result.Result;
+import com.example.bookexchange.core.result.ResultFactory;
 import com.example.bookexchange.dto.*;
-import com.example.bookexchange.exception.BadRequestException;
-import com.example.bookexchange.exception.EntityExistsException;
-import com.example.bookexchange.exception.ForbiddenException;
-import com.example.bookexchange.exception.NotFoundException;
 import com.example.bookexchange.mappers.UserMapper;
 import com.example.bookexchange.models.*;
 import com.example.bookexchange.repositories.RefreshTokenRepository;
 import com.example.bookexchange.repositories.UserRepository;
 import com.example.bookexchange.repositories.VerificationTokenRepository;
-import com.example.bookexchange.util.Helper;
+import com.example.bookexchange.util.ETagUtil;
 import lombok.AllArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,15 +18,13 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static java.time.temporal.ChronoUnit.*;
 
 @Service
 @AllArgsConstructor
-public class UserServiceImpl extends BaseServiceImpl<User, Long> implements UserService {
+public class UserServiceImpl implements UserService {
 
-    private final MessageService messageService;
     private UserRepository userRepository;
     private RefreshTokenRepository refreshTokenRepository;
     private VerificationTokenRepository verificationTokenRepository;
@@ -35,138 +32,164 @@ public class UserServiceImpl extends BaseServiceImpl<User, Long> implements User
     private PasswordEncoder passwordEncoder;
     private JwtService jwtService;
     private EmailService emailService;
-    private final Helper helper;
 
     @Transactional(readOnly = true)
     @Override
-    public User getUser(Long userId) {
-        return findOrThrow(userRepository, userId, MessageKey.USER_ACCOUNT_NOT_FOUND);
+    public Result<UserDTO> getUser(Long userId) {
+        return ResultFactory
+                .fromRepository(userRepository, userId, MessageKey.USER_ACCOUNT_NOT_FOUND)
+                .map(user ->
+                        ResultFactory.okETag(
+                                userMapper.userToUserDto(user),
+                                ETagUtil.form(user)
+                        )
+                )
+                .flatMap(r -> r);
     }
 
     @Transactional
     @Override
-    public String createUser(UserCreateDTO dto) {
+    public Result<Void> createUser(UserCreateDTO dto) {
         String email = dto.getEmail();
-        String nickname = dto.getNickname();
 
-        AtomicReference<String> messageToReturn = new AtomicReference<>();
+        Optional<User> userOptional = userRepository.findByEmail(email);
 
-        userRepository.findByEmail(email).ifPresent(user -> {
-            if (passwordEncoder.matches(dto.getPassword(), user.getPassword()) && !user.isEmailVerified()) {
-                messageToReturn.set(messageService.getMessage(MessageKey.EMAIL_VERIFY_ACCOUNT));
-            } else {
-                throw new EntityExistsException(MessageKey.AUTH_EMAIL_ALREADY_EXISTS);
+        if (userOptional.isPresent()) {
+            if (passwordEncoder.matches(dto.getPassword(), userOptional.get().getPassword()) && !userOptional.get().isEmailVerified()) {
+                return ResultFactory.error(MessageKey.EMAIL_VERIFY_ACCOUNT, HttpStatus.FORBIDDEN);
             }
-        });
 
-        if (messageToReturn.get() != null) {
-            return messageToReturn.get();
+            return ResultFactory.error(MessageKey.AUTH_EMAIL_ALREADY_EXISTS, HttpStatus.CONFLICT);
         }
 
-        userRepository.findByNickname(nickname).ifPresent(user -> {
-            throw new EntityExistsException(MessageKey.AUTH_NICKNAME_ALREADY_EXISTS);
-        });
+        if (userRepository.findByNickname(dto.getNickname()).isPresent()) {
+            return ResultFactory.entityExists(MessageKey.AUTH_NICKNAME_ALREADY_EXISTS);
+        }
 
         dto.setPassword(passwordEncoder.encode(dto.getPassword()));
 
-        User user = userMapper.userDtoToUser(dto);
+        User user = userMapper.userCreateDtoToUser(dto);
         user.addRole(UserRole.USER);
         User savedUser = userRepository.save(user);
 
-        emailService.buildAndSendEmail(user.getEmail(), createVerificationToken(savedUser, TokenType.CONFIRM_EMAIL), EmailType.CONFIRM_EMAIL);
-
-        return messageService.getMessage(MessageKey.AUTH_ACCOUNT_REGISTERED);
+        return createVerificationToken(savedUser, TokenType.CONFIRM_EMAIL)
+                .flatMap(token ->
+                        emailService.buildAndSendEmail(
+                                savedUser.getEmail(),
+                                token,
+                                EmailType.CONFIRM_EMAIL
+                        )
+                )
+                .flatMap(v -> ResultFactory.okMessage(MessageKey.AUTH_ACCOUNT_REGISTERED));
     }
 
     @Transactional
     @Override
-    public String updateUser(Long userId, UserUpdateDTO dto, Long version) {
-        User user = findOrThrow(userRepository, userId, MessageKey.USER_ACCOUNT_NOT_FOUND);
+    public Result<UserDTO> updateUser(Long userId, UserUpdateDTO dto, Long version) {
+        return ResultFactory.fromRepository(
+                        userRepository,
+                        userId,
+                        MessageKey.USER_ACCOUNT_NOT_FOUND
+                )
+                .flatMap(user -> {
+                    if (!user.getVersion().equals(version)) {
+                        return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
+                    }
 
-        helper.checkEntityVersion(user.getVersion(), version);
+                    if (userRepository.findByNickname(dto.getNickname()).isPresent()) {
+                        return ResultFactory.error(MessageKey.AUTH_NICKNAME_ALREADY_EXISTS, HttpStatus.CONFLICT);
+                    }
 
-        if (!user.getNickname().equals(dto.getNickname())) {
-            String nickname = dto.getNickname();
+                    userMapper.updateUserDtoToUser(dto, user);
+                    userRepository.save(user);
 
-            if (userRepository.findByNickname(nickname).isPresent()) {
-                throw new EntityExistsException(MessageKey.AUTH_NICKNAME_ALREADY_EXISTS);
-            }
-        }
-
-        if (dto.getEmail() != null) user.setEmail(dto.getEmail());
-        if (dto.getNickname() != null) user.setNickname(dto.getNickname());
-        if (dto.getPhotoBase64() != null) user.setPhotoBase64(dto.getPhotoBase64());
-        if (dto.getLocale() != null) user.setLocale(dto.getLocale());
-
-        userRepository.save(user);
-
-        return messageService.getMessage(MessageKey.USER_PROFILE_UPDATED);
+                    return ResultFactory.updated(
+                            userMapper.userToUserDto(user),
+                            MessageKey.USER_PROFILE_UPDATED,
+                            ETagUtil.form(user)
+                    );
+                });
     }
 
     @Transactional
     @Override
-    public String deleteUser(Long userId, Boolean isAdminDeleting, Long version) {
-        User user = findOrThrow(userRepository, userId, MessageKey.USER_ACCOUNT_NOT_FOUND);
+    public Result<Void> deleteUser(Long userId, Boolean isAdminDeleting, Long version) {
+        return ResultFactory.fromRepository(
+                        userRepository,
+                        userId,
+                        MessageKey.USER_ACCOUNT_NOT_FOUND
+                )
+                .flatMap(user -> {
+                    if (!user.getVersion().equals(version)) {
+                        return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
+                    }
 
-        helper.checkEntityVersion(user.getVersion(), version);
+                    user.setEmail("anonymized@anonymized.anonymized");
+                    user.setNickname("anonymized");
+                    user.setPhotoBase64(null);
+                    user.setPassword("");
+                    user.setDeletedAt(Instant.now());
 
-        user.setEmail("anonymized@anonymized.anonymized");
-        user.setNickname("anonymized");
-        user.setPhotoBase64(null);
-        user.setPassword("");
-        user.setDeletedAt(Instant.now());
+                    for (Book book : new HashSet<>(user.getBooks())) {
+                        if (book.getDeletedAt() == null) {
+                            book.setDeletedAt(Instant.now());
+                        }
+                    }
 
-        for (Book book : new HashSet<>(user.getBooks())) {
-            if (book.getDeletedAt() == null) {
-                book.setDeletedAt(Instant.now());
-            }
-        }
+                    refreshTokenRepository.deleteAll(new HashSet<>(user.getRefreshTokens()));
+                    verificationTokenRepository.deleteAll(new HashSet<>(user.getVerificationToken()));
 
-        refreshTokenRepository.deleteAll(new HashSet<>(user.getRefreshTokens()));
-        verificationTokenRepository.deleteAll(new HashSet<>(user.getVerificationToken()));
+                    if (isAdminDeleting) {
+                        return ResultFactory.okMessage(MessageKey.ADMIN_USER_DELETED, user.getEmail());
+                    }
 
-        return isAdminDeleting ? messageService.getMessage(MessageKey.ADMIN_USER_DELETED, user.getEmail()) : messageService.getMessage(MessageKey.USER_ACCOUNT_DELETED);
+                    return ResultFactory.okMessage(MessageKey.USER_ACCOUNT_DELETED);
+                });
     }
 
     @Transactional
     @Override
-    public AuthResponseDTO loginUser(AuthRequestDTO requestDTO) {
-        User user = userRepository.findByEmail(requestDTO.getEmail()).orElseThrow(() -> new NotFoundException(MessageKey.AUTH_WRONG_EMAIL));
+    public Result<AuthResponseDTO> loginUser(AuthRequestDTO requestDTO) {
+        return ResultFactory.fromOptional(
+                        userRepository.findByEmail(requestDTO.getEmail()),
+                        MessageKey.AUTH_WRONG_EMAIL
+                )
+                .flatMap(user -> {
+                    if (!passwordEncoder.matches(requestDTO.getPassword(), user.getPassword())) {
+                        return ResultFactory.error(MessageKey.AUTH_WRONG_PASSWORD, HttpStatus.BAD_REQUEST);
+                    }
 
-        if (!passwordEncoder.matches(requestDTO.getPassword(), user.getPassword())) {
-            throw new BadRequestException(MessageKey.AUTH_WRONG_PASSWORD);
-        }
+                    if (!user.isEmailVerified()) {
+                        verificationTokenRepository.findByUserAndType(user, TokenType.CONFIRM_EMAIL).ifPresent(verificationToken -> verificationTokenRepository.deleteById(verificationToken.getId()));
 
-        if (!user.isEmailVerified()) {
-            verificationTokenRepository.findByUserAndType(user, TokenType.CONFIRM_EMAIL).ifPresent(verificationToken -> verificationTokenRepository.deleteById(verificationToken.getId()));
+                        return ResultFactory.error(MessageKey.AUTH_ACCOUNT_NOT_VERIFIED, HttpStatus.FORBIDDEN);
+                    }
 
-            throw new ForbiddenException(MessageKey.AUTH_ACCOUNT_NOT_VERIFIED);
-        }
+                    Instant bannedUntil = user.getBannedUntil();
+                    String banReason = user.getBanReason() != null ? user.getBanReason() : null;
 
-        Instant bannedUntil = user.getBannedUntil();
-        String banReason = user.getBanReason() != null ? user.getBanReason() : null;
+                    if (user.isBannedPermanently()) {
+                        return ResultFactory.error(MessageKey.AUTH_PERMANENTLY_BANNED, HttpStatus.FORBIDDEN, banReason);
+                    } else if (bannedUntil != null && bannedUntil.isAfter(Instant.now())) {
+                        return ResultFactory.error(MessageKey.AUTH_TEMPORARILY_BANNED, HttpStatus.FORBIDDEN, bannedUntil, banReason);
+                    } else if (bannedUntil != null && bannedUntil.isBefore(Instant.now())) {
+                        user.setBannedUntil(null);
+                        user.setBanReason(null);
 
-        if (user.isBannedPermanently()) {
-            throw new ForbiddenException(MessageKey.AUTH_PERMANENTLY_BANNED, banReason);
-        } else if (bannedUntil != null && bannedUntil.isAfter(Instant.now())) {
-            throw new ForbiddenException(MessageKey.AUTH_TEMPORARILY_BANNED, bannedUntil, banReason);
-        } else if (bannedUntil != null && bannedUntil.isBefore(Instant.now())) {
-            user.setBannedUntil(null);
-            user.setBanReason(null);
+                        userRepository.save(user);
+                    }
 
-            userRepository.save(user);
-        }
+                    AuthResponseDTO authResponseDto = AuthResponseDTO
+                            .builder()
+                            .accessToken(jwtService.generateToken(user))
+                            .refreshToken(createRefreshToken(user))
+                            .build();
 
-        return AuthResponseDTO
-                .builder()
-                .accessToken(jwtService.generateToken(user))
-                .refreshToken(createRefreshToken(user))
-                .build();
+                    return ResultFactory.ok(authResponseDto);
+                });
     }
 
-    @Transactional
-    @Override
-    public String createRefreshToken(User user) {
+    private String createRefreshToken(User user) {
         RefreshToken refreshToken = new RefreshToken();
 
         refreshToken.setToken(UUID.randomUUID().toString());
@@ -176,23 +199,28 @@ public class UserServiceImpl extends BaseServiceImpl<User, Long> implements User
         return refreshTokenRepository.save(refreshToken).getToken();
     }
 
-    @Transactional
-    @Override
-    public String createVerificationToken(User user, TokenType tokenType) {
+    private Result<String> createVerificationToken(User user, TokenType tokenType) {
         VerificationToken verificationToken = new VerificationToken();
-        long tokenLiveTime;
 
-        ChronoUnit timeUnit = switch (tokenType) {
-            case TokenType.CONFIRM_EMAIL -> {
+        long tokenLiveTime;
+        ChronoUnit timeUnit;
+
+        switch (tokenType) {
+            case CONFIRM_EMAIL -> {
                 tokenLiveTime = 24L;
-                yield HOURS;
+                timeUnit = HOURS;
             }
-            case TokenType.RESET_PASSWORD, TokenType.DELETE_ACCOUNT -> {
+            case RESET_PASSWORD, DELETE_ACCOUNT -> {
                 tokenLiveTime = 15L;
-                yield MINUTES;
+                timeUnit = MINUTES;
             }
-            default -> throw new BadRequestException(MessageKey.AUTH_WRONG_TOKEN);
-        };
+            default -> {
+                return ResultFactory.error(
+                        MessageKey.AUTH_WRONG_TOKEN,
+                        HttpStatus.BAD_REQUEST
+                );
+            }
+        }
 
         Instant expiryDate = Instant.now().plus(tokenLiveTime, timeUnit);
 
@@ -201,142 +229,198 @@ public class UserServiceImpl extends BaseServiceImpl<User, Long> implements User
         verificationToken.setType(tokenType);
         verificationToken.setUser(user);
 
-        return verificationTokenRepository.save(verificationToken).getToken();
+        String token = verificationTokenRepository.save(verificationToken).getToken();
+
+        return ResultFactory.ok(token);
     }
 
     @Transactional
     @Override
-    public String refreshAccessToken(String token) {
-        RefreshToken refreshToken = refreshTokenRepository.findByToken(token)
-                .orElseThrow();
+    public Result<String> refreshAccessToken(String token) {
+        return ResultFactory.fromOptional(
+                    refreshTokenRepository.findByToken(token),
+                    MessageKey.AUTH_WRONG_TOKEN
+                )
+                .flatMap(refreshToken -> {
+                    if (refreshToken.getExpiryDate().isBefore(Instant.now())) {
+                        refreshTokenRepository.delete(refreshToken);
 
-        if (refreshToken.getExpiryDate().isBefore(Instant.now())) {
-            refreshTokenRepository.delete(refreshToken);
+                        return ResultFactory.error(MessageKey.AUTH_REFRESH_TOKEN_EXPIRED, HttpStatus.BAD_REQUEST);
+                    }
 
-            throw new BadRequestException(MessageKey.AUTH_REFRESH_TOKEN_EXPIRED);
-        }
-
-        return jwtService.generateToken(refreshToken.getUser());
+                    return ResultFactory.ok(jwtService.generateToken(refreshToken.getUser()));
+                });
     }
 
     @Transactional
     @Override
-    public String resetPassword(Long userId, UserResetPasswordDTO dto, Long version) {
-        User user = userRepository.findById(userId).orElseThrow(() -> new NotFoundException(MessageKey.USER_ACCOUNT_NOT_FOUND));
+    public Result<Void> resetPassword(Long userId, UserResetPasswordDTO dto, Long version) {
+        return ResultFactory.fromRepository(
+                        userRepository,
+                        userId,
+                        MessageKey.USER_ACCOUNT_NOT_FOUND
+                )
+                .flatMap(user -> {
+                    if (!user.getVersion().equals(version)) {
+                        return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
+                    }
 
-        helper.checkEntityVersion(user.getVersion(), version);
+                    if (dto.getCurrentPassword().equals(dto.getNewPassword())) {
+                        return ResultFactory.error(MessageKey.AUTH_SAME_PASSWORDS, HttpStatus.BAD_REQUEST);
+                    } else if (!passwordEncoder.matches(dto.getCurrentPassword(), user.getPassword())) {
+                        return ResultFactory.error(MessageKey.AUTH_WRONG_ACTUAL_PASSWORD, HttpStatus.BAD_REQUEST);
+                    }
 
-        if (dto.getCurrentPassword().equals(dto.getNewPassword())) {
-            throw new BadRequestException(MessageKey.AUTH_SAME_PASSWORDS);
-        } else if (!passwordEncoder.matches(dto.getCurrentPassword(), user.getPassword())) {
-            throw new BadRequestException(MessageKey.AUTH_WRONG_ACTUAL_PASSWORD);
-        }
+                    user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
+                    userRepository.save(user);
 
-        user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
-        userRepository.save(user);
-
-        return messageService.getMessage(MessageKey.AUTH_PASSWORD_CHANGED);
+                    return ResultFactory.okMessage(MessageKey.AUTH_PASSWORD_CHANGED);
+                });
     }
 
     @Transactional
     @Override
-    public String confirmRegistration(String token) {
-        VerificationToken verificationToken = verificationTokenRepository.findByToken(token).orElseThrow(() -> new NotFoundException(MessageKey.AUTH_TOKEN_NOT_FOUND));
+    public Result<Void> confirmRegistration(String token) {
+        return ResultFactory.fromOptional(
+                        verificationTokenRepository.findByToken(token),
+                        MessageKey.AUTH_TOKEN_NOT_FOUND
+                )
+                .flatMap(vt -> {
+                    if (vt.getExpiryDate().isBefore(Instant.now())) {
+                        verificationTokenRepository.deleteById(vt.getId());
 
-        if (verificationToken.getExpiryDate().isBefore(Instant.now())) {
-            verificationTokenRepository.deleteById(verificationToken.getId());
+                        return ResultFactory.error(MessageKey.AUTH_TOKEN_EXPIRED, HttpStatus.BAD_REQUEST);
+                    } else if (!vt.getType().equals(TokenType.CONFIRM_EMAIL)) {
+                        return ResultFactory.error(MessageKey.AUTH_TOKEN_NOT_VALID, HttpStatus.BAD_REQUEST);
+                    }
 
-            throw new BadRequestException(MessageKey.AUTH_TOKEN_EXPIRED);
-        } else if (!verificationToken.getType().equals(TokenType.CONFIRM_EMAIL)) {
-            throw new BadRequestException(MessageKey.AUTH_TOKEN_NOT_VALID);
-        }
+                    User user = vt.getUser();
+                    user.setEmailVerified(true);
+                    userRepository.save(user);
 
-        User user = verificationToken.getUser();
-        user.setEmailVerified(true);
-        userRepository.save(user);
+                    verificationTokenRepository.deleteById(vt.getId());
 
-        verificationTokenRepository.deleteById(verificationToken.getId());
-
-        return messageService.getMessage(MessageKey.AUTH_REGISTRATION_COMPLETED);
+                    return ResultFactory.okMessage(MessageKey.AUTH_REGISTRATION_COMPLETED);
+                });
     }
 
     @Transactional
     @Override
-    public String forgotPassword(UserForgotPasswordDTO dto) {
-        User user = userRepository.findByEmail(dto.getEmail()).orElseThrow(() -> new NotFoundException(MessageKey.AUTH_EMAIL_NOT_FOUND));
+    public Result<Void> forgotPassword(UserForgotPasswordDTO dto) {
+        return ResultFactory.fromOptional(
+                    userRepository.findByEmail(dto.getEmail()),
+                    MessageKey.AUTH_EMAIL_NOT_FOUND
+                )
+                .flatMap(user -> {
+                    if (!user.isEmailVerified()) {
+                        return ResultFactory.error(MessageKey.AUTH_ACCOUNT_NOT_VERIFIED, HttpStatus.FORBIDDEN);
+                    }
 
-        if (!user.isEmailVerified()) {
-            throw new ForbiddenException(MessageKey.AUTH_ACCOUNT_NOT_VERIFIED);
-        }
-
-        emailService.buildAndSendEmail(user.getEmail(), createVerificationToken(user, TokenType.RESET_PASSWORD), EmailType.RESET_PASSWORD);
-
-        return messageService.getMessage(MessageKey.EMAIL_RESET_PASSWORD);
+                    return createVerificationToken(user, TokenType.RESET_PASSWORD)
+                            .flatMap(token ->
+                                    emailService.buildAndSendEmail(
+                                            user.getEmail(),
+                                            token,
+                                            EmailType.RESET_PASSWORD
+                                    )
+                            );
+                })
+                .flatMap(v -> ResultFactory.okMessage(MessageKey.EMAIL_RESET_PASSWORD));
     }
 
     @Transactional
     @Override
-    public String resetForgottenPassword(String token, UserResetForgottenPasswordDTO dto) {
-        VerificationToken verificationToken = verificationTokenRepository.findByToken(token).orElseThrow(() -> new NotFoundException(MessageKey.AUTH_TOKEN_NOT_FOUND));
+    public Result<Void> resetForgottenPassword(String token, UserResetForgottenPasswordDTO dto) {
+        return ResultFactory.fromOptional(
+                        verificationTokenRepository.findByToken(token),
+                        MessageKey.AUTH_TOKEN_NOT_FOUND
+                )
+                .flatMap(vt -> {
+                    if (vt.getExpiryDate().isBefore(Instant.now())) {
+                        verificationTokenRepository.deleteById(vt.getId());
 
-        if (verificationToken.getExpiryDate().isBefore(Instant.now())) {
-            verificationTokenRepository.deleteById(verificationToken.getId());
+                        return ResultFactory.error(MessageKey.AUTH_TOKEN_EXPIRED, HttpStatus.BAD_REQUEST);
+                    } else if (!vt.getType().equals(TokenType.RESET_PASSWORD)) {
+                        return ResultFactory.error(MessageKey.AUTH_TOKEN_NOT_VALID, HttpStatus.BAD_REQUEST);
+                    }
 
-            throw new BadRequestException(MessageKey.AUTH_TOKEN_EXPIRED);
-        } else if (!verificationToken.getType().equals(TokenType.RESET_PASSWORD)) {
-            throw new BadRequestException(MessageKey.AUTH_TOKEN_NOT_VALID);
-        }
+                    User user = vt.getUser();
+                    user.setEmailVerified(true);
+                    userRepository.save(user);
 
-        User user = verificationToken.getUser();
-        user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
-        userRepository.save(user);
+                    verificationTokenRepository.deleteById(vt.getId());
 
-        verificationTokenRepository.deleteById(verificationToken.getId());
-
-        return messageService.getMessage(MessageKey.AUTH_PASSWORD_CHANGED);
+                    return ResultFactory.okMessage(MessageKey.AUTH_PASSWORD_CHANGED);
+                });
     }
 
     @Transactional
     @Override
-    public String resendEmailConfirmation(UserResendEmailConfirmationDTO dto) {
-        User user = userRepository.findByEmail(dto.getEmail()).orElseThrow(() -> new NotFoundException(MessageKey.AUTH_EMAIL_NOT_FOUND));
+    public Result<Void> resendEmailConfirmation(UserResendEmailConfirmationDTO dto) {
+        return ResultFactory.fromOptional(
+                        userRepository.findByEmail(dto.getEmail()),
+                        MessageKey.AUTH_EMAIL_NOT_FOUND
+                )
+                .flatMap(user -> {
+                    if (user.isEmailVerified()) {
+                        return ResultFactory.error(MessageKey.AUTH_ACCOUNT_ALREADY_VERIFIED, HttpStatus.BAD_REQUEST);
+                    }
 
-        if (user.isEmailVerified()) {
-            throw new BadRequestException(MessageKey.AUTH_ACCOUNT_ALREADY_VERIFIED);
-        }
+                    verificationTokenRepository.findByUserAndType(user, TokenType.CONFIRM_EMAIL).ifPresent(verificationToken -> verificationTokenRepository.deleteById(verificationToken.getId()));
 
-        verificationTokenRepository.findByUserAndType(user, TokenType.CONFIRM_EMAIL).ifPresent(verificationToken -> verificationTokenRepository.deleteById(verificationToken.getId()));
-
-        emailService.buildAndSendEmail(user.getEmail(), createVerificationToken(user, TokenType.CONFIRM_EMAIL), EmailType.CONFIRM_EMAIL);
-
-        return messageService.getMessage(MessageKey.EMAIL_VERIFY_ACCOUNT);
+                    return createVerificationToken(user, TokenType.CONFIRM_EMAIL)
+                            .flatMap(token ->
+                                    emailService.buildAndSendEmail(
+                                            user.getEmail(),
+                                            token,
+                                            EmailType.CONFIRM_EMAIL
+                                    )
+                            )
+                            .flatMap(v -> ResultFactory.okMessage(MessageKey.EMAIL_VERIFY_ACCOUNT));
+                });
     }
 
     @Transactional
     @Override
-    public String initiateDeleteAccount(UserInitiateDeleteAccountDTO dto) {
-        User user = userRepository.findByEmail(dto.getEmail()).orElseThrow(() -> new NotFoundException(MessageKey.AUTH_EMAIL_NOT_FOUND));
-
-        emailService.buildAndSendEmail(user.getEmail(), createVerificationToken(user, TokenType.DELETE_ACCOUNT), EmailType.DELETE_ACCOUNT);
-
-        return messageService.getMessage(MessageKey.EMAIL_DELETE_ACCOUNT);
+    public Result<Void> initiateDeleteAccount(UserInitiateDeleteAccountDTO dto) {
+        return ResultFactory.fromOptional(
+                        userRepository.findByEmail(dto.getEmail()),
+                        MessageKey.AUTH_EMAIL_NOT_FOUND
+                )
+                .flatMap(user ->
+                        createVerificationToken(user, TokenType.DELETE_ACCOUNT)
+                        .flatMap(token ->
+                                emailService.buildAndSendEmail(
+                                        user.getEmail(),
+                                        token,
+                                        EmailType.DELETE_ACCOUNT
+                                )
+                        )
+                        .flatMap(v -> ResultFactory.okMessage(MessageKey.EMAIL_DELETE_ACCOUNT))
+                );
     }
 
     @Transactional
     @Override
-    public String deleteAccount(String token) {
-        VerificationToken verificationToken = verificationTokenRepository.findByToken(token).orElseThrow(() -> new NotFoundException(MessageKey.AUTH_TOKEN_NOT_FOUND));
-
-        return deleteUser(verificationToken.getUser().getId(), false, null);
+    public Result<Void> deleteAccount(String token) {
+        return ResultFactory.fromOptional(
+                        verificationTokenRepository.findByToken(token),
+                        MessageKey.AUTH_TOKEN_NOT_FOUND
+                )
+                .flatMap(vt -> deleteUser(vt.getUser().getId(), false, null));
     }
 
     @Transactional
     @Override
-    public String logout(Long userId, RefreshTokenDTO dto) {
-        RefreshToken refreshToken = refreshTokenRepository.findByTokenAndUserId(dto.getToken(), userId).orElseThrow(() -> new NotFoundException(MessageKey.AUTH_TOKEN_NOT_FOUND));
+    public Result<Void> logout(Long userId, RefreshTokenDTO dto) {
+        return ResultFactory.fromOptional(
+                        refreshTokenRepository.findByTokenAndUserId(dto.getToken(), userId),
+                        MessageKey.AUTH_TOKEN_NOT_FOUND
+                )
+                .flatMap(rt -> {
+                    refreshTokenRepository.delete(rt);
 
-        refreshTokenRepository.delete(refreshToken);
-
-        return messageService.getMessage(MessageKey.AUTH_LOGOUT);
+                    return ResultFactory.okMessage(MessageKey.AUTH_LOGOUT);
+                });
     }
 }

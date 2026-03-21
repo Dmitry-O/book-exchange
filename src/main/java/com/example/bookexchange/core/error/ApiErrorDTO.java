@@ -1,4 +1,4 @@
-package com.example.bookexchange.dto;
+package com.example.bookexchange.core.error;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Builder;

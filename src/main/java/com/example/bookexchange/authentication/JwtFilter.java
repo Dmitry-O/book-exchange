@@ -1,7 +1,5 @@
 package com.example.bookexchange.authentication;
 
-import com.example.bookexchange.exception.BadRequestException;
-import com.example.bookexchange.models.MessageKey;
 import com.example.bookexchange.models.UserPrincipal;
 import com.example.bookexchange.services.CustomUserDetailsServiceImpl;
 import com.example.bookexchange.services.JwtService;
@@ -11,6 +9,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.apache.coyote.BadRequestException;
 import org.jspecify.annotations.NonNull;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -66,7 +65,7 @@ public class JwtFilter extends OncePerRequestFilter {
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }
         } catch (JwtException e) {
-            throw new BadRequestException(MessageKey.SYSTEM_INVALID_TOKEN);
+            throw new BadRequestException();
         }
 
         filterChain.doFilter(request, response);

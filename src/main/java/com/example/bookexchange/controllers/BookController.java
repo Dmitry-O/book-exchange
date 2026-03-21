@@ -1,23 +1,23 @@
 package com.example.bookexchange.controllers;
 
 import com.example.bookexchange.authentication.CurrentUser;
+import com.example.bookexchange.core.web.ResultResponseMapper;
 import com.example.bookexchange.dto.*;
-import com.example.bookexchange.mappers.BookMapper;
-import com.example.bookexchange.models.Book;
 import com.example.bookexchange.services.BookService;
 import com.example.bookexchange.util.ParserUtil;
-import lombok.AllArgsConstructor;
-import org.springframework.data.domain.Page;
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-@AllArgsConstructor
+@RequiredArgsConstructor
 @RestController
 public class BookController {
 
-    private BookMapper bookMapper;
-    private ParserUtil parserUtil;
+    private final ParserUtil parserUtil;
+    private final BookService bookService;
+    private final ResultResponseMapper responseMapper;
 
     public static final String BOOK_PATH = "/api/v1/book";
     public static final String BOOK_PATH_USER = BOOK_PATH + "/user";
@@ -25,69 +25,72 @@ public class BookController {
     public static final String BOOK_PATH_USER_BOOK_ID = BOOK_PATH_USER + "/{bookId}";
     public static final String BOOK_PATH_SEARCH = BOOK_PATH + "/search";
 
-    private final BookService bookService;
-
     @PostMapping(BOOK_PATH_USER)
-    public ResponseEntity<ApiMessage> addUserBook(@CurrentUser Long userId, @Validated @RequestBody BookCreateDTO dto) {
-        return ResponseEntity.ok(new ApiMessage(bookService.addUserBook(userId, dto)));
+    public ResponseEntity<?> addUserBook(
+            @CurrentUser Long userId,
+            @Validated @RequestBody BookCreateDTO dto,
+            HttpServletRequest request
+    ) {
+        return responseMapper.map(bookService.addUserBook(userId, dto), request);
     }
 
     @GetMapping(BOOK_PATH_USER)
-    public Page<BookDTO> getUserBooks(
+    public ResponseEntity<?> getUserBooks(
             @CurrentUser Long userId,
             @RequestParam(value = "pageIndex", defaultValue = "0") Integer pageIndex,
-            @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize
+            @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize,
+            HttpServletRequest request
     ) {
-        return bookService.findUserBooks(userId, pageIndex, pageSize);
+        return responseMapper.map(bookService.findUserBooks(userId, pageIndex, pageSize), request);
     }
 
     @GetMapping(BOOK_PATH_USER_BOOK_ID)
-    public ResponseEntity<BookDTO> getUserBookById(
+    public ResponseEntity<?> getUserBookById(
             @CurrentUser Long userId,
-            @PathVariable Long bookId
+            @PathVariable Long bookId,
+            HttpServletRequest request
     ) {
-        Book book = bookService.findUserBookById(userId, bookId);
-
-        return ResponseEntity
-                .ok()
-                .eTag("\"" + book.getVersion() + "\"")
-                .body(bookMapper.bookToBookDto(book));
+        return responseMapper.map(bookService.findUserBookById(userId, bookId), request);
     }
 
     @GetMapping(BOOK_PATH_HISTORY)
-    public Page<BookDTO> getExchangedUserBooks(
+    public ResponseEntity<?> getExchangedUserBooks(
             @CurrentUser Long userId,
             @RequestParam(value = "pageIndex", defaultValue = "0") Integer pageIndex,
-            @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize
+            @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize,
+            HttpServletRequest request
     ) {
-        return bookService.findExchangedUserBooks(userId, pageIndex, pageSize);
+        return responseMapper.map(bookService.findExchangedUserBooks(userId, pageIndex, pageSize), request);
     }
 
     @GetMapping(BOOK_PATH_SEARCH)
-    public Page<BookDTO> getBooks(
+    public ResponseEntity<?> getBooks(
             @RequestParam(value = "pageIndex", defaultValue = "0") Integer pageIndex,
             @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize,
-            @Validated @RequestBody(required = false) BookSearchDTO dto
+            @Validated @RequestBody(required = false) BookSearchDTO dto,
+            HttpServletRequest request
     ) {
-        return bookService.findBooks(dto, pageIndex, pageSize);
+        return responseMapper.map(bookService.findBooks(dto, pageIndex, pageSize), request);
     }
 
     @DeleteMapping(BOOK_PATH_USER_BOOK_ID)
-    public ResponseEntity<ApiMessage> deleteBookById(
-            @CurrentUser Long userId,
-            @PathVariable Long bookId,
-            @RequestHeader("If-Match") String ifMatch
-    ) {
-        return ResponseEntity.ok(new ApiMessage(bookService.deleteUserBookById(userId, bookId, parserUtil.ifMatchParser(ifMatch))));
-    }
-
-    @PatchMapping(BOOK_PATH_USER_BOOK_ID)
-    public ResponseEntity<ApiMessage> updateUserBookById(
+    public ResponseEntity<?> deleteBookById(
             @CurrentUser Long userId,
             @PathVariable Long bookId,
             @RequestHeader("If-Match") String ifMatch,
-            @Validated @RequestBody BookUpdateDTO dto
+            HttpServletRequest request
     ) {
-        return ResponseEntity.ok(new ApiMessage(bookService.updateUserBookById(userId, bookId, dto, parserUtil.ifMatchParser(ifMatch))));
+        return responseMapper.map(bookService.deleteUserBookById(userId, bookId, parserUtil.ifMatchParser(ifMatch)), request);
+    }
+
+    @PatchMapping(BOOK_PATH_USER_BOOK_ID)
+    public ResponseEntity<?> updateUserBookById(
+            @CurrentUser Long userId,
+            @PathVariable Long bookId,
+            @RequestHeader("If-Match") String ifMatch,
+            @Validated @RequestBody BookUpdateDTO dto,
+            HttpServletRequest request
+    ) {
+        return responseMapper.map(bookService.updateUserBookById(userId, bookId, dto, parserUtil.ifMatchParser(ifMatch)), request);
     }
 }

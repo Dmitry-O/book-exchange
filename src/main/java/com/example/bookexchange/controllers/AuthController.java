@@ -1,7 +1,9 @@
 package com.example.bookexchange.controllers;
 
+import com.example.bookexchange.core.web.ResultResponseMapper;
 import com.example.bookexchange.dto.*;
 import com.example.bookexchange.services.UserService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.AllArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -12,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final UserService userService;
+    private final ResultResponseMapper responseMapper;
 
     public static final String AUTH_PATH = "/api/v1/auth";
     public static final String AUTH_PATH_REGISTER = AUTH_PATH + "/register";
@@ -25,47 +28,57 @@ public class AuthController {
     public static final String AUTH_PATH_DELETE_ACCOUNT = AUTH_PATH + "/delete_account";
 
     @PostMapping(AUTH_PATH_REGISTER)
-    public ResponseEntity<ApiMessage> register(@Validated @RequestBody UserCreateDTO dto) {
-        return ResponseEntity.ok(new ApiMessage(userService.createUser(dto)));
+    public ResponseEntity<?> register(@Validated @RequestBody UserCreateDTO dto, HttpServletRequest request) {
+        return responseMapper.map(userService.createUser(dto), request);
     }
 
     @PostMapping(AUTH_PATH_LOGIN)
-    public AuthResponseDTO login(@Validated @RequestBody AuthRequestDTO requestDTO) {
-        return userService.loginUser(requestDTO);
+    public ResponseEntity<?> login(@Validated @RequestBody AuthRequestDTO requestDTO, HttpServletRequest request) {
+        return responseMapper.map(userService.loginUser(requestDTO), request);
     }
 
     @PostMapping(AUTH_PATH_REFRESH_TOKEN)
-    public ResponseEntity<ApiMessage> refreshAccessToken(@Validated @RequestBody AuthRefreshTokenDTO dto) {
-        return ResponseEntity.ok(new ApiMessage(userService.refreshAccessToken(dto.getRefreshToken())));
+    public ResponseEntity<?> refreshAccessToken(@Validated @RequestBody AuthRefreshTokenDTO dto, HttpServletRequest request) {
+        return responseMapper.map(userService.refreshAccessToken(dto.getRefreshToken()), request);
     }
 
     @GetMapping(AUTH_PATH_CONFIRM_REGISTRATION)
-    public ResponseEntity<ApiMessage> confirmEmail(@RequestParam String token) {
-        return ResponseEntity.ok(new ApiMessage(userService.confirmRegistration(token)));
+    public ResponseEntity<?> confirmEmail(@RequestParam String token, HttpServletRequest request) {
+        return responseMapper.map(userService.confirmRegistration(token), request);
     }
 
     @PatchMapping(AUTH_PATH_FORGOT_PASSWORD)
-    public ResponseEntity<ApiMessage> forgotPassword(@Validated @RequestBody UserForgotPasswordDTO dto) {
-        return ResponseEntity.ok(new ApiMessage(userService.forgotPassword(dto)));
+    public ResponseEntity<?> forgotPassword(@Validated @RequestBody UserForgotPasswordDTO dto, HttpServletRequest request) {
+        return responseMapper.map(userService.forgotPassword(dto), request);
     }
 
     @PatchMapping(AUTH_PATH_RESET_PASSWORD)
-    public ResponseEntity<ApiMessage> resetPassword(@RequestParam String token, @Validated @RequestBody UserResetForgottenPasswordDTO dto) {
-        return ResponseEntity.ok(new ApiMessage(userService.resetForgottenPassword(token, dto)));
+    public ResponseEntity<?> resetPassword(
+            @RequestParam String token,
+            @Validated @RequestBody UserResetForgottenPasswordDTO dto,
+            HttpServletRequest request
+    ) {
+        return responseMapper.map(userService.resetForgottenPassword(token, dto), request);
     }
 
     @PatchMapping(AUTH_PATH_RESEND_CONFIRMATION_EMAIL)
-    public ResponseEntity<ApiMessage> resendEmailConfirmation(@Validated @RequestBody UserResendEmailConfirmationDTO dto) {
-        return ResponseEntity.ok(new ApiMessage(userService.resendEmailConfirmation(dto)));
+    public ResponseEntity<?> resendEmailConfirmation(
+            @Validated @RequestBody UserResendEmailConfirmationDTO dto,
+            HttpServletRequest request
+    ) {
+        return responseMapper.map(userService.resendEmailConfirmation(dto), request);
     }
 
     @PatchMapping(AUTH_PATH_INITIATE_DELETE_ACCOUNT)
-    public ResponseEntity<ApiMessage> initiateDeleteAccount(@Validated @RequestBody UserInitiateDeleteAccountDTO dto) {
-        return ResponseEntity.ok(new ApiMessage(userService.initiateDeleteAccount(dto)));
+    public ResponseEntity<?> initiateDeleteAccount(
+            @Validated @RequestBody UserInitiateDeleteAccountDTO dto,
+            HttpServletRequest request
+    ) {
+        return responseMapper.map(userService.initiateDeleteAccount(dto), request);
     }
 
     @PatchMapping(AUTH_PATH_DELETE_ACCOUNT)
-    public ResponseEntity<ApiMessage> deleteAccount(@RequestParam String token) {
-        return ResponseEntity.ok(new ApiMessage(userService.deleteAccount(token)));
+    public ResponseEntity<?> deleteAccount(@RequestParam String token, HttpServletRequest request) {
+        return responseMapper.map(userService.deleteAccount(token), request);
     }
 }
