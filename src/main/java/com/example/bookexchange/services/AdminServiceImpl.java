@@ -1,15 +1,14 @@
 package com.example.bookexchange.services;
 
+import com.example.bookexchange.core.result.Result;
+import com.example.bookexchange.core.result.ResultFactory;
 import com.example.bookexchange.dto.*;
-import com.example.bookexchange.exception.BadRequestException;
-import com.example.bookexchange.exception.EntityExistsException;
-import com.example.bookexchange.exception.NotFoundException;
 import com.example.bookexchange.mappers.*;
 import com.example.bookexchange.models.*;
 import com.example.bookexchange.repositories.*;
 import com.example.bookexchange.specification.BookSpecificationBuilder;
 import com.example.bookexchange.specification.UserSpecificationBuilder;
-import com.example.bookexchange.util.Helper;
+import com.example.bookexchange.util.ETagUtil;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -17,6 +16,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,7 +28,7 @@ import java.util.Set;
 @Slf4j
 @Service
 @AllArgsConstructor
-public class AdminServiceImpl extends BaseServiceImpl<User, Long> implements AdminService {
+public class AdminServiceImpl implements AdminService {
 
     private final UserRepository userRepository;
     private final BookRepository bookRepository;
@@ -38,61 +38,81 @@ public class AdminServiceImpl extends BaseServiceImpl<User, Long> implements Adm
     private final BookMapper bookMapper;
     private final ReportMapper reportMapper;
     private final AdminMapper adminMapper;
-    private final Helper helper;
-
-    private final MessageService messageService;
 
     @Transactional
     @Override
-    public String giveAdminRights(Long userId) {
-        User user = findOrThrow(userRepository, userId, MessageKey.ADMIN_USER_NOT_FOUND);
+    public Result<Void> giveAdminRights(Long userId) {
+        return ResultFactory.fromRepository(
+                        userRepository,
+                        userId,
+                        MessageKey.ADMIN_USER_NOT_FOUND
+                )
+                .flatMap(user -> {
+                    if (!user.getRoles().contains(UserRole.ADMIN)) {
+                        user.addRole(UserRole.ADMIN);
+                        userRepository.save(user);
+                    } else {
+                        return ResultFactory.entityExists(MessageKey.ADMIN_USER_ALREADY_ADMIN, user.getEmail());
+                    }
 
-        if (!user.getRoles().contains(UserRole.ADMIN)) {
-            user.addRole(UserRole.ADMIN);
-            userRepository.save(user);
-        } else {
-            throw new EntityExistsException(MessageKey.ADMIN_USER_ALREADY_ADMIN, user.getEmail());
-        }
-
-        return messageService.getMessage(MessageKey.ADMIN_RIGHTS_GIVEN, user.getEmail());
+                    return ResultFactory.okMessage(MessageKey.ADMIN_RIGHTS_GIVEN, user.getEmail());
+                });
     }
 
     @Transactional
     @Override
-    public String revokeAdminRights(Long userId) {
-        User user = findOrThrow(userRepository, userId, MessageKey.ADMIN_USER_NOT_FOUND);
+    public Result<Void> revokeAdminRights(Long userId) {
+        return ResultFactory.fromRepository(
+                        userRepository,
+                        userId,
+                        MessageKey.ADMIN_USER_NOT_FOUND
+                )
+                .flatMap(user -> {
+                    if (user.getRoles().contains(UserRole.ADMIN)) {
+                        user.removeRole(UserRole.ADMIN);
+                        userRepository.save(user);
+                    } else {
+                        return ResultFactory.error(MessageKey.ADMIN_USER_NOT_ADMIN, HttpStatus.BAD_REQUEST, user.getEmail());
+                    }
 
-        if (user.getRoles().contains(UserRole.ADMIN)) {
-            user.removeRole(UserRole.ADMIN);
-            userRepository.save(user);
-        } else {
-            throw new BadRequestException(MessageKey.ADMIN_USER_NOT_ADMIN, user.getEmail());
-        }
-
-        return messageService.getMessage(MessageKey.ADMIN_RIGHTS_REVOKED, user.getEmail());
+                    return ResultFactory.okMessage(MessageKey.ADMIN_RIGHTS_REVOKED, user.getEmail());
+                });
     }
 
     @Transactional(readOnly = true)
     @Override
-    public Page<UserAdminDTO> findUsers(Long userId, Integer pageIndex, Integer pageSize, String searchText, Set<UserRole> roles, Boolean onlyBannedUsers, UserType userType) {
-        User user = findOrThrow(userRepository, userId, MessageKey.ADMIN_USER_NOT_FOUND);
+    public Result<Page<UserAdminDTO>> findUsers(
+            Long userId,
+            Integer pageIndex,
+            Integer pageSize,
+            String searchText,
+            Set<UserRole> roles,
+            Boolean onlyBannedUsers,
+            UserType userType
+    ) {
+        return ResultFactory.fromRepository(
+                        userRepository,
+                        userId,
+                        MessageKey.ADMIN_USER_NOT_FOUND
+                )
+                .flatMap(user -> {
+                    Boolean isUserSuperAdmin = user.getRoles().contains(UserRole.SUPER_ADMIN);
 
-        Boolean isUserSuperAdmin = user.getRoles().contains(UserRole.SUPER_ADMIN);
+                    Specification<User> specification = UserSpecificationBuilder.build(searchText, roles, onlyBannedUsers, isUserSuperAdmin, userType);
 
-        Specification<User> specification = UserSpecificationBuilder.build(searchText, roles, onlyBannedUsers, isUserSuperAdmin, userType);
+                    Pageable pageable;
 
-        Pageable pageable;
+                    pageable = PageRequest.of(pageIndex, pageSize);
 
-        pageable = PageRequest.of(pageIndex, pageSize);
+                    Page<UserAdminDTO> page = userRepository.findAll(specification, pageable).map(adminMapper::userToUserAdminDto);
 
-        Page<User> userPage = userRepository.findAll(specification, pageable);
-
-        return userPage.map(adminMapper::userToUserAdminDto);
+                    return ResultFactory.ok(page);
+                });
     }
 
     @Transactional(readOnly = true)
     @Override
-    public Page<BookAdminDTO> findBooks(BookSearchDTO dto, Integer pageIndex, Integer pageSize, BookType bookType) {
+    public Result<Page<BookAdminDTO>> findBooks(BookSearchDTO dto, Integer pageIndex, Integer pageSize, BookType bookType) {
         Specification<Book> specification = BookSpecificationBuilder.build(dto, bookType);
 
         Pageable pageable;
@@ -107,120 +127,189 @@ public class AdminServiceImpl extends BaseServiceImpl<User, Long> implements Adm
             pageable = PageRequest.of(pageIndex, pageSize);
         }
 
-        Page<Book> bookPage = bookRepository.findAll(specification, pageable);
+        Page<BookAdminDTO> page = bookRepository.findAll(specification, pageable).map(adminMapper::bookToBookAdminDto);
 
-        return bookPage.map(adminMapper::bookToBookAdminDto);
+        return ResultFactory.ok(page);
     }
 
     @Transactional
     @Override
-    public String banUserById(User adminUser, Long userId, BanUserDTO banUserDTO, Long version) {
-        User user = findOrThrow(userRepository, userId, MessageKey.ADMIN_USER_NOT_FOUND);
+    public Result<Void> banUserById(User adminUser, Long userId, BanUserDTO banUserDTO, Long version) {
+        return ResultFactory.fromRepository(
+                        userRepository,
+                        userId,
+                        MessageKey.ADMIN_USER_NOT_FOUND
+                )
+                .flatMap(user -> {
+                    if (!user.getVersion().equals(version)) {
+                        return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
+                    }
 
-        helper.checkEntityVersion(user.getVersion(), version);
+                    if (adminUser.getId().equals(user.getId())){
+                        return ResultFactory.error(MessageKey.ADMIN_CANT_BAN_YOURSELF, HttpStatus.BAD_REQUEST);
+                    }
 
-        if (adminUser.getId().equals(user.getId())){
-            throw new BadRequestException(MessageKey.ADMIN_CANT_BAN_YOURSELF);
-        }
+                    if (banUserDTO.isBannedPermanently()) {
+                        user.setBannedPermanently(true);
+                    } else if (banUserDTO.getBannedUntil() != null) {
+                        user.setBannedUntil(OffsetDateTime.parse(banUserDTO.getBannedUntil()).toInstant());
+                    } else {
+                        return ResultFactory.error(MessageKey.ADMIN_REQUEST_NOT_VALID, HttpStatus.BAD_REQUEST);
+                    }
 
-        if (banUserDTO.isBannedPermanently()) {
-            user.setBannedPermanently(true);
-        } else if (banUserDTO.getBannedUntil() != null) {
-            user.setBannedUntil(OffsetDateTime.parse(banUserDTO.getBannedUntil()).toInstant());
-        } else {
-            throw new BadRequestException(MessageKey.ADMIN_REQUEST_NOT_VALID);
-        }
+                    user.setBanReason(banUserDTO.getBanReason());
 
-        user.setBanReason(banUserDTO.getBanReason());
+                    refreshTokenRepository.deleteAll(new HashSet<>(user.getRefreshTokens()));
 
-        refreshTokenRepository.deleteAll(new HashSet<>(user.getRefreshTokens()));
-
-        return messageService.getMessage(MessageKey.ADMIN_USER_BANNED, user.getEmail());
+                    return ResultFactory.okMessage(MessageKey.ADMIN_USER_BANNED, user.getEmail());
+                });
     }
 
     @Transactional
     @Override
-    public String unbanUserById(Long userId, Long version) {
-        User user = findOrThrow(userRepository, userId, MessageKey.ADMIN_USER_NOT_FOUND);
+    public Result<Void> unbanUserById(Long userId, Long version) {
+        return ResultFactory.fromRepository(
+                        userRepository,
+                        userId,
+                        MessageKey.ADMIN_USER_NOT_FOUND
+                )
+                .flatMap(user -> {
+                    if (!user.getVersion().equals(version)) {
+                        return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
+                    }
 
-        helper.checkEntityVersion(user.getVersion(), version);
+                    user.setBannedUntil(null);
+                    user.setBannedPermanently(false);
+                    user.setBanReason(null);
 
-        user.setBannedUntil(null);
-        user.setBannedPermanently(false);
-        user.setBanReason(null);
+                    userRepository.save(user);
 
-        userRepository.save(user);
-
-        return messageService.getMessage(MessageKey.ADMIN_USER_UNBANNED, user.getEmail());
+                    return ResultFactory.okMessage(MessageKey.ADMIN_USER_UNBANNED, user.getEmail());
+                });
     }
 
     @Transactional
     @Override
-    public String deleteBookById(Long bookId, Long version) {
-        Book book = bookRepository.findById(bookId).orElseThrow(() -> new NotFoundException(MessageKey.ADMIN_BOOK_NOT_FOUND, bookId));
+    public Result<Void> deleteBookById(Long bookId, Long version) {
+        return ResultFactory.fromRepository(
+                        bookRepository,
+                        bookId,
+                        MessageKey.ADMIN_BOOK_NOT_FOUND
+                )
+                .flatMap(book -> {
+                    if (!book.getVersion().equals(version)) {
+                        return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
+                    }
 
-        helper.checkEntityVersion(book.getVersion(), version);
+                    book.setDeletedAt(Instant.now());
 
-        book.setDeletedAt(Instant.now());
-
-        return messageService.getMessage(MessageKey.ADMIN_BOOK_DELETED, book.getName());
+                    return ResultFactory.okMessage(MessageKey.ADMIN_BOOK_DELETED, book.getName());
+                });
     }
 
     @Transactional
     @Override
-    public String updateBookById(Long bookId, BookUpdateDTO dto, Long version) {
-        Book book = bookRepository.findById(bookId).orElseThrow(() -> new NotFoundException(MessageKey.ADMIN_BOOK_NOT_FOUND, bookId));
+    public Result<BookAdminDTO> updateBookById(Long bookId, BookUpdateDTO dto, Long version) {
+        return ResultFactory.fromRepository(
+                        bookRepository,
+                        bookId,
+                        MessageKey.ADMIN_BOOK_NOT_FOUND
+                )
+                .flatMap(book -> {
+                    if (!book.getVersion().equals(version)) {
+                        return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.BAD_REQUEST);
+                    }
 
-        helper.checkEntityVersion(book.getVersion(), version);
-        bookMapper.updateBookDtoToBook(dto, book);
-        bookRepository.save(book);
+                    bookMapper.updateBookDtoToBook(dto, book);
+                    bookRepository.save(book);
 
-        return messageService.getMessage(MessageKey.ADMIN_BOOK_UPDATED, book.getName());
+                    return ResultFactory.updated(
+                            adminMapper.bookToBookAdminDto(book),
+                            MessageKey.ADMIN_BOOK_UPDATED,
+                            ETagUtil.form(book),
+                            book.getName());
+                });
     }
 
     @Transactional(readOnly = true)
     @Override
-    public Book findBookById(Long bookId) {
-        return bookRepository.findById(bookId).orElseThrow(() -> new NotFoundException(MessageKey.ADMIN_BOOK_NOT_FOUND, bookId));
+    public Result<BookAdminDTO> findBookById(Long bookId) {
+        return ResultFactory.fromRepository(
+                        bookRepository,
+                        bookId,
+                        MessageKey.ADMIN_BOOK_NOT_FOUND
+                )
+                .map(book ->
+                        ResultFactory.okETag(
+                                adminMapper.bookToBookAdminDto(book),
+                                ETagUtil.form(book)
+                        )
+                )
+                .flatMap(r -> r);
     }
 
     @Transactional(readOnly = true)
     @Override
-    public User findUserById(Long userId) {
-        return findOrThrow(userRepository, userId, MessageKey.ADMIN_USER_NOT_FOUND);
+    public Result<UserAdminDTO> findUserById(Long userId) {
+        return ResultFactory.fromRepository(
+                        userRepository,
+                        userId,
+                        MessageKey.ADMIN_USER_NOT_FOUND
+                )
+                .map(user ->
+                        ResultFactory.okETag(
+                                adminMapper.userToUserAdminDto(user),
+                                ETagUtil.form(user)
+                        )
+                )
+                .flatMap(r -> r);
     }
 
     @Transactional
     @Override
-    public String resolveReport(Long reportId, Long version) {
-        Report report = reportRepository.findById(reportId).orElseThrow(() -> new NotFoundException(MessageKey.ADMIN_REPORT_NOT_FOUND, reportId));
+    public Result<Void> resolveReport(Long reportId, Long version) {
+        return ResultFactory.fromRepository(
+                        reportRepository,
+                        reportId,
+                        MessageKey.ADMIN_REPORT_NOT_FOUND
+                )
+                .flatMap(report -> {
+                    if (!report.getVersion().equals(version)) {
+                        return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.BAD_REQUEST);
+                    }
 
-        helper.checkEntityVersion(report.getVersion(), version);
+                    report.setStatus(ReportStatus.RESOLVED);
 
-        report.setStatus(ReportStatus.RESOLVED);
+                    reportRepository.save(report);
 
-        reportRepository.save(report);
-
-        return messageService.getMessage(MessageKey.ADMIN_REPORT_RESOLVED);
+                    return ResultFactory.okMessage(MessageKey.ADMIN_REPORT_RESOLVED, report);
+                });
     }
 
     @Transactional
     @Override
-    public String rejectReport(Long reportId, Long version) {
-        Report report = reportRepository.findById(reportId).orElseThrow(() -> new NotFoundException(MessageKey.ADMIN_REPORT_NOT_FOUND, reportId));
+    public Result<Void> rejectReport(Long reportId, Long version) {
+        return ResultFactory.fromRepository(
+                        reportRepository,
+                        reportId,
+                        MessageKey.ADMIN_REPORT_NOT_FOUND
+                )
+                .flatMap(report -> {
+                    if (!report.getVersion().equals(version)) {
+                        return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.BAD_REQUEST);
+                    }
 
-        helper.checkEntityVersion(report.getVersion(), version);
+                    report.setStatus(ReportStatus.REJECTED);
 
-        report.setStatus(ReportStatus.REJECTED);
+                    reportRepository.save(report);
 
-        reportRepository.save(report);
-
-        return messageService.getMessage(MessageKey.ADMIN_REPORT_REJECTED);
+                    return ResultFactory.okMessage(MessageKey.ADMIN_REPORT_REJECTED, report);
+                });
     }
 
     @Transactional(readOnly = true)
     @Override
-    public Page<ReportAdminDTO> findReports(Integer pageIndex, Integer pageSize, Set<ReportStatus> reportStatuses, String sortDirection) {
+    public Result<Page<ReportAdminDTO>> findReports(Integer pageIndex, Integer pageSize, Set<ReportStatus> reportStatuses, String sortDirection) {
         Pageable pageable;
 
         Sort.Direction direction = sortDirection.equalsIgnoreCase(("desc"))
@@ -237,23 +326,35 @@ public class AdminServiceImpl extends BaseServiceImpl<User, Long> implements Adm
             reportPage = reportRepository.findAll(pageable);
         }
 
-        return reportPage.map(reportMapper::reportToReportDto);
+        return ResultFactory.ok(reportPage.map(reportMapper::reportToReportDto));
     }
 
     @Transactional
     @Override
-    public String restoreBookById(Long bookId, Long version) {
-        Book book = bookRepository.findById(bookId).orElseThrow(() -> new NotFoundException(MessageKey.ADMIN_BOOK_NOT_FOUND, bookId));
+    public Result<BookAdminDTO> restoreBookById(Long bookId, Long version) {
+        return ResultFactory.fromRepository(
+                        bookRepository,
+                        bookId,
+                        MessageKey.ADMIN_BOOK_NOT_FOUND
+                )
+                .flatMap(book -> {
+                    if (!book.getVersion().equals(version)) {
+                        return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.BAD_REQUEST);
+                    }
 
-        helper.checkEntityVersion(book.getVersion(), version);
+                    book.setDeletedAt(null);
 
-        book.setDeletedAt(null);
-
-        return messageService.getMessage(MessageKey.ADMIN_BOOK_RESTORED, book.getName());
+                    return ResultFactory.updated(
+                            adminMapper.bookToBookAdminDto(book),
+                            MessageKey.ADMIN_BOOK_RESTORED,
+                            ETagUtil.form(book),
+                            book.getName()
+                    );
+                });
     }
 
     @Override
-    public Page<ExchangeAdminDTO> findExchanges(Integer pageIndex, Integer pageSize, Set<ExchangeStatus> exchangeStatuses) {
+    public Result<Page<ExchangeAdminDTO>> findExchanges(Integer pageIndex, Integer pageSize, Set<ExchangeStatus> exchangeStatuses) {
         Pageable pageable = PageRequest.of(pageIndex, pageSize);
 
         Page<Exchange> pendingExchangesPage;
@@ -264,18 +365,40 @@ public class AdminServiceImpl extends BaseServiceImpl<User, Long> implements Adm
             pendingExchangesPage = exchangeRepository.findAll(pageable);
         }
 
-        return pendingExchangesPage.map(adminMapper::exchangeToExchangeAdminDto);
+        return ResultFactory.ok(
+                pendingExchangesPage.map(adminMapper::exchangeToExchangeAdminDto)
+        );
     }
 
     @Override
-    public ExchangeAdminDTO findExchangeById(Long exchangeId) {
-        Exchange exchange = exchangeRepository.findById(exchangeId).orElseThrow(() -> new NotFoundException(MessageKey.ADMIN_EXCHANGE_NOT_FOUND, exchangeId));
-
-        return adminMapper.exchangeToExchangeAdminDto(exchange);
+    public Result<ExchangeAdminDTO> findExchangeById(Long exchangeId) {
+        return ResultFactory.fromRepository(
+                exchangeRepository,
+                exchangeId,
+                MessageKey.ADMIN_EXCHANGE_NOT_FOUND
+        )
+                .map(exchange ->
+                        ResultFactory.okETag(
+                                adminMapper.exchangeToExchangeAdminDto(exchange),
+                                ETagUtil.form(exchange)
+                        )
+                )
+                .flatMap(r -> r);
     }
 
     @Override
-    public Report findReportById(Long reportId) {
-        return reportRepository.findById(reportId).orElseThrow(() -> new NotFoundException(MessageKey.ADMIN_REPORT_NOT_FOUND, reportId));
+    public Result<ReportAdminDTO> findReportById(Long reportId) {
+        return ResultFactory.fromRepository(
+                        reportRepository,
+                        reportId,
+                        MessageKey.ADMIN_REPORT_NOT_FOUND
+                )
+                .map(report ->
+                        ResultFactory.okETag(
+                                adminMapper.reportToReportAdminDto(report),
+                                ETagUtil.form(report)
+                        )
+                )
+                .flatMap(r -> r);
     }
 }

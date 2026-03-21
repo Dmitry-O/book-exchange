@@ -15,7 +15,7 @@ import java.time.Instant;
 @EntityListeners({ AuditingEntityListener.class, RequestAuditListener.class })
 @Getter
 @Setter
-public abstract class AuditableEntity {
+public abstract class AuditableEntity implements VersionedEntity {
 
     @CreatedDate
     @Column(nullable = false, updatable = false)

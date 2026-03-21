@@ -1,16 +1,12 @@
 package com.example.bookexchange.controllers;
 
 import com.example.bookexchange.authentication.CurrentUser;
-import com.example.bookexchange.dto.ApiMessage;
-import com.example.bookexchange.dto.ExchangeDetailsDTO;
+import com.example.bookexchange.core.web.ResultResponseMapper;
 import com.example.bookexchange.dto.RequestCreateDTO;
-import com.example.bookexchange.dto.ExchangeDTO;
-import com.example.bookexchange.mappers.ExchangeMapper;
-import com.example.bookexchange.models.Exchange;
 import com.example.bookexchange.services.RequestService;
 import com.example.bookexchange.util.ParserUtil;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.AllArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -20,8 +16,8 @@ import org.springframework.web.bind.annotation.*;
 public class RequestController {
 
     private final RequestService requestService;
-    private final ExchangeMapper exchangeMapper;
     private ParserUtil parserUtil;
+    private final ResultResponseMapper responseMapper;
 
     public static final String REQUEST_PATH = "/api/v1/request";
     public static final String EXCHANGE_ID_PATH = "/{exchangeId}";
@@ -29,35 +25,60 @@ public class RequestController {
     public static final String REQUEST_PATH_DECLINE_REQUEST = REQUEST_PATH + EXCHANGE_ID_PATH + "/decline";
 
     @PostMapping(REQUEST_PATH)
-    public ResponseEntity<ApiMessage> createRequest(@CurrentUser Long userId, @Validated @RequestBody RequestCreateDTO dto) {
-        return ResponseEntity.ok(new ApiMessage(requestService.createRequest(userId, dto)));
+    public ResponseEntity<?> createRequest(
+            @CurrentUser Long userId,
+            @Validated @RequestBody RequestCreateDTO dto,
+            HttpServletRequest request
+    ) {
+        return responseMapper.map(
+                requestService.createRequest(
+                        userId,
+                        dto
+                ),
+                request
+        );
     }
 
     @GetMapping(REQUEST_PATH_EXCHANGE_ID)
-    public ResponseEntity<ExchangeDetailsDTO> getUserRequestDetails(@CurrentUser Long userId, @PathVariable Long exchangeId) {
-        Exchange exchange = requestService.getSenderRequestDetails(userId, exchangeId);
-
-        return ResponseEntity
-                .ok()
-                .eTag("\"" + exchange.getVersion() + "\"")
-                .body(exchangeMapper.exchangeToExchangeDetailsDto(exchange, exchange.getReceiverUser().getNickname()));
+    public ResponseEntity<?> getUserRequestDetails(
+            @CurrentUser Long userId,
+            @PathVariable Long exchangeId,
+            HttpServletRequest request
+    ) {
+        return responseMapper.map(requestService.getSenderRequestDetails(userId, exchangeId), request);
     }
 
     @GetMapping(REQUEST_PATH)
-    public Page<ExchangeDTO> getUserRequests(
+    public ResponseEntity<?> getUserRequests(
             @CurrentUser Long userId,
             @RequestParam(value = "pageIndex", defaultValue = "0") Integer pageIndex,
-            @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize
+            @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize,
+            HttpServletRequest request
     ) {
-        return requestService.getSenderRequests(userId, pageIndex, pageSize);
+        return responseMapper.map(
+                requestService.getSenderRequests(
+                        userId,
+                        pageIndex,
+                        pageSize
+                ),
+                request
+        );
     }
 
     @PatchMapping(REQUEST_PATH_DECLINE_REQUEST)
-    public ResponseEntity<ApiMessage> declineUserRequest(
+    public ResponseEntity<?> declineUserRequest(
             @CurrentUser Long userId,
             @PathVariable Long exchangeId,
-            @RequestHeader("If-Match") String ifMatch
+            @RequestHeader("If-Match") String ifMatch,
+            HttpServletRequest request
     ) {
-        return ResponseEntity.ok(new ApiMessage(requestService.declineUserRequest(userId, exchangeId, parserUtil.ifMatchParser(ifMatch))));
+        return responseMapper.map(
+                requestService.declineUserRequest(
+                        userId,
+                        exchangeId,
+                        parserUtil.ifMatchParser(ifMatch)
+                ),
+                request
+        );
     }
 }

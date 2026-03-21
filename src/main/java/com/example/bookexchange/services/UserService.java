@@ -1,40 +1,35 @@
 package com.example.bookexchange.services;
 
+import com.example.bookexchange.core.result.Result;
 import com.example.bookexchange.dto.*;
-import com.example.bookexchange.models.TokenType;
-import com.example.bookexchange.models.User;
 
 public interface UserService {
 
-    User getUser(Long userId);
+    Result<UserDTO> getUser(Long userId);
 
-    String createUser(UserCreateDTO dto);
+    Result<Void> createUser(UserCreateDTO dto);
 
-    String updateUser(Long userId, UserUpdateDTO dto, Long version);
+    Result<UserDTO> updateUser(Long userId, UserUpdateDTO dto, Long version);
 
-    String deleteUser(Long userId, Boolean isAdminDeleting, Long version);
+    Result<Void> deleteUser(Long userId, Boolean isAdminDeleting, Long version);
 
-    AuthResponseDTO loginUser(AuthRequestDTO requestDTO);
+    Result<AuthResponseDTO> loginUser(AuthRequestDTO requestDTO);
 
-    String createRefreshToken(User user);
+    Result<String> refreshAccessToken(String token);
 
-    String refreshAccessToken(String token);
+    Result<Void> resetPassword(Long userId, UserResetPasswordDTO dto, Long version);
 
-    String resetPassword(Long userId, UserResetPasswordDTO dto, Long version);
+    Result<Void> confirmRegistration(String token);
 
-    String createVerificationToken(User user, TokenType tokenType);
+    Result<Void> forgotPassword(UserForgotPasswordDTO dto);
 
-    String confirmRegistration(String token);
+    Result<Void> resetForgottenPassword(String token, UserResetForgottenPasswordDTO dto);
 
-    String forgotPassword(UserForgotPasswordDTO dto);
+    Result<Void> resendEmailConfirmation(UserResendEmailConfirmationDTO dto);
 
-    String resetForgottenPassword(String token, UserResetForgottenPasswordDTO dto);
+    Result<Void> initiateDeleteAccount(UserInitiateDeleteAccountDTO dto);
 
-    String resendEmailConfirmation(UserResendEmailConfirmationDTO dto);
+    Result<Void> deleteAccount(String token);
 
-    String initiateDeleteAccount(UserInitiateDeleteAccountDTO dto);
-
-    String deleteAccount(String token);
-
-    String logout(Long userId, RefreshTokenDTO token);
+    Result<Void> logout(Long userId, RefreshTokenDTO token);
 }

@@ -1,33 +1,52 @@
 package com.example.bookexchange.controllers;
 
 import com.example.bookexchange.authentication.CurrentUser;
-import com.example.bookexchange.dto.ExchangeHistoryDTO;
-import com.example.bookexchange.dto.ExchangeHistoryDetailsDTO;
+import com.example.bookexchange.core.web.ResultResponseMapper;
 import com.example.bookexchange.services.HistoryService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.AllArgsConstructor;
-import org.springframework.data.domain.Page;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @AllArgsConstructor
 public class HistoryController {
 
+    private final HistoryService historyService;
+    private final ResultResponseMapper responseMapper;
+
     public static final String HISTORY_PATH = "/api/v1/history";
     public static final String HISTORY_PATH_EXCHANGE_ID = HISTORY_PATH + "/{exchangeId}";
 
-    private final HistoryService historyService;
-
     @GetMapping(HISTORY_PATH)
-    public Page<ExchangeHistoryDTO> getExchangeHistory(
+    public ResponseEntity<?> getExchangeHistory(
             @CurrentUser Long userId,
             @RequestParam(value = "pageIndex", defaultValue = "0") Integer pageIndex,
-            @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize
+            @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize,
+            HttpServletRequest request
     ) {
-        return historyService.getUserExchangeHistory(userId, pageIndex, pageSize);
+        return responseMapper.map(
+                historyService.getUserExchangeHistory(
+                        userId,
+                        pageIndex,
+                        pageSize
+                ),
+                request
+        );
     }
 
     @GetMapping(HISTORY_PATH_EXCHANGE_ID)
-    public ExchangeHistoryDetailsDTO getExchangeHistoryDetails(@CurrentUser Long userId, @PathVariable Long exchangeId) {
-        return historyService.getUserExchangeHistoryDetails(userId, exchangeId);
+    public ResponseEntity<?> getExchangeHistoryDetails(
+            @CurrentUser Long userId,
+            @PathVariable Long exchangeId,
+            HttpServletRequest request
+    ) {
+        return responseMapper.map(
+                historyService.getUserExchangeHistoryDetails(
+                        userId,
+                        exchangeId
+                ),
+                request
+        );
     }
 }

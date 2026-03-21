@@ -2,12 +2,7 @@ package com.example.bookexchange.authentication;
 
 import com.example.bookexchange.controllers.AuthController;
 import com.example.bookexchange.controllers.BookController;
-import com.example.bookexchange.dto.ApiErrorDTO;
 import com.example.bookexchange.models.MessageKey;
-import com.example.bookexchange.services.MessageService;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
 import io.github.bucket4j.ConsumptionProbe;
@@ -16,6 +11,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.NonNull;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -23,19 +19,15 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
+@RequiredArgsConstructor
 public class RateLimitFilter extends OncePerRequestFilter {
 
+    private final ErrorResponseWriter errorResponseWriter;
     private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();
-    private final MessageService messageService;
-
-    public RateLimitFilter(MessageService messageService) {
-        this.messageService = messageService;
-    }
 
     private Bucket createLoginBucket() {
         Bandwidth limit = Bandwidth.classic(5,
@@ -93,27 +85,13 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 long waitForRefill = probe.getNanosToWaitForRefill() / 1_000_000_000;
 
                 response.setHeader("X-Rate-Limit-Retry-After", String.valueOf(waitForRefill));
-                response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
-                response.setContentType("application/json");
 
-                String requestId = (String) request.getAttribute("requestId");
-
-                ApiErrorDTO error = ApiErrorDTO.builder()
-                        .status(HttpStatus.TOO_MANY_REQUESTS.value())
-                        .error(HttpStatus.TOO_MANY_REQUESTS.name())
-                        .message(messageService.getMessage(MessageKey.SYSTEM_TOO_MANY_REQUESTS))
-                        .path(path)
-                        .timestamp(Instant.now())
-                        .requestId(requestId)
-                        .build();
-
-                response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
-                response.setContentType("application/json");
-
-                ObjectMapper mapper = new ObjectMapper();
-                mapper.registerModule(new JavaTimeModule());
-                mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-                mapper.writeValue(response.getOutputStream(), error);
+                errorResponseWriter.writeError(
+                        request,
+                        response,
+                        HttpStatus.TOO_MANY_REQUESTS,
+                        MessageKey.SYSTEM_TOO_MANY_REQUESTS
+                );
 
                 return;
             }

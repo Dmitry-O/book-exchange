@@ -2,8 +2,6 @@ package com.example.bookexchange.controllers;
 
 import com.example.bookexchange.dto.UserDTO;
 import com.example.bookexchange.dto.UserUpdateDTO;
-import com.example.bookexchange.exception.EntityExistsException;
-import com.example.bookexchange.exception.NotFoundException;
 import com.example.bookexchange.models.User;
 import com.example.bookexchange.repositories.UserRepository;
 import com.example.bookexchange.util.UserUtil;

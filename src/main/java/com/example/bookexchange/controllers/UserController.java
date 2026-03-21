@@ -1,63 +1,68 @@
 package com.example.bookexchange.controllers;
 
 import com.example.bookexchange.authentication.CurrentUser;
+import com.example.bookexchange.core.web.ResultResponseMapper;
 import com.example.bookexchange.dto.*;
-import com.example.bookexchange.mappers.UserMapper;
-import com.example.bookexchange.models.User;
 import com.example.bookexchange.services.UserService;
 import com.example.bookexchange.util.ParserUtil;
-import lombok.AllArgsConstructor;
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-@AllArgsConstructor
+@RequiredArgsConstructor
 @RestController
 public class UserController {
 
-    private final UserMapper userMapper;
-    private UserService userService;
-    private ParserUtil parserUtil;
+    private final UserService userService;
+    private final ParserUtil parserUtil;
+    private final ResultResponseMapper responseMapper;
 
     public static final String USER_PATH = "/api/v1/user";
     public static final String USER_PATH_RESET_PASSWORD = USER_PATH + "/reset_password";
     public static final String USER_PATH_LOGOUT = USER_PATH + "/logout";
 
     @GetMapping(USER_PATH)
-    public ResponseEntity<UserDTO> getUser(@CurrentUser Long userId) {
-        User user = userService.getUser(userId);
-
-        return ResponseEntity
-                .ok()
-                .eTag("\"" + user.getVersion() + "\"")
-                .body(userMapper.userToUserDto(user));
+    public ResponseEntity<?> getUser(@CurrentUser Long userId, HttpServletRequest request) {
+        return responseMapper.map(userService.getUser(userId), request);
     }
 
     @PatchMapping(USER_PATH)
-    public ResponseEntity<ApiMessage> updateUser(
+    public ResponseEntity<?> updateUser(
             @CurrentUser Long userId,
             @Validated @RequestBody UserUpdateDTO dto,
-            @RequestHeader("If-Match") String ifMatch
+            @RequestHeader("If-Match") String ifMatch,
+            HttpServletRequest request
     ) {
-        return ResponseEntity.ok(new ApiMessage(userService.updateUser(userId, dto, parserUtil.ifMatchParser(ifMatch))));
+        return responseMapper.map(userService.updateUser(userId, dto, parserUtil.ifMatchParser(ifMatch)), request);
     }
 
     @DeleteMapping(USER_PATH)
-    public ResponseEntity<ApiMessage> deleteUser(@CurrentUser Long userId, @RequestHeader("If-Match") String ifMatch) {
-        return ResponseEntity.ok(new ApiMessage(userService.deleteUser(userId, false, parserUtil.ifMatchParser(ifMatch))));
+    public ResponseEntity<?> deleteUser(
+            @CurrentUser Long userId,
+            @RequestHeader("If-Match") String ifMatch,
+            HttpServletRequest request
+    ) {
+        return responseMapper.map(userService.deleteUser(userId, false, parserUtil.ifMatchParser(ifMatch)), request);
     }
 
     @PatchMapping(USER_PATH_RESET_PASSWORD)
-    public ResponseEntity<ApiMessage> resetPassword(
+    public ResponseEntity<?> resetPassword(
             @CurrentUser Long userId,
             @Validated @RequestBody UserResetPasswordDTO dto,
-            @RequestHeader("If-Match") String ifMatch
+            @RequestHeader("If-Match") String ifMatch,
+            HttpServletRequest request
     ) {
-        return ResponseEntity.ok(new ApiMessage(userService.resetPassword(userId, dto, parserUtil.ifMatchParser(ifMatch))));
+        return responseMapper.map(userService.resetPassword(userId, dto, parserUtil.ifMatchParser(ifMatch)), request);
     }
 
     @PatchMapping(USER_PATH_LOGOUT)
-    public ResponseEntity<ApiMessage> logout(@CurrentUser Long userId, @Validated @RequestBody RefreshTokenDTO dto) {
-        return ResponseEntity.ok(new ApiMessage(userService.logout(userId, dto)));
+    public ResponseEntity<?> logout(
+            @CurrentUser Long userId,
+            @Validated @RequestBody RefreshTokenDTO dto,
+            HttpServletRequest request
+    ) {
+        return responseMapper.map(userService.logout(userId, dto), request);
     }
 }

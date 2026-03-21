@@ -1,14 +1,14 @@
 package com.example.bookexchange.controllers;
 
 import com.example.bookexchange.authentication.CurrentUser;
+import com.example.bookexchange.core.web.ResultResponseMapper;
 import com.example.bookexchange.dto.*;
-import com.example.bookexchange.mappers.AdminMapper;
 import com.example.bookexchange.models.*;
 import com.example.bookexchange.services.AdminService;
 import com.example.bookexchange.services.UserService;
 import com.example.bookexchange.util.ParserUtil;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.AllArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -23,8 +23,8 @@ public class AdminController {
 
     private final AdminService adminService;
     private final UserService userService;
-    private final AdminMapper adminMapper;
     private ParserUtil parserUtil;
+    private final ResultResponseMapper responseMapper;
 
     public static final String ADMIN_PATH = "/api/v1/admin";
     public static final String ADMIN_PATH_USERS = ADMIN_PATH + "/users";
@@ -46,140 +46,240 @@ public class AdminController {
 
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     @PatchMapping(ADMIN_PATH_USERS_ID_GIVE_ADMIN_RIGHTS)
-    public ResponseEntity<ApiMessage> superAdminGiveAdminRights(@PathVariable Long userId) {
-        return ResponseEntity.ok(new ApiMessage(adminService.giveAdminRights(userId)));
+    public ResponseEntity<?> superAdminGiveAdminRights(@PathVariable Long userId, HttpServletRequest request) {
+        return responseMapper.map(adminService.giveAdminRights(userId), request);
     }
 
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     @PatchMapping(ADMIN_PATH_USERS_ID_REVOKE_ADMIN_RIGHTS)
-    public ResponseEntity<ApiMessage> superAdminRevokeAdminRights(@PathVariable Long userId) {
-        return ResponseEntity.ok(new ApiMessage(adminService.revokeAdminRights(userId)));
+    public ResponseEntity<?> superAdminRevokeAdminRights(@PathVariable Long userId, HttpServletRequest request) {
+        return responseMapper.map(adminService.revokeAdminRights(userId), request);
     }
 
     @GetMapping(ADMIN_PATH_USERS)
-    public Page<UserAdminDTO> adminGetUsers(
+    public ResponseEntity<?> adminGetUsers(
             @CurrentUser Long userId,
             @RequestParam(value = "pageIndex", defaultValue = "0") Integer pageIndex,
             @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize,
             @RequestParam(value = "searchText", required = false) String searchText,
             @RequestParam(value = "roles", required = false) Set<UserRole> roles,
             @RequestParam(value = "onlyBannedUsers", required = false) Boolean onlyBannedUsers,
-            @RequestParam(value = "userType", defaultValue = "ALL") UserType userType
+            @RequestParam(value = "userType", defaultValue = "ALL") UserType userType,
+            HttpServletRequest request
     ) {
-        return adminService.findUsers(userId, pageIndex, pageSize, searchText, roles, onlyBannedUsers, userType);
+        return responseMapper.map(
+                adminService.findUsers(
+                        userId,
+                        pageIndex,
+                        pageSize,
+                        searchText,
+                        roles,
+                        onlyBannedUsers,
+                        userType
+                ),
+                request
+        );
     }
 
     @GetMapping(ADMIN_PATH_USERS_ID)
-    public ResponseEntity<UserAdminDTO> adminGetUserById(@PathVariable Long userId) {
-        User user = adminService.findUserById(userId);
-
-        return ResponseEntity
-                .ok()
-                .eTag("\"" + user.getVersion() + "\"")
-                .body(adminMapper.userToUserAdminDto(user));
+    public ResponseEntity<?> adminGetUserById(@PathVariable Long userId, HttpServletRequest request) {
+        return responseMapper.map(adminService.findUserById(userId), request);
     }
 
     @PatchMapping(ADMIN_PATH_USERS_ID_BAN)
-    public ResponseEntity<ApiMessage> adminBanUser(
+    public ResponseEntity<?> adminBanUser(
             @AuthenticationPrincipal User adminUser,
             @PathVariable Long userId,
             @RequestHeader("If-Match") String ifMatch,
-            @Validated @RequestBody BanUserDTO banUserDTO
+            @Validated @RequestBody BanUserDTO banUserDTO,
+            HttpServletRequest request
     ) {
-        return ResponseEntity.ok(new ApiMessage(adminService.banUserById(adminUser, userId, banUserDTO, parserUtil.ifMatchParser(ifMatch))));
+        return responseMapper.map(
+                adminService.banUserById(
+                        adminUser,
+                        userId,
+                        banUserDTO,
+                        parserUtil.ifMatchParser(ifMatch)
+                ),
+                request
+        );
     }
 
     @PatchMapping(ADMIN_PATH_USERS_ID_UNBAN)
-    public ResponseEntity<ApiMessage> adminUnbanUser(@PathVariable Long userId, @RequestHeader("If-Match") String ifMatch) {
-        return ResponseEntity.ok(new ApiMessage(adminService.unbanUserById(userId, parserUtil.ifMatchParser(ifMatch))));
+    public ResponseEntity<?> adminUnbanUser(
+            @PathVariable Long userId,
+            @RequestHeader("If-Match") String ifMatch,
+            HttpServletRequest request
+    ) {
+        return responseMapper.map(
+                adminService.unbanUserById(
+                        userId,
+                        parserUtil.ifMatchParser(ifMatch)
+                ),
+                request
+        );
     }
 
     @DeleteMapping(ADMIN_PATH_USERS_ID)
-    public ResponseEntity<ApiMessage> adminDeleteUserById(@PathVariable Long userId, @RequestHeader("If-Match") String ifMatch) {
-        return ResponseEntity.ok(new ApiMessage(userService.deleteUser(userId, true, parserUtil.ifMatchParser(ifMatch))));
+    public ResponseEntity<?> adminDeleteUserById(
+            @PathVariable Long userId,
+            @RequestHeader("If-Match") String ifMatch,
+            HttpServletRequest request
+    ) {
+        return responseMapper.map(
+                userService.deleteUser(
+                        userId,
+                        true,
+                        parserUtil.ifMatchParser(ifMatch)
+                ),
+                request
+        );
     }
 
     @GetMapping(ADMIN_PATH_BOOKS_SEARCH)
-    public Page<BookAdminDTO> adminGetBooks(
+    public ResponseEntity<?> adminGetBooks(
             @RequestParam(value = "pageIndex", defaultValue = "0") Integer pageIndex,
             @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize,
             @RequestParam(value = "bookType", defaultValue = "ALL") BookType bookType,
-            @Validated @RequestBody(required = false) BookSearchDTO dto
+            @Validated @RequestBody(required = false) BookSearchDTO dto,
+            HttpServletRequest request
     ) {
-        return adminService.findBooks(dto, pageIndex, pageSize, bookType);
+        return responseMapper.map(
+                adminService.findBooks(
+                        dto,
+                        pageIndex,
+                        pageSize,
+                        bookType
+                ),
+                request
+        );
     }
 
     @GetMapping(ADMIN_PATH_BOOKS_ID)
-    public ResponseEntity<BookAdminDTO> adminGetBookById(@PathVariable Long bookId) {
-        Book book = adminService.findBookById(bookId);
-
-        return ResponseEntity
-                .ok()
-                .eTag("\"" + book.getVersion() + "\"")
-                .body(adminMapper.bookToBookAdminDto(book));
+    public ResponseEntity<?> adminGetBookById(@PathVariable Long bookId, HttpServletRequest request) {
+        return responseMapper.map(adminService.findBookById(bookId), request);
     }
 
     @PatchMapping(ADMIN_PATH_BOOKS_ID)
-    public ResponseEntity<ApiMessage> adminUpdateBookById(
+    public ResponseEntity<?> adminUpdateBookById(
             @PathVariable Long bookId,
             @RequestHeader("If-Match") String ifMatch,
-            @Validated @RequestBody BookUpdateDTO dto
+            @Validated @RequestBody BookUpdateDTO dto,
+            HttpServletRequest request
     ) {
-        return ResponseEntity.ok(new ApiMessage(adminService.updateBookById(bookId, dto, parserUtil.ifMatchParser(ifMatch))));
+        return responseMapper.map(
+                adminService.updateBookById(
+                        bookId,
+                        dto,
+                        parserUtil.ifMatchParser(ifMatch)
+                ),
+                request
+        );
     }
 
     @DeleteMapping(ADMIN_PATH_BOOKS_ID)
-    public ResponseEntity<ApiMessage> adminDeleteBookById(@PathVariable Long bookId, @RequestHeader("If-Match") String ifMatch) {
-        return ResponseEntity.ok(new ApiMessage(adminService.deleteBookById(bookId, parserUtil.ifMatchParser(ifMatch))));
+    public ResponseEntity<?> adminDeleteBookById(
+            @PathVariable Long bookId,
+            @RequestHeader("If-Match") String ifMatch,
+            HttpServletRequest request
+    ) {
+        return responseMapper.map(
+                adminService.deleteBookById(
+                        bookId,
+                        parserUtil.ifMatchParser(ifMatch)
+                ),
+                request
+        );
     }
 
     @PatchMapping(ADMIN_PATH_BOOKS_ID_RESTORE)
-    public ResponseEntity<ApiMessage> adminRestoreBookById(@PathVariable Long bookId, @RequestHeader("If-Match") String ifMatch) {
-        return ResponseEntity.ok(new ApiMessage(adminService.restoreBookById(bookId, parserUtil.ifMatchParser(ifMatch))));
+    public ResponseEntity<?> adminRestoreBookById(
+            @PathVariable Long bookId,
+            @RequestHeader("If-Match") String ifMatch,
+            HttpServletRequest request
+    ) {
+        return responseMapper.map(
+                adminService.restoreBookById(
+                        bookId,
+                        parserUtil.ifMatchParser(ifMatch)
+                ),
+                request
+        );
     }
 
     @GetMapping(ADMIN_PATH_EXCHANGES)
-    public Page<ExchangeAdminDTO> adminGetExchanges(
+    public ResponseEntity<?> adminGetExchanges(
             @RequestParam(value = "pageIndex", defaultValue = "0") Integer pageIndex,
             @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize,
-            @RequestParam(value = "exchangeStatuses", required = false) Set<ExchangeStatus> exchangeStatuses
+            @RequestParam(value = "exchangeStatuses", required = false) Set<ExchangeStatus> exchangeStatuses,
+            HttpServletRequest request
     ) {
-        return adminService.findExchanges(pageIndex, pageSize, exchangeStatuses);
+        return responseMapper.map(
+                adminService.findExchanges(
+                        pageIndex,
+                        pageSize,
+                        exchangeStatuses
+                ),
+                request
+        );
     }
 
     @GetMapping(ADMIN_PATH_EXCHANGES_ID)
-    public ExchangeAdminDTO adminGetExchangeById(@PathVariable Long exchangeId) {
-        return adminService.findExchangeById(exchangeId);
+    public ResponseEntity<?> adminGetExchangeById(@PathVariable Long exchangeId, HttpServletRequest request) {
+        return responseMapper.map(adminService.findExchangeById(exchangeId), request);
     }
 
     @GetMapping(ADMIN_PATH_REPORTS)
-    public Page<ReportAdminDTO> adminGetReports(
+    public ResponseEntity<?> adminGetReports(
             @RequestParam(value = "pageIndex", defaultValue = "0") Integer pageIndex,
             @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize,
             @RequestParam(value = "reportStatuses", required = false) Set<ReportStatus> reportStatuses,
-            @RequestParam(value = "sortDirection", defaultValue = "asc") String sortDirection
+            @RequestParam(value = "sortDirection", defaultValue = "asc") String sortDirection,
+            HttpServletRequest request
     ) {
-        return adminService.findReports(pageIndex, pageSize, reportStatuses, sortDirection);
+        return responseMapper.map(
+                adminService.findReports(
+                        pageIndex,
+                        pageSize,
+                        reportStatuses,
+                        sortDirection
+                ),
+                request
+        );
     }
 
     @GetMapping(ADMIN_PATH_REPORTS_ID)
-    public ResponseEntity<ReportAdminDTO> adminGetReportById(@PathVariable Long reportId) {
-        Report report = adminService.findReportById(reportId);
-
-        return ResponseEntity
-                .ok()
-                .eTag("\"" + report.getVersion() + "\"")
-                .body(adminMapper.reportToReportAdminDto(report));
-
+    public ResponseEntity<?> adminGetReportById(@PathVariable Long reportId, HttpServletRequest request) {
+        return responseMapper.map(adminService.findReportById(reportId), request);
     }
 
     @PatchMapping(ADMIN_PATH_REPORTS_ID_RESOLVE)
-    public ResponseEntity<ApiMessage> adminReportResolve(@PathVariable Long reportId, @RequestHeader("If-Match") String ifMatch) {
-        return ResponseEntity.ok(new ApiMessage(adminService.resolveReport(reportId, parserUtil.ifMatchParser(ifMatch))));
+    public ResponseEntity<?> adminReportResolve(
+            @PathVariable Long reportId,
+            @RequestHeader("If-Match") String ifMatch,
+            HttpServletRequest request
+    ) {
+        return responseMapper.map(
+                adminService.resolveReport(
+                        reportId,
+                        parserUtil.ifMatchParser(ifMatch)
+                ),
+                request
+        );
     }
 
     @PatchMapping(ADMIN_PATH_REPORTS_ID_REJECT)
-    public ResponseEntity<ApiMessage> adminReportReject(@PathVariable Long reportId, @RequestHeader("If-Match") String ifMatch) {
-        return ResponseEntity.ok(new ApiMessage(adminService.rejectReport(reportId, parserUtil.ifMatchParser(ifMatch))));
+    public ResponseEntity<?> adminReportReject(
+            @PathVariable Long reportId,
+            @RequestHeader("If-Match") String ifMatch,
+            HttpServletRequest request
+    ) {
+        return responseMapper.map(
+                adminService.rejectReport(
+                        reportId,
+                        parserUtil.ifMatchParser(ifMatch)
+                ),
+                request
+        );
     }
 }

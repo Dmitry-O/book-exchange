@@ -1,7 +1,8 @@
 package com.example.bookexchange.services;
 
 import com.example.bookexchange.config.AppProperties;
-import com.example.bookexchange.exception.BadRequestException;
+import com.example.bookexchange.core.result.Result;
+import com.example.bookexchange.core.result.ResultFactory;
 import com.example.bookexchange.models.EmailType;
 import com.example.bookexchange.models.MessageKey;
 import com.example.bookexchange.util.UrlBuilder;
@@ -9,6 +10,7 @@ import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
@@ -43,7 +45,7 @@ public class EmailServiceImpl implements EmailService {
         }
     }
 
-    public void buildAndSendEmail(String emailTo, String token, EmailType emailType) {
+    public Result<Void> buildAndSendEmail(String emailTo, String token, EmailType emailType) {
         String url = urlBuilder.buildEmailVerificationUrl(token, emailType), subject, template = "email/", templateVariableName;
 
         switch (emailType) {
@@ -62,7 +64,9 @@ public class EmailServiceImpl implements EmailService {
                 subject = "Verify deleting your account";
                 templateVariableName = "deleteAccountUrl";
             }
-            default -> throw new BadRequestException(MessageKey.SYSTEM_WRONG_EMAIL_TYPE);
+            default -> {
+                return ResultFactory.error(MessageKey.SYSTEM_WRONG_EMAIL_TYPE, HttpStatus.BAD_REQUEST);
+            }
         }
 
         Context context = new Context();
@@ -73,6 +77,12 @@ public class EmailServiceImpl implements EmailService {
                 context
         );
 
-        sendEmail(emailTo, subject, htmlTemplate);
+        try {
+            sendEmail(emailTo, subject, htmlTemplate);
+
+            return ResultFactory.successVoid();
+        } catch (Exception ex) {
+            return ResultFactory.error(MessageKey.SYSTEM_UNEXPECTED_ERROR, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
 }

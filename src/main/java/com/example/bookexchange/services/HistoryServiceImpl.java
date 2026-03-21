@@ -1,8 +1,9 @@
 package com.example.bookexchange.services;
 
+import com.example.bookexchange.core.result.Result;
+import com.example.bookexchange.core.result.ResultFactory;
 import com.example.bookexchange.dto.ExchangeHistoryDTO;
 import com.example.bookexchange.dto.ExchangeHistoryDetailsDTO;
-import com.example.bookexchange.exception.NotFoundException;
 import com.example.bookexchange.mappers.ExchangeMapper;
 import com.example.bookexchange.models.Exchange;
 import com.example.bookexchange.models.ExchangeStatus;
@@ -33,7 +34,7 @@ public class HistoryServiceImpl implements HistoryService {
 
     @Transactional(readOnly = true)
     @Override
-    public Page<ExchangeHistoryDTO> getUserExchangeHistory(Long userId, Integer pageIndex, Integer pageSize) {
+    public Result<Page<ExchangeHistoryDTO>> getUserExchangeHistory(Long userId, Integer pageIndex, Integer pageSize) {
         Pageable pageable = PageRequest.of(pageIndex, pageSize);
 
         List<Exchange> exchangesAsSender = exchangeRepository
@@ -62,45 +63,60 @@ public class HistoryServiceImpl implements HistoryService {
                 ? Collections.emptyList()
                 : allExchanges.subList(start, end);
 
-        return new PageImpl<>(paginatedList, pageable, allExchanges.size());
+        Page<ExchangeHistoryDTO> page = new PageImpl<>(paginatedList, pageable, allExchanges.size());
+
+        return ResultFactory.ok(page);
     }
 
     @Transactional(readOnly = true)
     @Override
-    public ExchangeHistoryDetailsDTO getUserExchangeHistoryDetails(Long userId, Long exchangeId) {
-        UserExchangeRole userRole = exchangeUtil.identifyUserExchangeRole(userId, exchangeId);
-        Exchange exchange = exchangeRepository.findById(exchangeId).orElseThrow(() -> new NotFoundException(MessageKey.EXCHANGE_NOT_FOUND));
+    public Result<ExchangeHistoryDetailsDTO> getUserExchangeHistoryDetails(Long userId, Long exchangeId) {
+        return exchangeUtil.identifyUserExchangeRole(userId, exchangeId)
+                .flatMap(userRole ->
+                        ResultFactory.fromRepository(
+                            exchangeRepository,
+                            exchangeId,
+                            MessageKey.EXCHANGE_NOT_FOUND
+                        )
+                        .flatMap(exchange -> {
+                            if (Objects.equals(userRole, UserExchangeRole.SENDER)) {
+                                if (!exchange.getIsReadBySender()) {
+                                    exchange.setIsReadBySender(true);
 
-        if (Objects.equals(userRole, UserExchangeRole.SENDER)) {
-            if (!exchange.getIsReadBySender()) {
-                exchange.setIsReadBySender(true);
+                                    exchangeRepository.save(exchange);
+                                }
 
-                exchangeRepository.save(exchange);
-            }
+                                ExchangeHistoryDetailsDTO dto;
 
-            return exchangeMapper.exchangeToExchangeHistoryDetailsDto(
-                    exchange,
-                    exchange.getReceiverUser().getNickname(),
-                    exchange.getReceiverBook().getContactDetails(),
-                    userRole
-            );
-        } else {
-            if (Objects.equals(userRole, UserExchangeRole.RECEIVER)) {
-                if (!exchange.getIsReadByReceiver()) {
-                    exchange.setIsReadByReceiver(true);
+                                dto = exchangeMapper.exchangeToExchangeHistoryDetailsDto(
+                                        exchange,
+                                        exchange.getReceiverUser().getNickname(),
+                                        exchange.getReceiverBook().getContactDetails(),
+                                        userRole
+                                );
 
-                    exchangeRepository.save(exchange);
-                }
+                                return ResultFactory.ok(dto);
+                            } else {
+                                if (Objects.equals(userRole, UserExchangeRole.RECEIVER)) {
+                                    if (!exchange.getIsReadByReceiver()) {
+                                        exchange.setIsReadByReceiver(true);
 
-                return exchangeMapper.exchangeToExchangeHistoryDetailsDto(
-                        exchange,
-                        exchange.getSenderUser().getNickname(),
-                        exchange.getSenderBook().getContactDetails(),
-                        userRole
+                                        exchangeRepository.save(exchange);
+                                    }
+
+                                    ExchangeHistoryDetailsDTO dto = exchangeMapper.exchangeToExchangeHistoryDetailsDto(
+                                            exchange,
+                                            exchange.getSenderUser().getNickname(),
+                                            exchange.getSenderBook().getContactDetails(),
+                                            userRole
+                                    );
+
+                                    return ResultFactory.ok(dto);
+                                } else {
+                                    return ResultFactory.notFound(MessageKey.EXCHANGE_NOT_FOUND);
+                                }
+                            }
+                        })
                 );
-            } else {
-                throw new NotFoundException(MessageKey.EXCHANGE_NOT_FOUND);
-            }
-        }
     }
 }
