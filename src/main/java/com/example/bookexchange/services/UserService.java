@@ -11,7 +11,7 @@ public interface UserService {
 
     Result<UserDTO> updateUser(Long userId, UserUpdateDTO dto, Long version);
 
-    Result<Void> deleteUser(Long userId, Boolean isAdminDeleting, Long version);
+    Result<Void> deleteUser(Long userId, Long version);
 
     Result<AuthResponseDTO> loginUser(AuthRequestDTO requestDTO);
 

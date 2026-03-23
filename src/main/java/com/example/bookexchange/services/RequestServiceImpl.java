@@ -30,7 +30,7 @@ public class RequestServiceImpl implements RequestService {
 
     @Transactional
     @Override
-    public Result<Void> createRequest(Long senderUserId, RequestCreateDTO dto) {
+    public Result<ExchangeDetailsDTO> createRequest(Long senderUserId, RequestCreateDTO dto) {
         ExchangeContext ctx = ExchangeContext.builder()
                 .senderUserId(senderUserId)
                 .receiverUserId(dto.getReceiverUserId())
@@ -45,7 +45,7 @@ public class RequestServiceImpl implements RequestService {
                 .flatMap(this::validateSenderBook)
                 .flatMap(this::loadUsers)
                 .flatMap(this::createExchange)
-                .flatMap(ctxFinal -> ResultFactory.okMessage(MessageKey.EXCHANGE_CREATED));
+                .flatMap(this::formExchangeDetailsResponse);
     }
 
     @Transactional(readOnly = true)
@@ -88,7 +88,7 @@ public class RequestServiceImpl implements RequestService {
 
     @Transactional
     @Override
-    public Result<Void> declineUserRequest(Long senderUserId, Long exchangeId, Long version) {
+    public Result<ExchangeDetailsDTO> declineUserRequest(Long senderUserId, Long exchangeId, Long version) {
         return ResultFactory.fromOptional(
                         exchangeRepository.findByIdAndSenderUserId(exchangeId, senderUserId),
                         MessageKey.EXCHANGE_NOT_FOUND
@@ -113,7 +113,14 @@ public class RequestServiceImpl implements RequestService {
                                 return ResultFactory.error(MessageKey.EXCHANGE_CANT_BE_DECLINED, HttpStatus.BAD_REQUEST);
                             }
 
-                            return ResultFactory.okMessage(MessageKey.EXCHANGE_DECLINED);
+                            return ResultFactory.updated(
+                                    exchangeMapper.exchangeToExchangeDetailsDto(
+                                            exchange,
+                                            exchange.getReceiverUser().getNickname()
+                                    ),
+                                    MessageKey.EXCHANGE_DECLINED,
+                                    ETagUtil.form(exchange)
+                            );
                         })
                 );
     }
@@ -212,5 +219,16 @@ public class RequestServiceImpl implements RequestService {
         ctx.setExchange(exchange);
 
         return ResultFactory.ok(ctx);
+    }
+
+    private Result<ExchangeDetailsDTO> formExchangeDetailsResponse(ExchangeContext ctx) {
+        return ResultFactory.created(
+                exchangeMapper.exchangeToExchangeDetailsDto(
+                        ctx.getExchange(),
+                        ctx.getReceiverUser().getNickname()
+                ),
+                MessageKey.EXCHANGE_CREATED,
+                ETagUtil.form(ctx.getExchange())
+        );
     }
 }

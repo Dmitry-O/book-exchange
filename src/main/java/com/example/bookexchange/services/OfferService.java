@@ -11,7 +11,7 @@ public interface OfferService {
 
     Result<ExchangeDetailsDTO> getReceiverOfferDetails(Long senderUserId, Long exchangeId);
 
-    Result<Void> approveUserOffer(Long receiverUserId, Long exchangeId, Long version);
+    Result<ExchangeDetailsDTO> approveUserOffer(Long receiverUserId, Long exchangeId, Long version);
 
-    Result<Void> declineUserOffer(Long receiverUserId, Long exchangeId, Long version);
+    Result<ExchangeDetailsDTO> declineUserOffer(Long receiverUserId, Long exchangeId, Long version);
 }

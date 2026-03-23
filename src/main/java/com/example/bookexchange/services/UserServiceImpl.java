@@ -113,7 +113,7 @@ public class UserServiceImpl implements UserService {
 
     @Transactional
     @Override
-    public Result<Void> deleteUser(Long userId, Boolean isAdminDeleting, Long version) {
+    public Result<Void> deleteUser(Long userId, Long version) {
         return ResultFactory.fromRepository(
                         userRepository,
                         userId,
@@ -138,10 +138,6 @@ public class UserServiceImpl implements UserService {
 
                     refreshTokenRepository.deleteAll(new HashSet<>(user.getRefreshTokens()));
                     verificationTokenRepository.deleteAll(new HashSet<>(user.getVerificationToken()));
-
-                    if (isAdminDeleting) {
-                        return ResultFactory.okMessage(MessageKey.ADMIN_USER_DELETED, user.getEmail());
-                    }
 
                     return ResultFactory.okMessage(MessageKey.USER_ACCOUNT_DELETED);
                 });
@@ -366,7 +362,9 @@ public class UserServiceImpl implements UserService {
                         return ResultFactory.error(MessageKey.AUTH_ACCOUNT_ALREADY_VERIFIED, HttpStatus.BAD_REQUEST);
                     }
 
-                    verificationTokenRepository.findByUserAndType(user, TokenType.CONFIRM_EMAIL).ifPresent(verificationToken -> verificationTokenRepository.deleteById(verificationToken.getId()));
+                    verificationTokenRepository.findByUserAndType(user, TokenType.CONFIRM_EMAIL).ifPresent(
+                            verificationToken -> verificationTokenRepository.deleteById(verificationToken.getId())
+                    );
 
                     return createVerificationToken(user, TokenType.CONFIRM_EMAIL)
                             .flatMap(token ->
@@ -407,7 +405,7 @@ public class UserServiceImpl implements UserService {
                         verificationTokenRepository.findByToken(token),
                         MessageKey.AUTH_TOKEN_NOT_FOUND
                 )
-                .flatMap(vt -> deleteUser(vt.getUser().getId(), false, null));
+                .flatMap(vt -> deleteUser(vt.getUser().getId(), null));
     }
 
     @Transactional

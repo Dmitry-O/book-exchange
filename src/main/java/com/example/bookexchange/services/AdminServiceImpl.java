@@ -35,13 +35,14 @@ public class AdminServiceImpl implements AdminService {
     private final ReportRepository reportRepository;
     private final ExchangeRepository exchangeRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private VerificationTokenRepository verificationTokenRepository;
     private final BookMapper bookMapper;
     private final ReportMapper reportMapper;
     private final AdminMapper adminMapper;
 
     @Transactional
     @Override
-    public Result<Void> giveAdminRights(Long userId) {
+    public Result<UserAdminDTO> giveAdminRights(Long userId) {
         return ResultFactory.fromRepository(
                         userRepository,
                         userId,
@@ -55,13 +56,18 @@ public class AdminServiceImpl implements AdminService {
                         return ResultFactory.entityExists(MessageKey.ADMIN_USER_ALREADY_ADMIN, user.getEmail());
                     }
 
-                    return ResultFactory.okMessage(MessageKey.ADMIN_RIGHTS_GIVEN, user.getEmail());
+                    return ResultFactory.updated(
+                            adminMapper.userToUserAdminDto(user),
+                            MessageKey.ADMIN_RIGHTS_GIVEN,
+                            ETagUtil.form(user),
+                            user.getEmail()
+                    );
                 });
     }
 
     @Transactional
     @Override
-    public Result<Void> revokeAdminRights(Long userId) {
+    public Result<UserAdminDTO> revokeAdminRights(Long userId) {
         return ResultFactory.fromRepository(
                         userRepository,
                         userId,
@@ -75,7 +81,12 @@ public class AdminServiceImpl implements AdminService {
                         return ResultFactory.error(MessageKey.ADMIN_USER_NOT_ADMIN, HttpStatus.BAD_REQUEST, user.getEmail());
                     }
 
-                    return ResultFactory.okMessage(MessageKey.ADMIN_RIGHTS_REVOKED, user.getEmail());
+                    return ResultFactory.updated(
+                            adminMapper.userToUserAdminDto(user),
+                            MessageKey.ADMIN_RIGHTS_REVOKED,
+                            ETagUtil.form(user),
+                            user.getEmail()
+                    );
                 });
     }
 
@@ -134,7 +145,7 @@ public class AdminServiceImpl implements AdminService {
 
     @Transactional
     @Override
-    public Result<Void> banUserById(User adminUser, Long userId, BanUserDTO banUserDTO, Long version) {
+    public Result<UserAdminDTO> banUserById(User adminUser, Long userId, BanUserDTO banUserDTO, Long version) {
         return ResultFactory.fromRepository(
                         userRepository,
                         userId,
@@ -161,13 +172,18 @@ public class AdminServiceImpl implements AdminService {
 
                     refreshTokenRepository.deleteAll(new HashSet<>(user.getRefreshTokens()));
 
-                    return ResultFactory.okMessage(MessageKey.ADMIN_USER_BANNED, user.getEmail());
+                    return ResultFactory.updated(
+                            adminMapper.userToUserAdminDto(user),
+                            MessageKey.ADMIN_USER_BANNED,
+                            ETagUtil.form(user),
+                            user.getEmail()
+                    );
                 });
     }
 
     @Transactional
     @Override
-    public Result<Void> unbanUserById(Long userId, Long version) {
+    public Result<UserAdminDTO> unbanUserById(Long userId, Long version) {
         return ResultFactory.fromRepository(
                         userRepository,
                         userId,
@@ -184,13 +200,18 @@ public class AdminServiceImpl implements AdminService {
 
                     userRepository.save(user);
 
-                    return ResultFactory.okMessage(MessageKey.ADMIN_USER_UNBANNED, user.getEmail());
+                    return ResultFactory.updated(
+                            adminMapper.userToUserAdminDto(user),
+                            MessageKey.ADMIN_USER_UNBANNED,
+                            ETagUtil.form(user),
+                            user.getEmail()
+                    );
                 });
     }
 
     @Transactional
     @Override
-    public Result<Void> deleteBookById(Long bookId, Long version) {
+    public Result<BookAdminDTO> deleteBookById(Long bookId, Long version) {
         return ResultFactory.fromRepository(
                         bookRepository,
                         bookId,
@@ -203,7 +224,12 @@ public class AdminServiceImpl implements AdminService {
 
                     book.setDeletedAt(Instant.now());
 
-                    return ResultFactory.okMessage(MessageKey.ADMIN_BOOK_DELETED, book.getName());
+                    return ResultFactory.updated(
+                            adminMapper.bookToBookAdminDto(book),
+                            MessageKey.ADMIN_BOOK_DELETED,
+                            ETagUtil.form(book),
+                            book.getName()
+                    );
                 });
     }
 
@@ -217,7 +243,7 @@ public class AdminServiceImpl implements AdminService {
                 )
                 .flatMap(book -> {
                     if (!book.getVersion().equals(version)) {
-                        return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.BAD_REQUEST);
+                        return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
                     }
 
                     bookMapper.updateBookDtoToBook(dto, book);
@@ -227,7 +253,8 @@ public class AdminServiceImpl implements AdminService {
                             adminMapper.bookToBookAdminDto(book),
                             MessageKey.ADMIN_BOOK_UPDATED,
                             ETagUtil.form(book),
-                            book.getName());
+                            book.getName()
+                    );
                 });
     }
 
@@ -267,7 +294,7 @@ public class AdminServiceImpl implements AdminService {
 
     @Transactional
     @Override
-    public Result<Void> resolveReport(Long reportId, Long version) {
+    public Result<ReportAdminDTO> resolveReport(Long reportId, Long version) {
         return ResultFactory.fromRepository(
                         reportRepository,
                         reportId,
@@ -275,20 +302,24 @@ public class AdminServiceImpl implements AdminService {
                 )
                 .flatMap(report -> {
                     if (!report.getVersion().equals(version)) {
-                        return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.BAD_REQUEST);
+                        return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
                     }
 
                     report.setStatus(ReportStatus.RESOLVED);
 
                     reportRepository.save(report);
 
-                    return ResultFactory.okMessage(MessageKey.ADMIN_REPORT_RESOLVED, report);
+                    return ResultFactory.updated(
+                            adminMapper.reportToReportAdminDto(report),
+                            MessageKey.ADMIN_REPORT_RESOLVED,
+                            ETagUtil.form(report)
+                    );
                 });
     }
 
     @Transactional
     @Override
-    public Result<Void> rejectReport(Long reportId, Long version) {
+    public Result<ReportAdminDTO> rejectReport(Long reportId, Long version) {
         return ResultFactory.fromRepository(
                         reportRepository,
                         reportId,
@@ -296,14 +327,18 @@ public class AdminServiceImpl implements AdminService {
                 )
                 .flatMap(report -> {
                     if (!report.getVersion().equals(version)) {
-                        return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.BAD_REQUEST);
+                        return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
                     }
 
                     report.setStatus(ReportStatus.REJECTED);
 
                     reportRepository.save(report);
 
-                    return ResultFactory.okMessage(MessageKey.ADMIN_REPORT_REJECTED, report);
+                    return ResultFactory.updated(
+                            adminMapper.reportToReportAdminDto(report),
+                            MessageKey.ADMIN_REPORT_REJECTED,
+                            ETagUtil.form(report)
+                    );
                 });
     }
 
@@ -339,7 +374,7 @@ public class AdminServiceImpl implements AdminService {
                 )
                 .flatMap(book -> {
                     if (!book.getVersion().equals(version)) {
-                        return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.BAD_REQUEST);
+                        return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
                     }
 
                     book.setDeletedAt(null);
@@ -400,5 +435,44 @@ public class AdminServiceImpl implements AdminService {
                         )
                 )
                 .flatMap(r -> r);
+    }
+
+    @Transactional
+    @Override
+    public Result<UserAdminDTO> deleteUser(Long userId, Long version) {
+        return ResultFactory.fromRepository(
+                        userRepository,
+                        userId,
+                        MessageKey.USER_ACCOUNT_NOT_FOUND
+                )
+                .flatMap(user -> {
+                    if (!user.getVersion().equals(version)) {
+                        return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
+                    }
+
+                    String oldUserEmail = user.getEmail();
+
+                    user.setEmail("anonymized@anonymized.anonymized");
+                    user.setNickname("anonymized");
+                    user.setPhotoBase64(null);
+                    user.setPassword("");
+                    user.setDeletedAt(Instant.now());
+
+                    for (Book book : new HashSet<>(user.getBooks())) {
+                        if (book.getDeletedAt() == null) {
+                            book.setDeletedAt(Instant.now());
+                        }
+                    }
+
+                    refreshTokenRepository.deleteAll(new HashSet<>(user.getRefreshTokens()));
+                    verificationTokenRepository.deleteAll(new HashSet<>(user.getVerificationToken()));
+
+                    return ResultFactory.updated(
+                            adminMapper.userToUserAdminDto(user),
+                            MessageKey.ADMIN_USER_DELETED,
+                            ETagUtil.form(user),
+                            oldUserEmail
+                    );
+                });
     }
 }

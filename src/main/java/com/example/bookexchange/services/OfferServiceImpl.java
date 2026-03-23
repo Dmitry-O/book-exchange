@@ -63,7 +63,7 @@ public class OfferServiceImpl implements OfferService {
 
     @Transactional
     @Override
-    public Result<Void> approveUserOffer(Long receiverUserId, Long exchangeId, Long version) {
+    public Result<ExchangeDetailsDTO> approveUserOffer(Long receiverUserId, Long exchangeId, Long version) {
         return ResultFactory.fromOptional(
                         exchangeRepository.findByIdAndReceiverUserId(
                                 exchangeId,
@@ -113,13 +113,20 @@ public class OfferServiceImpl implements OfferService {
                         return ResultFactory.error(MessageKey.EXCHANGE_CANT_BE_APPROVED, HttpStatus.BAD_REQUEST);
                     }
 
-                    return ResultFactory.okMessage(MessageKey.EXCHANGE_APPROVED);
+                    return ResultFactory.updated(
+                            exchangeMapper.exchangeToExchangeDetailsDto(
+                                    exchange,
+                                    exchange.getSenderUser().getNickname()
+                            ),
+                            MessageKey.EXCHANGE_APPROVED,
+                            ETagUtil.form(exchange)
+                    );
                 });
     }
 
     @Transactional
     @Override
-    public Result<Void> declineUserOffer(Long receiverUserId, Long exchangeId, Long version) {
+    public Result<ExchangeDetailsDTO> declineUserOffer(Long receiverUserId, Long exchangeId, Long version) {
         return ResultFactory.fromOptional(
                         exchangeRepository.findByIdAndReceiverUserId(
                                 exchangeId,
@@ -147,7 +154,14 @@ public class OfferServiceImpl implements OfferService {
                                     return ResultFactory.error(MessageKey.EXCHANGE_CANT_BE_DECLINED, HttpStatus.BAD_REQUEST);
                                 }
 
-                                return ResultFactory.okMessage(MessageKey.EXCHANGE_DECLINED);
+                                return ResultFactory.updated(
+                                        exchangeMapper.exchangeToExchangeDetailsDto(
+                                                exchange,
+                                                exchange.getSenderUser().getNickname()
+                                        ),
+                                        MessageKey.EXCHANGE_DECLINED,
+                                        ETagUtil.form(exchange)
+                                );
                             });
                 });
     }
