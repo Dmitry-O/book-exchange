@@ -41,6 +41,7 @@ public class BookServiceImpl implements BookService {
                 .map(user -> {
                     Book book = bookMapper.bookDtoToBook(dto);
                     book.setUser(user);
+
                     return bookRepository.save(book);
                 })
                 .map(book ->

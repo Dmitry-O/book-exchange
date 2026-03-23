@@ -1,6 +1,6 @@
 package com.example.bookexchange.util;
 
-import com.example.bookexchange.core.error.ApiErrorDTO;
+import com.example.bookexchange.core.error.ApiError;
 import com.example.bookexchange.core.result.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +20,7 @@ public class Helper {
                 (String) request.getAttribute("requestId") :
                 UUID.randomUUID().toString();
 
-        ApiErrorDTO error = ApiErrorDTO
+        ApiError error = ApiError
                 .builder()
                 .status(status.value())
                 .error(errorType)
