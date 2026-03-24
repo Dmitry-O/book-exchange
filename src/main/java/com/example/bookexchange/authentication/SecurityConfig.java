@@ -38,7 +38,11 @@ public class SecurityConfig {
                         .requestMatchers(AuthController.AUTH_PATH + "/**").permitAll()
                         .requestMatchers(AdminController.ADMIN_PATH + "/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, BookController.BOOK_PATH_SEARCH).permitAll()
-                        .requestMatchers("/actuator/**").permitAll()
+                        .requestMatchers(
+                                "/actuator/health",
+                                "/actuator/info",
+                                "/actuator/prometheus"
+                        ).permitAll()
                         .requestMatchers(
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
