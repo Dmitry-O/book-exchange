@@ -2,6 +2,9 @@ package com.example.bookexchange.authentication;
 
 import com.example.bookexchange.controllers.AuthController;
 import com.example.bookexchange.controllers.BookController;
+import com.example.bookexchange.core.audit.AuditEvent;
+import com.example.bookexchange.core.audit.AuditResult;
+import com.example.bookexchange.core.audit.AuditService;
 import com.example.bookexchange.models.MessageKey;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
@@ -28,6 +31,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     private final ErrorResponseWriter errorResponseWriter;
     private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();
+    private final AuditService auditService;
 
     private Bucket createLoginBucket() {
         Bandwidth limit = Bandwidth.classic(5,
@@ -91,6 +95,17 @@ public class RateLimitFilter extends OncePerRequestFilter {
                         response,
                         HttpStatus.TOO_MANY_REQUESTS,
                         MessageKey.SYSTEM_TOO_MANY_REQUESTS
+                );
+
+                auditService.log(AuditEvent.builder()
+                        .action("RATE_LIMIT_FILTERING")
+                        .result(AuditResult.FAILURE)
+                        .reason("SYSTEM_TOO_MANY_REQUESTS")
+                        .detail("path", path)
+                        .detail("ip", ip)
+                        .detail("path", path)
+                        .detail("waitForRefill", waitForRefill)
+                        .build()
                 );
 
                 return;

@@ -1,5 +1,8 @@
 package com.example.bookexchange.services;
 
+import com.example.bookexchange.core.audit.AuditEvent;
+import com.example.bookexchange.core.audit.AuditResult;
+import com.example.bookexchange.core.audit.AuditService;
 import com.example.bookexchange.core.result.*;
 import com.example.bookexchange.dto.BookCreateDTO;
 import com.example.bookexchange.dto.BookDTO;
@@ -32,6 +35,7 @@ public class BookServiceImpl implements BookService {
     private final BookRepository bookRepository;
     private final UserRepository userRepository;
     private final BookMapper bookMapper;
+    private final AuditService auditService;
 
     @Transactional
     @Override
@@ -44,13 +48,22 @@ public class BookServiceImpl implements BookService {
 
                     return bookRepository.save(book);
                 })
-                .map(book ->
-                    ResultFactory.created(
+                .map(book -> {
+                    auditService.log(AuditEvent.builder()
+                            .action("BOOK_CREATE")
+                            .result(AuditResult.SUCCESS)
+                            .actorId(userId)
+                            .detail("bookId", book.getId())
+                            .detail("bookName", book.getName())
+                            .build()
+                    );
+
+                    return ResultFactory.created(
                             bookMapper.bookToBookDto(book),
                             MessageKey.BOOK_CREATED,
                             ETagUtil.form(book)
-                    )
-                )
+                    );
+                })
                 .flatMap(r -> r);
     }
 
@@ -125,10 +138,30 @@ public class BookServiceImpl implements BookService {
                 )
                 .flatMap(book -> {
                     if (!book.getVersion().equals(version)) {
+                        auditService.log(AuditEvent.builder()
+                                .action("BOOK_DELETE")
+                                .result(AuditResult.FAILURE)
+                                .actorId(userId)
+                                .actorEmail(book.getUser().getEmail())
+                                .reason("SYSTEM_OPTIMISTIC_LOCK")
+                                .detail("bookId", bookId)
+                                .detail("bookName", book.getName())
+                                .build()
+                        );
+
                         return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
                     }
 
                     book.setDeletedAt(Instant.now());
+
+                    auditService.log(AuditEvent.builder()
+                            .action("BOOK_DELETE")
+                            .result(AuditResult.SUCCESS)
+                            .actorId(userId)
+                            .actorEmail(book.getUser().getEmail())
+                            .detail("bookId", book.getId())
+                            .detail("bookName", book.getName())
+                            .build());
 
                     return ResultFactory.okMessage(MessageKey.BOOK_DELETED);
                 });
@@ -143,11 +176,30 @@ public class BookServiceImpl implements BookService {
                 )
                 .flatMap(book -> {
                     if (!book.getVersion().equals(version)) {
+                        auditService.log(AuditEvent.builder()
+                                .action("BOOK_UPDATE")
+                                .result(AuditResult.FAILURE)
+                                .actorId(userId)
+                                .actorEmail(book.getUser().getEmail())
+                                .reason("SYSTEM_OPTIMISTIC_LOCK")
+                                .detail("bookId", bookId)
+                                .detail("bookName", book.getName())
+                                .build()
+                        );
+
                         return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
                     }
 
                     bookMapper.updateBookDtoToBook(dto, book);
                     bookRepository.save(book);
+
+                    auditService.log(AuditEvent.builder()
+                            .action("BOOK_UPDATE")
+                            .result(AuditResult.SUCCESS)
+                            .actorId(userId)
+                            .detail("bookId", book.getId())
+                            .detail("bookName", book.getName())
+                            .build());
 
                     return ResultFactory.updated(
                             bookMapper.bookToBookDto(book),

@@ -1,5 +1,8 @@
 package com.example.bookexchange.services;
 
+import com.example.bookexchange.core.audit.AuditEvent;
+import com.example.bookexchange.core.audit.AuditResult;
+import com.example.bookexchange.core.audit.AuditService;
 import com.example.bookexchange.core.result.Result;
 import com.example.bookexchange.core.result.ResultFactory;
 import com.example.bookexchange.dto.ExchangeDetailsDTO;
@@ -27,6 +30,7 @@ public class RequestServiceImpl implements RequestService {
     private final UserRepository userRepository;
     private final BookRepository bookRepository;
     private final ExchangeMapper exchangeMapper;
+    private final AuditService auditService;
 
     @Transactional
     @Override
@@ -101,6 +105,18 @@ public class RequestServiceImpl implements RequestService {
                         )
                         .flatMap(declinerUser -> {
                             if (!exchange.getVersion().equals(version)) {
+                                auditService.log(AuditEvent.builder()
+                                        .action("DECLINE_USER_REQUEST")
+                                        .result(AuditResult.FAILURE)
+                                        .actorId(senderUserId)
+                                        .actorEmail(exchange.getSenderUser().getEmail())
+                                        .reason("SYSTEM_OPTIMISTIC_LOCK")
+                                        .detail("currentVersion", exchange.getVersion())
+                                        .detail("incomingVersion", exchange.getVersion())
+                                        .detail("currentExchangeState", exchange.getStatus())
+                                        .build()
+                                );
+
                                 return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
                             }
 
@@ -110,8 +126,25 @@ public class RequestServiceImpl implements RequestService {
 
                                 exchangeRepository.save(exchange);
                             } else {
+                                auditService.log(AuditEvent.builder()
+                                        .action("DECLINE_USER_REQUEST")
+                                        .result(AuditResult.FAILURE)
+                                        .actorId(senderUserId)
+                                        .actorEmail(exchange.getSenderUser().getEmail())
+                                        .reason("EXCHANGE_CANT_BE_DECLINED")
+                                        .build()
+                                );
+
                                 return ResultFactory.error(MessageKey.EXCHANGE_CANT_BE_DECLINED, HttpStatus.BAD_REQUEST);
                             }
+
+                            auditService.log(AuditEvent.builder()
+                                    .action("DECLINE_USER_REQUEST")
+                                    .result(AuditResult.SUCCESS)
+                                    .actorId(senderUserId)
+                                    .actorEmail(exchange.getSenderUser().getEmail())
+                                    .build()
+                            );
 
                             return ResultFactory.updated(
                                     exchangeMapper.exchangeToExchangeDetailsDto(
@@ -140,6 +173,15 @@ public class RequestServiceImpl implements RequestService {
         Book receiverBook = ctx.getReceiverBook();
 
         if (receiverBook.getIsExchanged()) {
+            auditService.log(AuditEvent.builder()
+                    .action("CREATE_USER_REQUEST")
+                    .result(AuditResult.FAILURE)
+                    .actorId(ctx.getSenderUserId())
+                    .actorEmail(ctx.getSenderUser().getEmail())
+                    .reason("RECEIVER_BOOK_ALREADY_EXCHANGED")
+                    .build()
+            );
+
             return ResultFactory.error(MessageKey.BOOK_ALREADY_EXCHANGED, HttpStatus.BAD_REQUEST);
         }
 
@@ -154,6 +196,15 @@ public class RequestServiceImpl implements RequestService {
                     .isPresent();
 
             if (exists) {
+                auditService.log(AuditEvent.builder()
+                        .action("CREATE_USER_REQUEST")
+                        .result(AuditResult.FAILURE)
+                        .actorId(ctx.getSenderUserId())
+                        .actorEmail(ctx.getSenderUser().getEmail())
+                        .reason("RECEIVER_BOOK_EXCHANGE_ALREADY_EXISTS")
+                        .build()
+                );
+
                 return ResultFactory.entityExists(MessageKey.BOOK_EXCHANGE_ALREADY_EXISTS);
             }
         }
@@ -177,14 +228,41 @@ public class RequestServiceImpl implements RequestService {
         Book receiverBook = ctx.getReceiverBook();
 
         if (senderBook.getIsExchanged()) {
+            auditService.log(AuditEvent.builder()
+                    .action("CREATE_USER_REQUEST")
+                    .result(AuditResult.FAILURE)
+                    .actorId(ctx.getSenderUserId())
+                    .actorEmail(ctx.getSenderUser().getEmail())
+                    .reason("SENDER_BOOK_ALREADY_EXCHANGED")
+                    .build()
+            );
+
             return ResultFactory.error(MessageKey.BOOK_ALREADY_EXCHANGED, HttpStatus.BAD_REQUEST);
         }
 
         if (ctx.getSenderUserId().equals(ctx.getReceiverUserId())) {
+            auditService.log(AuditEvent.builder()
+                    .action("CREATE_USER_REQUEST")
+                    .result(AuditResult.FAILURE)
+                    .actorId(ctx.getSenderUserId())
+                    .actorEmail(ctx.getSenderUser().getEmail())
+                    .reason("EXCHANGE_CANT_BE_WITH_YOURSELF")
+                    .build()
+            );
+
             return ResultFactory.error(MessageKey.EXCHANGE_CANT_BE_WITH_YOURSELF, HttpStatus.BAD_REQUEST);
         }
 
         if (senderBook.getId().equals(receiverBook.getId())) {
+            auditService.log(AuditEvent.builder()
+                    .action("CREATE_USER_REQUEST")
+                    .result(AuditResult.FAILURE)
+                    .actorId(ctx.getSenderUserId())
+                    .actorEmail(ctx.getSenderUser().getEmail())
+                    .reason("CANT_EXCHANGE_SAME_BOOK")
+                    .build()
+            );
+
             return ResultFactory.error(MessageKey.BOOK_CANT_EXCHANGE_SAME_BOOK, HttpStatus.BAD_REQUEST);
         }
 
@@ -196,7 +274,11 @@ public class RequestServiceImpl implements RequestService {
                 .flatMap(senderUser -> {
                     ctx.setSenderUser(senderUser);
 
-                    return ResultFactory.fromRepository(userRepository, ctx.getReceiverUserId(), MessageKey.USER_RECEIVER_NOT_FOUND)
+                    return ResultFactory.fromRepository(
+                                userRepository,
+                                ctx.getReceiverUserId(),
+                                MessageKey.USER_RECEIVER_NOT_FOUND
+                            )
                             .map(receiverUser -> {
                                 ctx.setReceiverUser(receiverUser);
 
@@ -217,6 +299,14 @@ public class RequestServiceImpl implements RequestService {
         exchangeRepository.save(exchange);
 
         ctx.setExchange(exchange);
+
+        auditService.log(AuditEvent.builder()
+                .action("CREATE_USER_REQUEST")
+                .result(AuditResult.SUCCESS)
+                .actorId(ctx.getSenderUserId())
+                .actorEmail(ctx.getSenderUser().getEmail())
+                .build()
+        );
 
         return ResultFactory.ok(ctx);
     }

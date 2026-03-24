@@ -1,5 +1,8 @@
 package com.example.bookexchange.authentication;
 
+import com.example.bookexchange.core.audit.AuditEvent;
+import com.example.bookexchange.core.audit.AuditResult;
+import com.example.bookexchange.core.audit.AuditService;
 import com.example.bookexchange.models.UserPrincipal;
 import com.example.bookexchange.services.CustomUserDetailsServiceImpl;
 import com.example.bookexchange.services.JwtService;
@@ -27,6 +30,7 @@ public class JwtFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final CustomUserDetailsServiceImpl customUserDetailsService;
+    private final AuditService auditService;
 
     @Override
     protected void doFilterInternal(
@@ -64,7 +68,16 @@ public class JwtFilter extends OncePerRequestFilter {
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }
-        } catch (JwtException e) {
+        } catch (JwtException ex) {
+            auditService.log(AuditEvent.builder()
+                    .action("JWT_FILTERING")
+                    .result(AuditResult.FAILURE)
+                    .reason("ACCESS_FAILURE")
+                    .detail("authHader", header)
+                    .detail("exception", ex)
+                    .build()
+            );
+
             throw new BadRequestException();
         }
 

@@ -1,5 +1,8 @@
 package com.example.bookexchange.services;
 
+import com.example.bookexchange.core.audit.AuditEvent;
+import com.example.bookexchange.core.audit.AuditResult;
+import com.example.bookexchange.core.audit.AuditService;
 import com.example.bookexchange.core.result.Result;
 import com.example.bookexchange.core.result.ResultFactory;
 import com.example.bookexchange.dto.ExchangeDTO;
@@ -26,6 +29,7 @@ public class OfferServiceImpl implements OfferService {
     private final ExchangeRepository exchangeRepository;
     private final UserRepository userRepository;
     private final ExchangeMapper exchangeMapper;
+    private final AuditService auditService;
 
     @Transactional(readOnly = true)
     @Override
@@ -73,6 +77,18 @@ public class OfferServiceImpl implements OfferService {
                 )
                 .flatMap(exchange -> {
                     if (!exchange.getVersion().equals(version)) {
+                        auditService.log(AuditEvent.builder()
+                                .action("APPROVE_USER_OFFER")
+                                .result(AuditResult.FAILURE)
+                                .actorId(receiverUserId)
+                                .actorEmail(exchange.getReceiverUser().getEmail())
+                                .reason("SYSTEM_OPTIMISTIC_LOCK")
+                                .detail("currentVersion", exchange.getVersion())
+                                .detail("incomingVersion", exchange.getVersion())
+                                .detail("currentExchangeState", exchange.getStatus())
+                                .build()
+                        );
+
                         return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
                     }
 
@@ -110,8 +126,25 @@ public class OfferServiceImpl implements OfferService {
                             exchangeRepository.save(e);
                         });
                     } else {
+                        auditService.log(AuditEvent.builder()
+                                .action("APPROVE_USER_OFFER")
+                                .result(AuditResult.FAILURE)
+                                .actorId(receiverUserId)
+                                .actorEmail(exchange.getReceiverUser().getEmail())
+                                .reason("EXCHANGE_CANT_BE_APPROVED")
+                                .build()
+                        );
+
                         return ResultFactory.error(MessageKey.EXCHANGE_CANT_BE_APPROVED, HttpStatus.BAD_REQUEST);
                     }
+
+                    auditService.log(AuditEvent.builder()
+                            .action("APPROVE_USER_OFFER")
+                            .result(AuditResult.SUCCESS)
+                            .actorId(receiverUserId)
+                            .actorEmail(exchange.getReceiverUser().getEmail())
+                            .build()
+                    );
 
                     return ResultFactory.updated(
                             exchangeMapper.exchangeToExchangeDetailsDto(
@@ -136,6 +169,18 @@ public class OfferServiceImpl implements OfferService {
                 )
                 .flatMap(exchange -> {
                     if (!exchange.getVersion().equals(version)) {
+                        auditService.log(AuditEvent.builder()
+                                .action("DECLINE_USER_OFFER")
+                                .result(AuditResult.FAILURE)
+                                .actorId(receiverUserId)
+                                .actorEmail(exchange.getReceiverUser().getEmail())
+                                .reason("SYSTEM_OPTIMISTIC_LOCK")
+                                .detail("currentVersion", exchange.getVersion())
+                                .detail("incomingVersion", exchange.getVersion())
+                                .detail("currentExchangeState", exchange.getStatus())
+                                .build()
+                        );
+
                         return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
                     }
 
@@ -151,8 +196,25 @@ public class OfferServiceImpl implements OfferService {
 
                                     exchangeRepository.save(exchange);
                                 } else {
+                                    auditService.log(AuditEvent.builder()
+                                            .action("DECLINE_USER_OFFER")
+                                            .result(AuditResult.FAILURE)
+                                            .actorId(receiverUserId)
+                                            .actorEmail(exchange.getReceiverUser().getEmail())
+                                            .reason("EXCHANGE_CANT_BE_DECLINED")
+                                            .build()
+                                    );
+
                                     return ResultFactory.error(MessageKey.EXCHANGE_CANT_BE_DECLINED, HttpStatus.BAD_REQUEST);
                                 }
+
+                                auditService.log(AuditEvent.builder()
+                                        .action("DECLINE_USER_OFFER")
+                                        .result(AuditResult.SUCCESS)
+                                        .actorId(receiverUserId)
+                                        .actorEmail(exchange.getReceiverUser().getEmail())
+                                        .build()
+                                );
 
                                 return ResultFactory.updated(
                                         exchangeMapper.exchangeToExchangeDetailsDto(

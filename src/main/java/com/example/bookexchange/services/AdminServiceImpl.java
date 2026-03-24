@@ -1,5 +1,8 @@
 package com.example.bookexchange.services;
 
+import com.example.bookexchange.core.audit.AuditEvent;
+import com.example.bookexchange.core.audit.AuditResult;
+import com.example.bookexchange.core.audit.AuditService;
 import com.example.bookexchange.core.result.Result;
 import com.example.bookexchange.core.result.ResultFactory;
 import com.example.bookexchange.dto.*;
@@ -17,6 +20,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,10 +43,11 @@ public class AdminServiceImpl implements AdminService {
     private final BookMapper bookMapper;
     private final ReportMapper reportMapper;
     private final AdminMapper adminMapper;
+    private final AuditService auditService;
 
     @Transactional
     @Override
-    public Result<UserAdminDTO> giveAdminRights(Long userId) {
+    public Result<UserAdminDTO> giveAdminRights(UserDetails adminUser, Long userId) {
         return ResultFactory.fromRepository(
                         userRepository,
                         userId,
@@ -51,10 +56,32 @@ public class AdminServiceImpl implements AdminService {
                 .flatMap(user -> {
                     if (!user.getRoles().contains(UserRole.ADMIN)) {
                         user.addRole(UserRole.ADMIN);
+
                         userRepository.save(user);
                     } else {
+                        auditService.log(AuditEvent.builder()
+                                .action("ADMIN_GIVE_ADMIN_RIGHTS")
+                                .result(AuditResult.FAILURE)
+                                .actorEmail(adminUser.getUsername())
+                                .reason("USER_ALREADY_ADMIN")
+                                .detail("actorUserRoles", adminUser.getAuthorities())
+                                .detail("targetUserId", userId)
+                                .detail("targetUserEmail", user.getEmail())
+                                .build()
+                        );
+
                         return ResultFactory.entityExists(MessageKey.ADMIN_USER_ALREADY_ADMIN, user.getEmail());
                     }
+
+                    auditService.log(AuditEvent.builder()
+                            .action("ADMIN_GIVE_ADMIN_RIGHTS")
+                            .result(AuditResult.SUCCESS)
+                            .actorEmail(adminUser.getUsername())
+                            .detail("actorUserRoles", adminUser.getAuthorities())
+                            .detail("targetUserId", userId)
+                            .detail("targetUserEmail", user.getEmail())
+                            .build()
+                    );
 
                     return ResultFactory.updated(
                             adminMapper.userToUserAdminDto(user),
@@ -67,7 +94,7 @@ public class AdminServiceImpl implements AdminService {
 
     @Transactional
     @Override
-    public Result<UserAdminDTO> revokeAdminRights(Long userId) {
+    public Result<UserAdminDTO> revokeAdminRights(UserDetails adminUser, Long userId) {
         return ResultFactory.fromRepository(
                         userRepository,
                         userId,
@@ -76,10 +103,32 @@ public class AdminServiceImpl implements AdminService {
                 .flatMap(user -> {
                     if (user.getRoles().contains(UserRole.ADMIN)) {
                         user.removeRole(UserRole.ADMIN);
+
                         userRepository.save(user);
                     } else {
+                        auditService.log(AuditEvent.builder()
+                                .action("ADMIN_REVOKE_ADMIN_RIGHTS")
+                                .result(AuditResult.FAILURE)
+                                .actorEmail(adminUser.getUsername())
+                                .reason("USER_NOT_ADMIN")
+                                .detail("actorUserRoles", adminUser.getAuthorities())
+                                .detail("targetUserId", userId)
+                                .detail("targetUserEmail", user.getEmail())
+                                .build()
+                        );
+
                         return ResultFactory.error(MessageKey.ADMIN_USER_NOT_ADMIN, HttpStatus.BAD_REQUEST, user.getEmail());
                     }
+
+                    auditService.log(AuditEvent.builder()
+                            .action("ADMIN_REVOKE_ADMIN_RIGHTS")
+                            .result(AuditResult.SUCCESS)
+                            .actorEmail(adminUser.getUsername())
+                            .detail("actorUserRoles", adminUser.getAuthorities())
+                            .detail("targetUserId", userId)
+                            .detail("targetUserEmail", user.getEmail())
+                            .build()
+                    );
 
                     return ResultFactory.updated(
                             adminMapper.userToUserAdminDto(user),
@@ -145,7 +194,7 @@ public class AdminServiceImpl implements AdminService {
 
     @Transactional
     @Override
-    public Result<UserAdminDTO> banUserById(User adminUser, Long userId, BanUserDTO banUserDTO, Long version) {
+    public Result<UserAdminDTO> banUserById(UserDetails adminUser, Long userId, BanUserDTO banUserDTO, Long version) {
         return ResultFactory.fromRepository(
                         userRepository,
                         userId,
@@ -153,10 +202,34 @@ public class AdminServiceImpl implements AdminService {
                 )
                 .flatMap(user -> {
                     if (!user.getVersion().equals(version)) {
+                        auditService.log(AuditEvent.builder()
+                                .action("ADMIN_BAN_USER")
+                                .result(AuditResult.FAILURE)
+                                .actorEmail(adminUser.getUsername())
+                                .reason("SYSTEM_OPTIMISTIC_LOCK")
+                                .detail("actorUserRoles", adminUser.getAuthorities())
+                                .detail("targetUserId", userId)
+                                .detail("targetUserEmail", user.getEmail())
+                                .detail("BanUserDTO", banUserDTO)
+                                .build()
+                        );
+
                         return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
                     }
 
-                    if (adminUser.getId().equals(user.getId())){
+                    if (adminUser.getUsername().equals(user.getEmail())){
+                        auditService.log(AuditEvent.builder()
+                                .action("ADMIN_BAN_USER")
+                                .result(AuditResult.FAILURE)
+                                .actorEmail(adminUser.getUsername())
+                                .reason("ADMIN_CANT_BAN_YOURSELF")
+                                .detail("actorUserRoles", adminUser.getAuthorities())
+                                .detail("targetUserId", userId)
+                                .detail("targetUserEmail", user.getEmail())
+                                .detail("BanUserDTO", banUserDTO)
+                                .build()
+                        );
+
                         return ResultFactory.error(MessageKey.ADMIN_CANT_BAN_YOURSELF, HttpStatus.BAD_REQUEST);
                     }
 
@@ -165,12 +238,35 @@ public class AdminServiceImpl implements AdminService {
                     } else if (banUserDTO.getBannedUntil() != null) {
                         user.setBannedUntil(OffsetDateTime.parse(banUserDTO.getBannedUntil()).toInstant());
                     } else {
+                        auditService.log(AuditEvent.builder()
+                                .action("ADMIN_BAN_USER")
+                                .result(AuditResult.FAILURE)
+                                .actorEmail(adminUser.getUsername())
+                                .reason("ADMIN_REQUEST_NOT_VALID")
+                                .detail("actorUserRoles", adminUser.getAuthorities())
+                                .detail("targetUserId", userId)
+                                .detail("targetUserEmail", user.getEmail())
+                                .detail("BanUserDTO", banUserDTO)
+                                .build()
+                        );
+
                         return ResultFactory.error(MessageKey.ADMIN_REQUEST_NOT_VALID, HttpStatus.BAD_REQUEST);
                     }
 
                     user.setBanReason(banUserDTO.getBanReason());
 
                     refreshTokenRepository.deleteAll(new HashSet<>(user.getRefreshTokens()));
+
+                    auditService.log(AuditEvent.builder()
+                            .action("ADMIN_BAN_USER")
+                            .result(AuditResult.SUCCESS)
+                            .actorEmail(adminUser.getUsername())
+                            .detail("actorUserRoles", adminUser.getAuthorities())
+                            .detail("targetUserId", userId)
+                            .detail("targetUserEmail", user.getEmail())
+                            .detail("BanUserDTO", banUserDTO)
+                            .build()
+                    );
 
                     return ResultFactory.updated(
                             adminMapper.userToUserAdminDto(user),
@@ -183,7 +279,7 @@ public class AdminServiceImpl implements AdminService {
 
     @Transactional
     @Override
-    public Result<UserAdminDTO> unbanUserById(Long userId, Long version) {
+    public Result<UserAdminDTO> unbanUserById(UserDetails adminUser, Long userId, Long version) {
         return ResultFactory.fromRepository(
                         userRepository,
                         userId,
@@ -191,6 +287,17 @@ public class AdminServiceImpl implements AdminService {
                 )
                 .flatMap(user -> {
                     if (!user.getVersion().equals(version)) {
+                        auditService.log(AuditEvent.builder()
+                                .action("ADMIN_UNBAN_USER")
+                                .result(AuditResult.FAILURE)
+                                .actorEmail(adminUser.getUsername())
+                                .reason("SYSTEM_OPTIMISTIC_LOCK")
+                                .detail("actorUserRoles", adminUser.getAuthorities())
+                                .detail("targetUserId", userId)
+                                .detail("targetUserEmail", user.getEmail())
+                                .build()
+                        );
+
                         return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
                     }
 
@@ -199,6 +306,16 @@ public class AdminServiceImpl implements AdminService {
                     user.setBanReason(null);
 
                     userRepository.save(user);
+
+                    auditService.log(AuditEvent.builder()
+                            .action("ADMIN_UNBAN_USER")
+                            .result(AuditResult.SUCCESS)
+                            .actorEmail(adminUser.getUsername())
+                            .detail("actorUserRoles", adminUser.getAuthorities())
+                            .detail("targetUserId", userId)
+                            .detail("targetUserEmail", user.getEmail())
+                            .build()
+                    );
 
                     return ResultFactory.updated(
                             adminMapper.userToUserAdminDto(user),
@@ -211,7 +328,7 @@ public class AdminServiceImpl implements AdminService {
 
     @Transactional
     @Override
-    public Result<BookAdminDTO> deleteBookById(Long bookId, Long version) {
+    public Result<BookAdminDTO> deleteBookById(UserDetails adminUser, Long bookId, Long version) {
         return ResultFactory.fromRepository(
                         bookRepository,
                         bookId,
@@ -219,10 +336,31 @@ public class AdminServiceImpl implements AdminService {
                 )
                 .flatMap(book -> {
                     if (!book.getVersion().equals(version)) {
+                        auditService.log(AuditEvent.builder()
+                                .action("ADMIN_BOOK_DELETE")
+                                .result(AuditResult.FAILURE)
+                                .actorEmail(adminUser.getUsername())
+                                .reason("SYSTEM_OPTIMISTIC_LOCK")
+                                .detail("actorUserRoles", adminUser.getAuthorities())
+                                .detail("bookId", bookId)
+                                .detail("bookName", book.getName())
+                                .build()
+                        );
+
                         return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
                     }
 
                     book.setDeletedAt(Instant.now());
+
+                    auditService.log(AuditEvent.builder()
+                            .action("ADMIN_BOOK_DELETE")
+                            .result(AuditResult.SUCCESS)
+                            .actorEmail(adminUser.getUsername())
+                            .detail("actorUserRoles", adminUser.getAuthorities())
+                            .detail("bookId", bookId)
+                            .detail("bookName", book.getName())
+                            .build()
+                    );
 
                     return ResultFactory.updated(
                             adminMapper.bookToBookAdminDto(book),
@@ -235,7 +373,7 @@ public class AdminServiceImpl implements AdminService {
 
     @Transactional
     @Override
-    public Result<BookAdminDTO> updateBookById(Long bookId, BookUpdateDTO dto, Long version) {
+    public Result<BookAdminDTO> updateBookById(UserDetails adminUser, Long bookId, BookUpdateDTO dto, Long version) {
         return ResultFactory.fromRepository(
                         bookRepository,
                         bookId,
@@ -243,11 +381,32 @@ public class AdminServiceImpl implements AdminService {
                 )
                 .flatMap(book -> {
                     if (!book.getVersion().equals(version)) {
+                        auditService.log(AuditEvent.builder()
+                                .action("ADMIN_BOOK_UPDATE")
+                                .result(AuditResult.FAILURE)
+                                .actorEmail(adminUser.getUsername())
+                                .reason("SYSTEM_OPTIMISTIC_LOCK")
+                                .detail("actorUserRoles", adminUser.getAuthorities())
+                                .detail("bookId", bookId)
+                                .detail("bookName", book.getName())
+                                .build()
+                        );
+
                         return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
                     }
 
                     bookMapper.updateBookDtoToBook(dto, book);
                     bookRepository.save(book);
+
+                    auditService.log(AuditEvent.builder()
+                            .action("ADMIN_BOOK_UPDATE")
+                            .result(AuditResult.SUCCESS)
+                            .actorEmail(adminUser.getUsername())
+                            .detail("actorUserRoles", adminUser.getAuthorities())
+                            .detail("bookId", bookId)
+                            .detail("bookName", book.getName())
+                            .build()
+                    );
 
                     return ResultFactory.updated(
                             adminMapper.bookToBookAdminDto(book),
@@ -260,41 +419,64 @@ public class AdminServiceImpl implements AdminService {
 
     @Transactional(readOnly = true)
     @Override
-    public Result<BookAdminDTO> findBookById(Long bookId) {
+    public Result<BookAdminDTO> findBookById(UserDetails adminUser, Long bookId) {
         return ResultFactory.fromRepository(
                         bookRepository,
                         bookId,
                         MessageKey.ADMIN_BOOK_NOT_FOUND
                 )
-                .map(book ->
-                        ResultFactory.okETag(
-                                adminMapper.bookToBookAdminDto(book),
-                                ETagUtil.form(book)
-                        )
+                .map(book -> {
+                            auditService.log(AuditEvent.builder()
+                                    .action("ADMIN_BOOK_FIND")
+                                    .result(AuditResult.SUCCESS)
+                                    .actorEmail(adminUser.getUsername())
+                                    .detail("actorUserRoles", adminUser.getAuthorities())
+                                    .detail("bookId", bookId)
+                                    .detail("bookName", book.getName())
+                                    .build()
+                            );
+
+                            return ResultFactory.okETag(
+                                    adminMapper.bookToBookAdminDto(book),
+                                    ETagUtil.form(book)
+                            );
+                        }
+
                 )
                 .flatMap(r -> r);
     }
 
     @Transactional(readOnly = true)
     @Override
-    public Result<UserAdminDTO> findUserById(Long userId) {
+    public Result<UserAdminDTO> findUserById(UserDetails adminUser, Long userId) {
         return ResultFactory.fromRepository(
                         userRepository,
                         userId,
                         MessageKey.ADMIN_USER_NOT_FOUND
                 )
-                .map(user ->
-                        ResultFactory.okETag(
-                                adminMapper.userToUserAdminDto(user),
-                                ETagUtil.form(user)
-                        )
+                .map(user -> {
+                            auditService.log(AuditEvent.builder()
+                                    .action("ADMIN_USER_FIND")
+                                    .result(AuditResult.SUCCESS)
+                                    .actorEmail(adminUser.getUsername())
+                                    .detail("actorUserRoles", adminUser.getAuthorities())
+                                    .detail("userId", userId)
+                                    .detail("userEmail", user.getEmail())
+                                    .build()
+                            );
+
+                            return ResultFactory.okETag(
+                                    adminMapper.userToUserAdminDto(user),
+                                    ETagUtil.form(user)
+                            );
+                }
                 )
                 .flatMap(r -> r);
     }
 
     @Transactional
     @Override
-    public Result<ReportAdminDTO> resolveReport(Long reportId, Long version) {
+    public Result<ReportAdminDTO> resolveReport(UserDetails adminUser, Long reportId, Long version) {
         return ResultFactory.fromRepository(
                         reportRepository,
                         reportId,
@@ -302,12 +484,31 @@ public class AdminServiceImpl implements AdminService {
                 )
                 .flatMap(report -> {
                     if (!report.getVersion().equals(version)) {
+                        auditService.log(AuditEvent.builder()
+                                .action("ADMIN_REPORT_RESOLVE")
+                                .result(AuditResult.FAILURE)
+                                .actorEmail(adminUser.getUsername())
+                                .reason("SYSTEM_OPTIMISTIC_LOCK")
+                                .detail("actorUserRoles", adminUser.getAuthorities())
+                                .detail("reportId", reportId)
+                                .build()
+                        );
+
                         return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
                     }
 
                     report.setStatus(ReportStatus.RESOLVED);
 
                     reportRepository.save(report);
+
+                    auditService.log(AuditEvent.builder()
+                            .action("ADMIN_REPORT_RESOLVE")
+                            .result(AuditResult.SUCCESS)
+                            .actorEmail(adminUser.getUsername())
+                            .detail("actorUserRoles", adminUser.getAuthorities())
+                            .detail("reportId", reportId)
+                            .build()
+                    );
 
                     return ResultFactory.updated(
                             adminMapper.reportToReportAdminDto(report),
@@ -319,7 +520,7 @@ public class AdminServiceImpl implements AdminService {
 
     @Transactional
     @Override
-    public Result<ReportAdminDTO> rejectReport(Long reportId, Long version) {
+    public Result<ReportAdminDTO> rejectReport(UserDetails adminUser, Long reportId, Long version) {
         return ResultFactory.fromRepository(
                         reportRepository,
                         reportId,
@@ -327,12 +528,31 @@ public class AdminServiceImpl implements AdminService {
                 )
                 .flatMap(report -> {
                     if (!report.getVersion().equals(version)) {
+                        auditService.log(AuditEvent.builder()
+                                .action("ADMIN_REPORT_REJECT")
+                                .result(AuditResult.FAILURE)
+                                .actorEmail(adminUser.getUsername())
+                                .reason("SYSTEM_OPTIMISTIC_LOCK")
+                                .detail("actorUserRoles", adminUser.getAuthorities())
+                                .detail("reportId", reportId)
+                                .build()
+                        );
+
                         return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
                     }
 
                     report.setStatus(ReportStatus.REJECTED);
 
                     reportRepository.save(report);
+
+                    auditService.log(AuditEvent.builder()
+                            .action("ADMIN_REPORT_REJECT")
+                            .result(AuditResult.SUCCESS)
+                            .actorEmail(adminUser.getUsername())
+                            .detail("actorUserRoles", adminUser.getAuthorities())
+                            .detail("reportId", reportId)
+                            .build()
+                    );
 
                     return ResultFactory.updated(
                             adminMapper.reportToReportAdminDto(report),
@@ -366,7 +586,7 @@ public class AdminServiceImpl implements AdminService {
 
     @Transactional
     @Override
-    public Result<BookAdminDTO> restoreBookById(Long bookId, Long version) {
+    public Result<BookAdminDTO> restoreBookById(UserDetails adminUser, Long bookId, Long version) {
         return ResultFactory.fromRepository(
                         bookRepository,
                         bookId,
@@ -374,10 +594,31 @@ public class AdminServiceImpl implements AdminService {
                 )
                 .flatMap(book -> {
                     if (!book.getVersion().equals(version)) {
+                        auditService.log(AuditEvent.builder()
+                                .action("ADMIN_BOOK_RESTORE")
+                                .result(AuditResult.FAILURE)
+                                .actorEmail(adminUser.getUsername())
+                                .reason("SYSTEM_OPTIMISTIC_LOCK")
+                                .detail("actorUserRoles", adminUser.getAuthorities())
+                                .detail("bookId", bookId)
+                                .detail("bookName", book.getName())
+                                .build()
+                        );
+
                         return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
                     }
 
                     book.setDeletedAt(null);
+
+                    auditService.log(AuditEvent.builder()
+                            .action("ADMIN_BOOK_RESTORE")
+                            .result(AuditResult.SUCCESS)
+                            .actorEmail(adminUser.getUsername())
+                            .detail("actorUserRoles", adminUser.getAuthorities())
+                            .detail("bookId", bookId)
+                            .detail("bookName", book.getName())
+                            .build()
+                    );
 
                     return ResultFactory.updated(
                             adminMapper.bookToBookAdminDto(book),
@@ -406,40 +647,60 @@ public class AdminServiceImpl implements AdminService {
     }
 
     @Override
-    public Result<ExchangeAdminDTO> findExchangeById(Long exchangeId) {
+    public Result<ExchangeAdminDTO> findExchangeById(UserDetails adminUser, Long exchangeId) {
         return ResultFactory.fromRepository(
                 exchangeRepository,
                 exchangeId,
                 MessageKey.ADMIN_EXCHANGE_NOT_FOUND
         )
-                .map(exchange ->
-                        ResultFactory.okETag(
-                                adminMapper.exchangeToExchangeAdminDto(exchange),
-                                ETagUtil.form(exchange)
-                        )
+                .map(exchange -> {
+                            auditService.log(AuditEvent.builder()
+                                    .action("ADMIN_EXCHANGE_FIND")
+                                    .result(AuditResult.SUCCESS)
+                                    .actorEmail(adminUser.getUsername())
+                                    .detail("actorUserRoles", adminUser.getAuthorities())
+                                    .detail("exchangeId", exchangeId)
+                                    .build()
+                            );
+
+                            return ResultFactory.okETag(
+                                    adminMapper.exchangeToExchangeAdminDto(exchange),
+                                    ETagUtil.form(exchange)
+                            );
+                        }
                 )
                 .flatMap(r -> r);
     }
 
     @Override
-    public Result<ReportAdminDTO> findReportById(Long reportId) {
+    public Result<ReportAdminDTO> findReportById(UserDetails adminUser, Long reportId) {
         return ResultFactory.fromRepository(
                         reportRepository,
                         reportId,
                         MessageKey.ADMIN_REPORT_NOT_FOUND
                 )
-                .map(report ->
-                        ResultFactory.okETag(
-                                adminMapper.reportToReportAdminDto(report),
-                                ETagUtil.form(report)
-                        )
+                .map(report -> {
+                            auditService.log(AuditEvent.builder()
+                                    .action("ADMIN_REPORT_FIND")
+                                    .result(AuditResult.SUCCESS)
+                                    .actorEmail(adminUser.getUsername())
+                                    .detail("actorUserRoles", adminUser.getAuthorities())
+                                    .detail("reportId", reportId)
+                                    .build()
+                            );
+
+                            return ResultFactory.okETag(
+                                    adminMapper.reportToReportAdminDto(report),
+                                    ETagUtil.form(report)
+                            );
+                        }
                 )
                 .flatMap(r -> r);
     }
 
     @Transactional
     @Override
-    public Result<UserAdminDTO> deleteUser(Long userId, Long version) {
+    public Result<UserAdminDTO> deleteUser(UserDetails adminUser, Long userId, Long version) {
         return ResultFactory.fromRepository(
                         userRepository,
                         userId,
@@ -447,6 +708,17 @@ public class AdminServiceImpl implements AdminService {
                 )
                 .flatMap(user -> {
                     if (!user.getVersion().equals(version)) {
+                        auditService.log(AuditEvent.builder()
+                                .action("ADMIN_USER_DELETE")
+                                .result(AuditResult.FAILURE)
+                                .actorEmail(adminUser.getUsername())
+                                .reason("SYSTEM_OPTIMISTIC_LOCK")
+                                .detail("actorUserRoles", adminUser.getAuthorities())
+                                .detail("userId", userId)
+                                .detail("userEmail", user.getEmail())
+                                .build()
+                        );
+
                         return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
                     }
 
@@ -466,6 +738,16 @@ public class AdminServiceImpl implements AdminService {
 
                     refreshTokenRepository.deleteAll(new HashSet<>(user.getRefreshTokens()));
                     verificationTokenRepository.deleteAll(new HashSet<>(user.getVerificationToken()));
+
+                    auditService.log(AuditEvent.builder()
+                            .action("ADMIN_USER_DELETE")
+                            .result(AuditResult.SUCCESS)
+                            .actorEmail(adminUser.getUsername())
+                            .detail("actorUserRoles", adminUser.getAuthorities())
+                            .detail("userId", userId)
+                            .detail("userEmail", user.getEmail())
+                            .build()
+                    );
 
                     return ResultFactory.updated(
                             adminMapper.userToUserAdminDto(user),
