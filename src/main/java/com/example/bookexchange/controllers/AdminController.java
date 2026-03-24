@@ -20,6 +20,7 @@ import lombok.AllArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -101,12 +102,14 @@ public class AdminController {
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     @PatchMapping(ADMIN_PATH_USERS_ID_GIVE_ADMIN_RIGHTS)
     public ResponseEntity<?> superAdminGiveAdminRights(
+            @AuthenticationPrincipal UserDetails adminUser,
+
             @Parameter(description = "User ID", example = "1")
             @PathVariable Long userId,
 
             HttpServletRequest request
     ) {
-        return responseMapper.map(adminService.giveAdminRights(userId), request);
+        return responseMapper.map(adminService.giveAdminRights(adminUser, userId), request);
     }
 
     @UnauthorizedErrorResponse
@@ -157,8 +160,15 @@ public class AdminController {
     )
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     @PatchMapping(ADMIN_PATH_USERS_ID_REVOKE_ADMIN_RIGHTS)
-    public ResponseEntity<?> superAdminRevokeAdminRights(@PathVariable Long userId, HttpServletRequest request) {
-        return responseMapper.map(adminService.revokeAdminRights(userId), request);
+    public ResponseEntity<?> superAdminRevokeAdminRights(
+            @AuthenticationPrincipal UserDetails adminUser,
+
+            @Parameter(description = "User ID", example = "1")
+            @PathVariable Long userId,
+
+            HttpServletRequest request
+    ) {
+        return responseMapper.map(adminService.revokeAdminRights(adminUser, userId), request);
     }
 
     @UnauthorizedErrorResponse
@@ -229,12 +239,14 @@ public class AdminController {
     )
     @GetMapping(ADMIN_PATH_USERS_ID)
     public ResponseEntity<?> adminGetUserById(
+            @AuthenticationPrincipal UserDetails adminUser,
+
             @Parameter(description = "User ID", example = "1")
             @PathVariable Long userId,
 
             HttpServletRequest request
     ) {
-        return responseMapper.map(adminService.findUserById(userId), request);
+        return responseMapper.map(adminService.findUserById(adminUser, userId), request);
     }
 
     @UnauthorizedErrorResponse
@@ -286,7 +298,7 @@ public class AdminController {
     )
     @PatchMapping(ADMIN_PATH_USERS_ID_BAN)
     public ResponseEntity<?> adminBanUser(
-            @AuthenticationPrincipal User adminUser,
+            @AuthenticationPrincipal UserDetails adminUser,
 
             @Parameter(description = "User ID", example = "1")
             @PathVariable Long userId,
@@ -364,6 +376,8 @@ public class AdminController {
     )
     @PatchMapping(ADMIN_PATH_USERS_ID_UNBAN)
     public ResponseEntity<?> adminUnbanUser(
+            @AuthenticationPrincipal UserDetails adminUser,
+
             @Parameter(description = "User ID", example = "1")
             @PathVariable Long userId,
 
@@ -379,6 +393,7 @@ public class AdminController {
     ) {
         return responseMapper.map(
                 adminService.unbanUserById(
+                        adminUser,
                         userId,
                         parserUtil.ifMatchParser(ifMatch)
                 ),
@@ -434,6 +449,8 @@ public class AdminController {
     )
     @DeleteMapping(ADMIN_PATH_USERS_ID)
     public ResponseEntity<?> adminDeleteUserById(
+            @AuthenticationPrincipal UserDetails adminUser,
+
             @Parameter(description = "User ID", example = "1")
             @PathVariable Long userId,
 
@@ -449,6 +466,7 @@ public class AdminController {
     ) {
         return responseMapper.map(
                 adminService.deleteUser(
+                        adminUser,
                         userId,
                         parserUtil.ifMatchParser(ifMatch)
                 ),
@@ -513,12 +531,14 @@ public class AdminController {
     )
     @GetMapping(ADMIN_PATH_BOOKS_ID)
     public ResponseEntity<?> adminGetBookById(
+            @AuthenticationPrincipal UserDetails adminUser,
+
             @Parameter(description = "Book ID", example = "1")
             @PathVariable Long bookId,
 
             HttpServletRequest request
     ) {
-        return responseMapper.map(adminService.findBookById(bookId), request);
+        return responseMapper.map(adminService.findBookById(adminUser, bookId), request);
     }
 
     @UnauthorizedErrorResponse
@@ -566,6 +586,8 @@ public class AdminController {
     )
     @PatchMapping(ADMIN_PATH_BOOKS_ID)
     public ResponseEntity<?> adminUpdateBookById(
+            @AuthenticationPrincipal UserDetails adminUser,
+
             @Parameter(description = "Book ID", example = "1")
             @PathVariable Long bookId,
 
@@ -584,6 +606,7 @@ public class AdminController {
     ) {
         return responseMapper.map(
                 adminService.updateBookById(
+                        adminUser,
                         bookId,
                         dto,
                         parserUtil.ifMatchParser(ifMatch)
@@ -641,6 +664,8 @@ public class AdminController {
     )
     @DeleteMapping(ADMIN_PATH_BOOKS_ID)
     public ResponseEntity<?> adminDeleteBookById(
+            @AuthenticationPrincipal UserDetails adminUser,
+
             @Parameter(description = "Book ID", example = "1")
             @PathVariable Long bookId,
 
@@ -656,6 +681,7 @@ public class AdminController {
     ) {
         return responseMapper.map(
                 adminService.deleteBookById(
+                        adminUser,
                         bookId,
                         parserUtil.ifMatchParser(ifMatch)
                 ),
@@ -708,6 +734,8 @@ public class AdminController {
     )
     @PatchMapping(ADMIN_PATH_BOOKS_ID_RESTORE)
     public ResponseEntity<?> adminRestoreBookById(
+            @AuthenticationPrincipal UserDetails adminUser,
+
             @Parameter(description = "Book ID", example = "1")
             @PathVariable Long bookId,
 
@@ -723,6 +751,7 @@ public class AdminController {
     ) {
         return responseMapper.map(
                 adminService.restoreBookById(
+                        adminUser,
                         bookId,
                         parserUtil.ifMatchParser(ifMatch)
                 ),
@@ -783,12 +812,14 @@ public class AdminController {
     )
     @GetMapping(ADMIN_PATH_EXCHANGES_ID)
     public ResponseEntity<?> adminGetExchangeById(
+            @AuthenticationPrincipal UserDetails adminUser,
+
             @Parameter(description = "Exchange ID", example = "1")
             @PathVariable Long exchangeId,
 
             HttpServletRequest request
     ) {
-        return responseMapper.map(adminService.findExchangeById(exchangeId), request);
+        return responseMapper.map(adminService.findExchangeById(adminUser, exchangeId), request);
     }
 
     @UnauthorizedErrorResponse
@@ -848,12 +879,14 @@ public class AdminController {
     )
     @GetMapping(ADMIN_PATH_REPORTS_ID)
     public ResponseEntity<?> adminGetReportById(
+            @AuthenticationPrincipal UserDetails adminUser,
+
             @Parameter(description = "Report ID", example = "1")
             @PathVariable Long reportId,
 
             HttpServletRequest request
     ) {
-        return responseMapper.map(adminService.findReportById(reportId), request);
+        return responseMapper.map(adminService.findReportById(adminUser, reportId), request);
     }
 
     @UnauthorizedErrorResponse
@@ -912,6 +945,8 @@ public class AdminController {
     )
     @PatchMapping(ADMIN_PATH_REPORTS_ID_RESOLVE)
     public ResponseEntity<?> adminReportResolve(
+            @AuthenticationPrincipal UserDetails adminUser,
+
             @Parameter(description = "Report ID", example = "1")
             @PathVariable Long reportId,
 
@@ -927,6 +962,7 @@ public class AdminController {
     ) {
         return responseMapper.map(
                 adminService.resolveReport(
+                        adminUser,
                         reportId,
                         parserUtil.ifMatchParser(ifMatch)
                 ),
@@ -990,6 +1026,8 @@ public class AdminController {
     )
     @PatchMapping(ADMIN_PATH_REPORTS_ID_REJECT)
     public ResponseEntity<?> adminReportReject(
+            @AuthenticationPrincipal UserDetails adminUser,
+
             @Parameter(description = "Report ID", example = "1")
             @PathVariable Long reportId,
 
@@ -1005,6 +1043,7 @@ public class AdminController {
     ) {
         return responseMapper.map(
                 adminService.rejectReport(
+                        adminUser,
                         reportId,
                         parserUtil.ifMatchParser(ifMatch)
                 ),

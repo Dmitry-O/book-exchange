@@ -1,5 +1,8 @@
 package com.example.bookexchange.core.web;
 
+import com.example.bookexchange.core.audit.AuditEvent;
+import com.example.bookexchange.core.audit.AuditResult;
+import com.example.bookexchange.core.audit.AuditService;
 import com.example.bookexchange.core.result.*;
 import com.example.bookexchange.models.MessageKey;
 import com.example.bookexchange.services.MessageService;
@@ -24,6 +27,7 @@ public class ResultResponseMapper {
 
     private final MessageService messageService;
     private final Helper helper;
+    private final AuditService auditService;
 
     public ResponseEntity<?> map(Result<?> result, HttpServletRequest request) {
         if (result instanceof Success<?> success) {
@@ -56,6 +60,13 @@ public class ResultResponseMapper {
             );
         }
 
+        auditService.log(AuditEvent.builder()
+                .action("RESPONSE_ENTITY_MAPPING")
+                .result(AuditResult.ERROR)
+                .reason("WRONG_RESULT_TYPE_PROVIDED")
+                .build()
+        );
+
         return helper.formatErrorResponse(
                 HttpStatus.INTERNAL_SERVER_ERROR,
                 messageService.getMessage(MessageKey.SYSTEM_UNEXPECTED_ERROR),
@@ -65,7 +76,15 @@ public class ResultResponseMapper {
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<?> handleUnknown(HttpServletRequest request) {
+    public ResponseEntity<?> handleUnknown(HttpServletRequest request, Exception ex) {
+        auditService.log(AuditEvent.builder()
+                .action("UNKNOWN_EXCEPTION_HANDLING")
+                .result(AuditResult.ERROR)
+                .reason("SYSTEM_UNEXPECTED_ERROR")
+                .detail("exception", ex)
+                .build()
+        );
+
         return helper.formatErrorResponse(
                 HttpStatus.INTERNAL_SERVER_ERROR,
                 messageService.getMessage(MessageKey.SYSTEM_UNEXPECTED_ERROR),
@@ -101,6 +120,14 @@ public class ResultResponseMapper {
 
     @ExceptionHandler
     ResponseEntity<?> handleJPAViolations(TransactionSystemException ex, HttpServletRequest request) {
+        auditService.log(AuditEvent.builder()
+                .action("JPA_VIOLATIONS_HANDLING")
+                .result(AuditResult.ERROR)
+                .reason("SYSTEM_UNEXPECTED_DB_ERROR")
+                .detail("exception", ex)
+                .build()
+        );
+
         String message = messageService.getMessage(MessageKey.SYSTEM_UNEXPECTED_DB_ERROR);
 
         if (ex.getCause().getCause() instanceof ConstraintViolationException constraintViolationException) {
@@ -120,8 +147,17 @@ public class ResultResponseMapper {
 
     @ExceptionHandler(OptimisticLockException.class)
     public ResponseEntity<?> handleOptimisticLock(
-            HttpServletRequest request
+            HttpServletRequest request,
+            Exception ex
     ) {
+        auditService.log(AuditEvent.builder()
+                .action("OPTIMISTIC_LOCK_HANDLING")
+                .result(AuditResult.FAILURE)
+                .reason("SYSTEM_OPTIMISTIC_LOCK")
+                .detail("exception", ex)
+                .build()
+        );
+
         String message = messageService.getMessage(MessageKey.SYSTEM_OPTIMISTIC_LOCK);
 
         return helper.formatErrorResponse(

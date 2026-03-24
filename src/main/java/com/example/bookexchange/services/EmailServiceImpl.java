@@ -1,6 +1,9 @@
 package com.example.bookexchange.services;
 
 import com.example.bookexchange.config.AppProperties;
+import com.example.bookexchange.core.audit.AuditEvent;
+import com.example.bookexchange.core.audit.AuditResult;
+import com.example.bookexchange.core.audit.AuditService;
 import com.example.bookexchange.core.result.Result;
 import com.example.bookexchange.core.result.ResultFactory;
 import com.example.bookexchange.models.EmailType;
@@ -28,6 +31,9 @@ public class EmailServiceImpl implements EmailService {
     @Autowired
     private UrlBuilder urlBuilder;
 
+    @Autowired
+    private final AuditService auditService;
+
     public void sendEmail(String emailTo, String subject, String htmlTemplate) {
         MimeMessage message = mailSender.createMimeMessage();
 
@@ -40,6 +46,14 @@ public class EmailServiceImpl implements EmailService {
             helper.setFrom(appProperties.getEmailSentFrom());
 
             mailSender.send(message);
+
+            auditService.log(AuditEvent.builder()
+                    .action("EMAIL_SENDING")
+                    .result(AuditResult.SUCCESS)
+                    .actorEmail(emailTo)
+                    .detail("subject", subject)
+                    .build()
+            );
         } catch (MessagingException e) {
             throw new RuntimeException(e);
         }
@@ -65,6 +79,14 @@ public class EmailServiceImpl implements EmailService {
                 templateVariableName = "deleteAccountUrl";
             }
             default -> {
+                auditService.log(AuditEvent.builder()
+                        .action("EMAIL_SENDING")
+                        .result(AuditResult.FAILURE)
+                        .actorEmail(emailTo)
+                        .reason("SYSTEM_WRONG_EMAIL_TYPE")
+                        .build()
+                );
+
                 return ResultFactory.error(MessageKey.SYSTEM_WRONG_EMAIL_TYPE, HttpStatus.BAD_REQUEST);
             }
         }
@@ -82,6 +104,15 @@ public class EmailServiceImpl implements EmailService {
 
             return ResultFactory.successVoid();
         } catch (Exception ex) {
+            auditService.log(AuditEvent.builder()
+                    .action("EMAIL_SENDING")
+                    .result(AuditResult.ERROR)
+                    .reason("SYSTEM_UNEXPECTED_ERROR")
+                    .detail("emailTo", emailTo)
+                    .detail("exception", ex.getMessage())
+                    .build()
+            );
+
             return ResultFactory.error(MessageKey.SYSTEM_UNEXPECTED_ERROR, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }

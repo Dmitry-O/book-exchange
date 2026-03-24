@@ -1,5 +1,8 @@
 package com.example.bookexchange.authentication;
 
+import com.example.bookexchange.core.audit.AuditEvent;
+import com.example.bookexchange.core.audit.AuditResult;
+import com.example.bookexchange.core.audit.AuditService;
 import com.example.bookexchange.models.MessageKey;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -18,6 +21,7 @@ import java.io.IOException;
 public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
 
     private final ErrorResponseWriter errorResponseWriter;
+    private final AuditService auditService;
 
     @Override public void commence(
             @NonNull HttpServletRequest request,
@@ -25,6 +29,14 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
             @NonNull AuthenticationException ex
     ) throws IOException {
         if (ex instanceof InsufficientAuthenticationException) {
+            auditService.log(AuditEvent.builder()
+                    .action("JWT_FILTERING")
+                    .result(AuditResult.FAILURE)
+                    .reason("SYSTEM_INVALID_TOKEN")
+                    .detail("exception", ex)
+                    .build()
+            );
+
             errorResponseWriter.writeError(
                     request,
                     response,

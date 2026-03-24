@@ -1,5 +1,8 @@
 package com.example.bookexchange.services;
 
+import com.example.bookexchange.core.audit.AuditEvent;
+import com.example.bookexchange.core.audit.AuditResult;
+import com.example.bookexchange.core.audit.AuditService;
 import com.example.bookexchange.core.result.Result;
 import com.example.bookexchange.core.result.ResultFactory;
 import com.example.bookexchange.dto.ReportCreateDTO;
@@ -17,6 +20,7 @@ public class ReportServiceImpl implements ReportService {
 
     private final ReportRepository reportRepository;
     private final UserRepository userRepository;
+    private final AuditService auditService;
 
     @Transactional
     @Override
@@ -38,6 +42,16 @@ public class ReportServiceImpl implements ReportService {
                     );
 
                     reportRepository.save(report);
+
+                    auditService.log(AuditEvent.builder()
+                            .action("REPORT_CREATE")
+                            .result(AuditResult.SUCCESS)
+                            .actorId(reporterId)
+                            .actorEmail(reporter.getEmail())
+                            .detail("targetId", targetId)
+                            .detail("reportCreateDTO", reportCreateDTO)
+                            .build()
+                    );
 
                     return ResultFactory.okMessage(MessageKey.REPORT_SENT);
                 });

@@ -1,5 +1,8 @@
 package com.example.bookexchange.services;
 
+import com.example.bookexchange.core.audit.AuditEvent;
+import com.example.bookexchange.core.audit.AuditResult;
+import com.example.bookexchange.core.audit.AuditService;
 import com.example.bookexchange.core.result.Result;
 import com.example.bookexchange.core.result.ResultFactory;
 import com.example.bookexchange.dto.*;
@@ -32,6 +35,7 @@ public class UserServiceImpl implements UserService {
     private PasswordEncoder passwordEncoder;
     private JwtService jwtService;
     private EmailService emailService;
+    private AuditService auditService;
 
     @Transactional(readOnly = true)
     @Override
@@ -72,15 +76,25 @@ public class UserServiceImpl implements UserService {
         user.addRole(UserRole.USER);
         User savedUser = userRepository.save(user);
 
+        auditService.log(AuditEvent.builder()
+                .action("CREATE_USER")
+                .result(AuditResult.SUCCESS)
+                .actorId(savedUser.getId())
+                .actorEmail(savedUser.getEmail())
+                .build()
+        );
+
         return createVerificationToken(savedUser, TokenType.CONFIRM_EMAIL)
-                .flatMap(token ->
-                        emailService.buildAndSendEmail(
-                                savedUser.getEmail(),
-                                token,
-                                EmailType.CONFIRM_EMAIL
-                        )
-                )
-                .flatMap(v -> ResultFactory.okMessage(MessageKey.AUTH_ACCOUNT_REGISTERED));
+                .flatMap(token -> {
+                            emailService.buildAndSendEmail(
+                                    savedUser.getEmail(),
+                                    token,
+                                    EmailType.CONFIRM_EMAIL
+                            );
+
+                            return ResultFactory.okMessage(MessageKey.AUTH_ACCOUNT_REGISTERED);
+                        }
+                );
     }
 
     @Transactional
@@ -93,6 +107,15 @@ public class UserServiceImpl implements UserService {
                 )
                 .flatMap(user -> {
                     if (!user.getVersion().equals(version)) {
+                        auditService.log(AuditEvent.builder()
+                                .action("USER_UPDATE")
+                                .result(AuditResult.FAILURE)
+                                .actorId(user.getId())
+                                .actorEmail(user.getEmail())
+                                .reason("SYSTEM_OPTIMISTIC_LOCK")
+                                .build()
+                        );
+
                         return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
                     }
 
@@ -102,6 +125,14 @@ public class UserServiceImpl implements UserService {
 
                     userMapper.updateUserDtoToUser(dto, user);
                     userRepository.save(user);
+
+                    auditService.log(AuditEvent.builder()
+                            .action("USER_UPDATE")
+                            .result(AuditResult.SUCCESS)
+                            .actorId(user.getId())
+                            .actorEmail(user.getEmail())
+                            .build()
+                    );
 
                     return ResultFactory.updated(
                             userMapper.userToUserDto(user),
@@ -121,8 +152,19 @@ public class UserServiceImpl implements UserService {
                 )
                 .flatMap(user -> {
                     if (!user.getVersion().equals(version)) {
+                        auditService.log(AuditEvent.builder()
+                                .action("USER_DELETE")
+                                .result(AuditResult.FAILURE)
+                                .actorId(user.getId())
+                                .actorEmail(user.getEmail())
+                                .reason("SYSTEM_OPTIMISTIC_LOCK")
+                                .build()
+                        );
+
                         return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
                     }
+
+                    String oldUserEmail = user.getEmail();
 
                     user.setEmail("anonymized@anonymized.anonymized");
                     user.setNickname("anonymized");
@@ -139,6 +181,14 @@ public class UserServiceImpl implements UserService {
                     refreshTokenRepository.deleteAll(new HashSet<>(user.getRefreshTokens()));
                     verificationTokenRepository.deleteAll(new HashSet<>(user.getVerificationToken()));
 
+                    auditService.log(AuditEvent.builder()
+                            .action("USER_DELETE")
+                            .result(AuditResult.SUCCESS)
+                            .actorId(userId)
+                            .actorEmail(oldUserEmail)
+                            .build()
+                    );
+
                     return ResultFactory.okMessage(MessageKey.USER_ACCOUNT_DELETED);
                 });
     }
@@ -152,6 +202,15 @@ public class UserServiceImpl implements UserService {
                 )
                 .flatMap(user -> {
                     if (!passwordEncoder.matches(requestDTO.getPassword(), user.getPassword())) {
+                        auditService.log(AuditEvent.builder()
+                                .action("AUTH_LOGIN")
+                                .result(AuditResult.FAILURE)
+                                .actorId(user.getId())
+                                .actorEmail(user.getEmail())
+                                .reason("AUTH_WRONG_PASSWORD")
+                                .build()
+                        );
+
                         return ResultFactory.error(MessageKey.AUTH_WRONG_PASSWORD, HttpStatus.BAD_REQUEST);
                     }
 
@@ -165,8 +224,28 @@ public class UserServiceImpl implements UserService {
                     String banReason = user.getBanReason() != null ? user.getBanReason() : null;
 
                     if (user.isBannedPermanently()) {
+                        auditService.log(AuditEvent.builder()
+                                .action("AUTH_LOGIN")
+                                .result(AuditResult.FAILURE)
+                                .actorId(user.getId())
+                                .actorEmail(user.getEmail())
+                                .reason("AUTH_PERMANENTLY_BANNED")
+                                .detail("banReason", banReason)
+                                .build()
+                        );
+
                         return ResultFactory.error(MessageKey.AUTH_PERMANENTLY_BANNED, HttpStatus.FORBIDDEN, banReason);
                     } else if (bannedUntil != null && bannedUntil.isAfter(Instant.now())) {
+                        auditService.log(AuditEvent.builder()
+                                .action("AUTH_LOGIN")
+                                .result(AuditResult.FAILURE)
+                                .actorId(user.getId())
+                                .actorEmail(user.getEmail())
+                                .reason("AUTH_TEMPORARILY_BANNED")
+                                .detail("bannedUntil", bannedUntil)
+                                .build()
+                        );
+
                         return ResultFactory.error(MessageKey.AUTH_TEMPORARILY_BANNED, HttpStatus.FORBIDDEN, bannedUntil, banReason);
                     } else if (bannedUntil != null && bannedUntil.isBefore(Instant.now())) {
                         user.setBannedUntil(null);
@@ -180,6 +259,14 @@ public class UserServiceImpl implements UserService {
                             .accessToken(jwtService.generateToken(user))
                             .refreshToken(createRefreshToken(user))
                             .build();
+
+                    auditService.log(AuditEvent.builder()
+                            .action("AUTH_LOGIN")
+                            .result(AuditResult.SUCCESS)
+                            .actorId(user.getId())
+                            .actorEmail(user.getEmail())
+                            .build()
+                    );
 
                     return ResultFactory.ok(authResponseDto);
                 });
@@ -244,6 +331,14 @@ public class UserServiceImpl implements UserService {
                         return ResultFactory.error(MessageKey.AUTH_REFRESH_TOKEN_EXPIRED, HttpStatus.BAD_REQUEST);
                     }
 
+                    auditService.log(AuditEvent.builder()
+                            .action("REFRESH_ACCESS_TOKEN")
+                            .result(AuditResult.SUCCESS)
+                            .actorId(refreshToken.getUser().getId())
+                            .actorEmail(refreshToken.getUser().getEmail())
+                            .build()
+                    );
+
                     return ResultFactory.ok(jwtService.generateToken(refreshToken.getUser()));
                 });
     }
@@ -258,17 +353,43 @@ public class UserServiceImpl implements UserService {
                 )
                 .flatMap(user -> {
                     if (!user.getVersion().equals(version)) {
+                        auditService.log(AuditEvent.builder()
+                                .action("RESET_PASSWORD")
+                                .result(AuditResult.FAILURE)
+                                .actorId(userId)
+                                .actorEmail(user.getEmail())
+                                .reason("SYSTEM_OPTIMISTIC_LOCK")
+                                .build()
+                        );
+
                         return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
                     }
 
                     if (dto.getCurrentPassword().equals(dto.getNewPassword())) {
                         return ResultFactory.error(MessageKey.AUTH_SAME_PASSWORDS, HttpStatus.BAD_REQUEST);
                     } else if (!passwordEncoder.matches(dto.getCurrentPassword(), user.getPassword())) {
+                        auditService.log(AuditEvent.builder()
+                                .action("RESET_PASSWORD")
+                                .result(AuditResult.FAILURE)
+                                .actorId(userId)
+                                .actorEmail(user.getEmail())
+                                .reason("AUTH_WRONG_ACTUAL_PASSWORD")
+                                .build()
+                        );
+
                         return ResultFactory.error(MessageKey.AUTH_WRONG_ACTUAL_PASSWORD, HttpStatus.BAD_REQUEST);
                     }
 
                     user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
                     userRepository.save(user);
+
+                    auditService.log(AuditEvent.builder()
+                            .action("RESET_PASSWORD")
+                            .result(AuditResult.SUCCESS)
+                            .actorId(userId)
+                            .actorEmail(user.getEmail())
+                            .build()
+                    );
 
                     return ResultFactory.okMessage(MessageKey.AUTH_PASSWORD_CHANGED);
                 });
@@ -287,6 +408,15 @@ public class UserServiceImpl implements UserService {
 
                         return ResultFactory.error(MessageKey.AUTH_TOKEN_EXPIRED, HttpStatus.BAD_REQUEST);
                     } else if (!vt.getType().equals(TokenType.CONFIRM_EMAIL)) {
+                        auditService.log(AuditEvent.builder()
+                                .action("CONFIRM_REGISTRATION")
+                                .result(AuditResult.FAILURE)
+                                .actorId(vt.getUser().getId())
+                                .actorEmail(vt.getUser().getEmail())
+                                .reason("AUTH_TOKEN_NOT_VALID")
+                                .build()
+                        );
+
                         return ResultFactory.error(MessageKey.AUTH_TOKEN_NOT_VALID, HttpStatus.BAD_REQUEST);
                     }
 
@@ -295,6 +425,14 @@ public class UserServiceImpl implements UserService {
                     userRepository.save(user);
 
                     verificationTokenRepository.deleteById(vt.getId());
+
+                    auditService.log(AuditEvent.builder()
+                            .action("CONFIRM_REGISTRATION")
+                            .result(AuditResult.SUCCESS)
+                            .actorId(vt.getUser().getId())
+                            .actorEmail(vt.getUser().getEmail())
+                            .build()
+                    );
 
                     return ResultFactory.okMessage(MessageKey.AUTH_REGISTRATION_COMPLETED);
                 });
@@ -313,13 +451,23 @@ public class UserServiceImpl implements UserService {
                     }
 
                     return createVerificationToken(user, TokenType.RESET_PASSWORD)
-                            .flatMap(token ->
+                            .flatMap(token -> {
                                     emailService.buildAndSendEmail(
                                             user.getEmail(),
                                             token,
                                             EmailType.RESET_PASSWORD
-                                    )
-                            );
+                                    );
+
+                                    auditService.log(AuditEvent.builder()
+                                            .action("FORGOT_PASSWORD")
+                                            .result(AuditResult.SUCCESS)
+                                            .actorId(user.getId())
+                                            .actorEmail(user.getEmail())
+                                            .build()
+                                    );
+
+                                    return ResultFactory.successVoid();
+                            });
                 })
                 .flatMap(v -> ResultFactory.okMessage(MessageKey.EMAIL_RESET_PASSWORD));
     }
@@ -337,6 +485,15 @@ public class UserServiceImpl implements UserService {
 
                         return ResultFactory.error(MessageKey.AUTH_TOKEN_EXPIRED, HttpStatus.BAD_REQUEST);
                     } else if (!vt.getType().equals(TokenType.RESET_PASSWORD)) {
+                        auditService.log(AuditEvent.builder()
+                                .action("RESET_FORGOTTEN_PASSWORD")
+                                .result(AuditResult.FAILURE)
+                                .actorId(vt.getUser().getId())
+                                .actorEmail(vt.getUser().getEmail())
+                                .reason("RESET_PASSWORD_TOKEN_NOT_VALID")
+                                .build()
+                        );
+
                         return ResultFactory.error(MessageKey.AUTH_TOKEN_NOT_VALID, HttpStatus.BAD_REQUEST);
                     }
 
@@ -345,6 +502,14 @@ public class UserServiceImpl implements UserService {
                     userRepository.save(user);
 
                     verificationTokenRepository.deleteById(vt.getId());
+
+                    auditService.log(AuditEvent.builder()
+                            .action("RESET_FORGOTTEN_PASSWORD")
+                            .result(AuditResult.SUCCESS)
+                            .actorId(vt.getUser().getId())
+                            .actorEmail(vt.getUser().getEmail())
+                            .build()
+                    );
 
                     return ResultFactory.okMessage(MessageKey.AUTH_PASSWORD_CHANGED);
                 });
@@ -367,13 +532,23 @@ public class UserServiceImpl implements UserService {
                     );
 
                     return createVerificationToken(user, TokenType.CONFIRM_EMAIL)
-                            .flatMap(token ->
+                            .flatMap(token -> {
                                     emailService.buildAndSendEmail(
                                             user.getEmail(),
                                             token,
                                             EmailType.CONFIRM_EMAIL
-                                    )
-                            )
+                                    );
+
+                                    auditService.log(AuditEvent.builder()
+                                            .action("RESEND_EMAIL_CONFIRMATION")
+                                            .result(AuditResult.SUCCESS)
+                                            .actorId(user.getId())
+                                            .actorEmail(user.getEmail())
+                                            .build()
+                                    );
+
+                                    return ResultFactory.successVoid();
+                            })
                             .flatMap(v -> ResultFactory.okMessage(MessageKey.EMAIL_VERIFY_ACCOUNT));
                 });
     }
@@ -387,13 +562,23 @@ public class UserServiceImpl implements UserService {
                 )
                 .flatMap(user ->
                         createVerificationToken(user, TokenType.DELETE_ACCOUNT)
-                        .flatMap(token ->
+                        .flatMap(token -> {
                                 emailService.buildAndSendEmail(
                                         user.getEmail(),
                                         token,
                                         EmailType.DELETE_ACCOUNT
-                                )
-                        )
+                                );
+
+                                auditService.log(AuditEvent.builder()
+                                        .action("INITIATE_DELETE_ACCOUNT")
+                                        .result(AuditResult.SUCCESS)
+                                        .actorId(user.getId())
+                                        .actorEmail(user.getEmail())
+                                        .build()
+                                );
+
+                                return ResultFactory.successVoid();
+                        })
                         .flatMap(v -> ResultFactory.okMessage(MessageKey.EMAIL_DELETE_ACCOUNT))
                 );
     }
@@ -416,7 +601,17 @@ public class UserServiceImpl implements UserService {
                         MessageKey.AUTH_TOKEN_NOT_FOUND
                 )
                 .flatMap(rt -> {
+                    String userEmail = rt.getUser().getEmail();
+
                     refreshTokenRepository.delete(rt);
+
+                    auditService.log(AuditEvent.builder()
+                            .action("LOGOUT_USER")
+                            .result(AuditResult.SUCCESS)
+                            .actorId(userId)
+                            .actorEmail(userEmail)
+                            .build()
+                    );
 
                     return ResultFactory.okMessage(MessageKey.AUTH_LOGOUT);
                 });
