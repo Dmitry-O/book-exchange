@@ -1,9 +1,9 @@
 package com.example.bookexchange.util;
 
-import com.example.bookexchange.dto.BookCreateDTO;
-import com.example.bookexchange.dto.BookDTO;
-import com.example.bookexchange.repositories.BookRepository;
-import com.example.bookexchange.services.BookService;
+import com.example.bookexchange.book.dto.BookCreateDTO;
+import com.example.bookexchange.book.dto.BookDTO;
+import com.example.bookexchange.book.repository.BookRepository;
+import com.example.bookexchange.book.service.BookService;
 import lombok.RequiredArgsConstructor;
 
 import java.util.ArrayList;

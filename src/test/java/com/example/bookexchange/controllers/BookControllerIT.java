@@ -1,12 +1,16 @@
 package com.example.bookexchange.controllers;
 
-import com.example.bookexchange.dto.*;
-import com.example.bookexchange.models.Book;
-import com.example.bookexchange.models.Exchange;
-import com.example.bookexchange.models.ExchangeStatus;
-import com.example.bookexchange.models.User;
-import com.example.bookexchange.repositories.BookRepository;
-import com.example.bookexchange.repositories.ExchangeRepository;
+import com.example.bookexchange.book.api.BookController;
+import com.example.bookexchange.book.dto.BookCreateDTO;
+import com.example.bookexchange.book.dto.BookDTO;
+import com.example.bookexchange.book.dto.BookSearchDTO;
+import com.example.bookexchange.book.dto.BookUpdateDTO;
+import com.example.bookexchange.book.model.Book;
+import com.example.bookexchange.exchange.model.Exchange;
+import com.example.bookexchange.exchange.model.ExchangeStatus;
+import com.example.bookexchange.user.model.User;
+import com.example.bookexchange.book.repository.BookRepository;
+import com.example.bookexchange.exchange.repository.ExchangeRepository;
 import com.example.bookexchange.util.BookUtil;
 import com.example.bookexchange.util.ExchangeUtilIT;
 import com.example.bookexchange.util.UserUtil;

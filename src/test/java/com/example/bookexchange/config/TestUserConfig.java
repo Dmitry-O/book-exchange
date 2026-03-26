@@ -1,11 +1,11 @@
 package com.example.bookexchange.config;
 
-import com.example.bookexchange.mappers.UserMapper;
-import com.example.bookexchange.repositories.BookRepository;
-import com.example.bookexchange.repositories.UserRepository;
-import com.example.bookexchange.services.BookService;
-import com.example.bookexchange.services.RequestService;
-import com.example.bookexchange.services.UserService;
+import com.example.bookexchange.user.mapper.UserMapper;
+import com.example.bookexchange.book.repository.BookRepository;
+import com.example.bookexchange.user.repository.UserRepository;
+import com.example.bookexchange.book.service.BookService;
+import com.example.bookexchange.exchange.service.RequestService;
+import com.example.bookexchange.user.service.UserService;
 import com.example.bookexchange.util.BookUtil;
 import com.example.bookexchange.util.ExchangeUtilIT;
 import com.example.bookexchange.util.UserUtil;
