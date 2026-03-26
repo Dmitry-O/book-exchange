@@ -1,8 +1,8 @@
 package com.example.bookexchange.util;
 
-import com.example.bookexchange.dto.ExchangeDTO;
-import com.example.bookexchange.dto.RequestCreateDTO;
-import com.example.bookexchange.services.RequestService;
+import com.example.bookexchange.exchange.dto.ExchangeDTO;
+import com.example.bookexchange.exchange.dto.RequestCreateDTO;
+import com.example.bookexchange.exchange.service.RequestService;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor

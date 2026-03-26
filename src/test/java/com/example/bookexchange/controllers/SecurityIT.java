@@ -1,9 +1,10 @@
 package com.example.bookexchange.controllers;
 
-import com.example.bookexchange.dto.UserUpdateDTO;
-import com.example.bookexchange.models.User;
-import com.example.bookexchange.repositories.UserRepository;
-import com.example.bookexchange.services.JwtService;
+import com.example.bookexchange.user.dto.UserUpdateDTO;
+import com.example.bookexchange.user.model.User;
+import com.example.bookexchange.user.repository.UserRepository;
+import com.example.bookexchange.security.auth.JwtService;
+import com.example.bookexchange.user.api.UserController;
 import com.example.bookexchange.util.UserUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.test.annotation.Rollback;

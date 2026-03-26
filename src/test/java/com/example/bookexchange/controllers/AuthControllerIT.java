@@ -1,10 +1,11 @@
 package com.example.bookexchange.controllers;
 
-import com.example.bookexchange.dto.AuthRefreshTokenDTO;
-import com.example.bookexchange.dto.AuthRequestDTO;
-import com.example.bookexchange.dto.AuthResponseDTO;
-import com.example.bookexchange.dto.UserCreateDTO;
-import com.example.bookexchange.services.UserService;
+import com.example.bookexchange.auth.api.AuthController;
+import com.example.bookexchange.auth.dto.AuthRefreshTokenDTO;
+import com.example.bookexchange.auth.dto.AuthLoginRequestDTO;
+import com.example.bookexchange.auth.dto.AuthLoginResponseDTO;
+import com.example.bookexchange.user.dto.UserCreateDTO;
+import com.example.bookexchange.user.service.UserService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatusCode;
@@ -61,16 +62,16 @@ public class AuthControllerIT extends AbstractIT {
 
         userService.createUser(userCreateDTO);
 
-        AuthRequestDTO authRequestDTO = AuthRequestDTO
+        AuthLoginRequestDTO authLoginRequestDTO = AuthLoginRequestDTO
                 .builder()
                 .email(userCreateDTO.getEmail())
                 .password("password")
                 .build();
 
-        AuthResponseDTO authResponseDTO = authController.login(authRequestDTO);
+        AuthLoginResponseDTO authLoginResponseDTO = authController.login(authLoginRequestDTO);
 
-        assertThat(authResponseDTO.getAccessToken()).isNotNull();
-        assertThat(authResponseDTO.getRefreshToken()).isNotNull();
+        assertThat(authLoginResponseDTO.getAccessToken()).isNotNull();
+        assertThat(authLoginResponseDTO.getRefreshToken()).isNotNull();
     }
 
     @Rollback
@@ -93,17 +94,17 @@ public class AuthControllerIT extends AbstractIT {
 
         userService.createUser(userCreateDTO);
 
-        AuthRequestDTO authRequestDTO = AuthRequestDTO
+        AuthLoginRequestDTO authLoginRequestDTO = AuthLoginRequestDTO
                 .builder()
                 .email(userCreateDTO.getEmail())
                 .password("password")
                 .build();
 
-        AuthResponseDTO authResponseDTO = userService.loginUser(authRequestDTO);
+        AuthLoginResponseDTO authLoginResponseDTO = userService.loginUser(authLoginRequestDTO);
 
         AuthRefreshTokenDTO authRefreshTokenDTO = AuthRefreshTokenDTO
                 .builder()
-                .refreshToken(authResponseDTO.getRefreshToken())
+                .refreshToken(authLoginResponseDTO.getRefreshToken())
                 .build();
 
         String newAccessToken = authController.refreshAccessToken(authRefreshTokenDTO);
