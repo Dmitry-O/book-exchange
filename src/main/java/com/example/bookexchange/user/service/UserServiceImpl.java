@@ -1,15 +1,13 @@
 package com.example.bookexchange.user.service;
 
 import com.example.bookexchange.auth.dto.RefreshTokenDTO;
-import com.example.bookexchange.auth.repository.RefreshTokenRepository;
-import com.example.bookexchange.auth.repository.VerificationTokenRepository;
 import com.example.bookexchange.auth.service.RefreshTokenService;
 import com.example.bookexchange.auth.service.VerificationTokenService;
-import com.example.bookexchange.book.model.Book;
 import com.example.bookexchange.book.service.BookService;
 import com.example.bookexchange.common.audit.model.AuditEvent;
 import com.example.bookexchange.common.audit.model.AuditResult;
 import com.example.bookexchange.common.audit.service.AuditService;
+import com.example.bookexchange.common.audit.service.VersionedEntityTransitionHelper;
 import com.example.bookexchange.common.i18n.MessageKey;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.common.result.ResultFactory;
@@ -25,7 +23,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.HashSet;
 
 @Service
 @RequiredArgsConstructor
@@ -38,19 +35,19 @@ public class UserServiceImpl implements UserService {
     private final RefreshTokenService refreshTokenService;
     private final VerificationTokenService verificationTokenService;
     private final BookService bookService;
+    private final VersionedEntityTransitionHelper versionedEntityTransitionHelper;
 
     @Transactional(readOnly = true)
     @Override
     public Result<UserDTO> getUser(Long userId) {
         return ResultFactory
                 .fromRepository(userRepository, userId, MessageKey.USER_ACCOUNT_NOT_FOUND)
-                .map(user ->
+                .flatMap(user ->
                         ResultFactory.okETag(
                                 userMapper.userToUserDto(user),
                                 ETagUtil.form(user)
                         )
-                )
-                .flatMap(r -> r);
+                );
     }
 
     @Transactional
@@ -68,7 +65,9 @@ public class UserServiceImpl implements UserService {
                         return versionValidation.map(userMapper::userToUserDto);
                     }
 
-                    if (userRepository.findByNickname(dto.getNickname()).isPresent()) {
+                    if (!user.getNickname().equals(dto.getNickname()) &&
+                            userRepository.findByNickname(dto.getNickname()).isPresent()
+                    ) {
                         return ResultFactory.error(MessageKey.AUTH_NICKNAME_ALREADY_EXISTS, HttpStatus.CONFLICT);
                     }
 
@@ -156,18 +155,19 @@ public class UserServiceImpl implements UserService {
     }
 
     private Result<User> validateUserVersion(User user, Long version, String action) {
-        if (!user.getVersion().equals(version)) {
-            logUserFailure(action, user.getId(), user.getEmail(), "SYSTEM_OPTIMISTIC_LOCK");
-
-            return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
-        }
-
-        return ResultFactory.ok(user);
+        return versionedEntityTransitionHelper.requireVersion(
+                user,
+                version,
+                action,
+                builder -> builder
+                        .actorId(user.getId())
+                        .actorEmail(user.getEmail())
+        );
     }
 
     private void anonymizeUser(User user, Instant deletedAt) {
-        user.setEmail("anonymized@anonymized.anonymized");
-        user.setNickname("anonymized");
+        user.setEmail("anonymized-" + user.getId() + "@anonymized.anonymized");
+        user.setNickname("anonymized-" + user.getId());
         user.setPhotoBase64(null);
         user.setPassword("");
         user.setDeletedAt(deletedAt);

@@ -5,6 +5,7 @@ import com.example.bookexchange.admin.mapper.AdminMapper;
 import com.example.bookexchange.common.audit.model.AuditEvent;
 import com.example.bookexchange.common.audit.model.AuditResult;
 import com.example.bookexchange.common.audit.service.AuditService;
+import com.example.bookexchange.common.dto.PageQueryDTO;
 import com.example.bookexchange.common.i18n.MessageKey;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.common.result.ResultFactory;
@@ -16,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
@@ -30,8 +32,12 @@ public class AdminExchangeServiceImpl implements AdminExchangeService {
     private final AuditService auditService;
 
     @Override
-    public Result<Page<ExchangeAdminDTO>> findExchanges(Integer pageIndex, Integer pageSize, Set<ExchangeStatus> exchangeStatuses) {
-        Pageable pageable = PageRequest.of(pageIndex, pageSize);
+    public Result<Page<ExchangeAdminDTO>> findExchanges(PageQueryDTO queryDTO, Set<ExchangeStatus> exchangeStatuses) {
+        Pageable pageable = PageRequest.of(
+                queryDTO.getPageIndex(),
+                queryDTO.getPageSize(),
+                Sort.by(Sort.Direction.DESC, "updatedAt")
+        );
 
         Page<Exchange> pendingExchangesPage;
 
@@ -53,7 +59,7 @@ public class AdminExchangeServiceImpl implements AdminExchangeService {
                         exchangeId,
                         MessageKey.ADMIN_EXCHANGE_NOT_FOUND
                 )
-                .map(exchange -> {
+                .flatMap(exchange -> {
                             auditService.log(AuditEvent.builder()
                                     .action("ADMIN_EXCHANGE_FIND")
                                     .result(AuditResult.SUCCESS)
@@ -68,7 +74,6 @@ public class AdminExchangeServiceImpl implements AdminExchangeService {
                                     ETagUtil.form(exchange)
                             );
                         }
-                )
-                .flatMap(r -> r);
+                );
     }
 }

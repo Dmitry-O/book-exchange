@@ -38,7 +38,7 @@ public class ReportController {
             description = "User's report has been submitted",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = ApiResponse.class),
+                    schema = @Schema(implementation = com.example.bookexchange.common.web.ApiResponse.class),
                     examples = @ExampleObject(
                             value = """
                                         {

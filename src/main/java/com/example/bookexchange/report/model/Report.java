@@ -38,7 +38,7 @@ public class Report extends AuditableEntity {
     @Enumerated(EnumType.STRING)
     private ReportStatus status = ReportStatus.OPEN;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JsonBackReference
     private User reporter;
 }

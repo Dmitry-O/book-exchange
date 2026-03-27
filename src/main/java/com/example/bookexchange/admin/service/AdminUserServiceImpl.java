@@ -9,6 +9,8 @@ import com.example.bookexchange.book.model.Book;
 import com.example.bookexchange.common.audit.model.AuditEvent;
 import com.example.bookexchange.common.audit.model.AuditResult;
 import com.example.bookexchange.common.audit.service.AuditService;
+import com.example.bookexchange.common.audit.service.VersionedEntityTransitionHelper;
+import com.example.bookexchange.common.dto.PageQueryDTO;
 import com.example.bookexchange.common.i18n.MessageKey;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.common.result.ResultFactory;
@@ -22,6 +24,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -29,7 +32,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.time.OffsetDateTime;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -42,13 +44,13 @@ public class AdminUserServiceImpl implements AdminUserService {
     private final VerificationTokenRepository verificationTokenRepository;
     private final AdminMapper adminMapper;
     private final AuditService auditService;
+    private final VersionedEntityTransitionHelper versionedEntityTransitionHelper;
 
     @Transactional(readOnly = true)
     @Override
     public Result<Page<UserAdminDTO>> findUsers(
             Long userId,
-            Integer pageIndex,
-            Integer pageSize,
+            PageQueryDTO queryDTO,
             String searchText,
             Set<UserRole> roles,
             Boolean onlyBannedUsers,
@@ -64,9 +66,11 @@ public class AdminUserServiceImpl implements AdminUserService {
 
                     Specification<User> specification = UserSpecificationBuilder.build(searchText, roles, onlyBannedUsers, isUserSuperAdmin, userType);
 
-                    Pageable pageable;
-
-                    pageable = PageRequest.of(pageIndex, pageSize);
+                    Pageable pageable = PageRequest.of(
+                            queryDTO.getPageIndex(),
+                            queryDTO.getPageSize(),
+                            Sort.by(Sort.Direction.DESC, "createdAt")
+                    );
 
                     Page<UserAdminDTO> page = userRepository.findAll(specification, pageable).map(adminMapper::userToUserAdminDto);
 
@@ -82,7 +86,7 @@ public class AdminUserServiceImpl implements AdminUserService {
                         userId,
                         MessageKey.ADMIN_USER_NOT_FOUND
                 )
-                .map(user -> {
+                .flatMap(user -> {
                             auditService.log(AuditEvent.builder()
                                     .action("ADMIN_USER_FIND")
                                     .result(AuditResult.SUCCESS)
@@ -98,8 +102,7 @@ public class AdminUserServiceImpl implements AdminUserService {
                                     ETagUtil.form(user)
                             );
                         }
-                )
-                .flatMap(r -> r);
+                );
     }
 
     @Transactional
@@ -205,20 +208,20 @@ public class AdminUserServiceImpl implements AdminUserService {
                         MessageKey.ADMIN_USER_NOT_FOUND
                 )
                 .flatMap(user -> {
-                    if (!user.getVersion().equals(version)) {
-                        auditService.log(AuditEvent.builder()
-                                .action("ADMIN_BAN_USER")
-                                .result(AuditResult.FAILURE)
-                                .actorEmail(adminUser.getUsername())
-                                .reason("SYSTEM_OPTIMISTIC_LOCK")
-                                .detail("actorUserRoles", adminUser.getAuthorities())
-                                .detail("targetUserId", userId)
-                                .detail("targetUserEmail", user.getEmail())
-                                .detail("BanUserDTO", banUserDTO)
-                                .build()
-                        );
+                    Result<User> versionValidation = versionedEntityTransitionHelper.requireVersion(
+                            user,
+                            version,
+                            "ADMIN_BAN_USER",
+                            builder -> builder
+                                    .actorEmail(adminUser.getUsername())
+                                    .detail("actorUserRoles", adminUser.getAuthorities())
+                                    .detail("targetUserId", userId)
+                                    .detail("targetUserEmail", user.getEmail())
+                                    .detail("BanUserDTO", banUserDTO)
+                    );
 
-                        return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
+                    if (versionValidation.isFailure()) {
+                        return versionValidation.map(adminMapper::userToUserAdminDto);
                     }
 
                     if (adminUser.getUsername().equals(user.getEmail())){
@@ -240,7 +243,7 @@ public class AdminUserServiceImpl implements AdminUserService {
                     if (banUserDTO.isBannedPermanently()) {
                         user.setBannedPermanently(true);
                     } else if (banUserDTO.getBannedUntil() != null) {
-                        user.setBannedUntil(OffsetDateTime.parse(banUserDTO.getBannedUntil()).toInstant());
+                        user.setBannedUntil(banUserDTO.getBannedUntil().toInstant());
                     } else {
                         auditService.log(AuditEvent.builder()
                                 .action("ADMIN_BAN_USER")
@@ -290,19 +293,19 @@ public class AdminUserServiceImpl implements AdminUserService {
                         MessageKey.ADMIN_USER_NOT_FOUND
                 )
                 .flatMap(user -> {
-                    if (!user.getVersion().equals(version)) {
-                        auditService.log(AuditEvent.builder()
-                                .action("ADMIN_UNBAN_USER")
-                                .result(AuditResult.FAILURE)
-                                .actorEmail(adminUser.getUsername())
-                                .reason("SYSTEM_OPTIMISTIC_LOCK")
-                                .detail("actorUserRoles", adminUser.getAuthorities())
-                                .detail("targetUserId", userId)
-                                .detail("targetUserEmail", user.getEmail())
-                                .build()
-                        );
+                    Result<User> versionValidation = versionedEntityTransitionHelper.requireVersion(
+                            user,
+                            version,
+                            "ADMIN_UNBAN_USER",
+                            builder -> builder
+                                    .actorEmail(adminUser.getUsername())
+                                    .detail("actorUserRoles", adminUser.getAuthorities())
+                                    .detail("targetUserId", userId)
+                                    .detail("targetUserEmail", user.getEmail())
+                    );
 
-                        return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
+                    if (versionValidation.isFailure()) {
+                        return versionValidation.map(adminMapper::userToUserAdminDto);
                     }
 
                     user.setBannedUntil(null);
@@ -339,25 +342,25 @@ public class AdminUserServiceImpl implements AdminUserService {
                         MessageKey.USER_ACCOUNT_NOT_FOUND
                 )
                 .flatMap(user -> {
-                    if (!user.getVersion().equals(version)) {
-                        auditService.log(AuditEvent.builder()
-                                .action("ADMIN_USER_DELETE")
-                                .result(AuditResult.FAILURE)
-                                .actorEmail(adminUser.getUsername())
-                                .reason("SYSTEM_OPTIMISTIC_LOCK")
-                                .detail("actorUserRoles", adminUser.getAuthorities())
-                                .detail("userId", userId)
-                                .detail("userEmail", user.getEmail())
-                                .build()
-                        );
+                    Result<User> versionValidation = versionedEntityTransitionHelper.requireVersion(
+                            user,
+                            version,
+                            "ADMIN_USER_DELETE",
+                            builder -> builder
+                                    .actorEmail(adminUser.getUsername())
+                                    .detail("actorUserRoles", adminUser.getAuthorities())
+                                    .detail("userId", userId)
+                                    .detail("userEmail", user.getEmail())
+                    );
 
-                        return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
+                    if (versionValidation.isFailure()) {
+                        return versionValidation.map(adminMapper::userToUserAdminDto);
                     }
 
                     String oldUserEmail = user.getEmail();
 
-                    user.setEmail("anonymized@anonymized.anonymized");
-                    user.setNickname("anonymized");
+                    user.setEmail("anonymized-" + user.getId() + "@anonymized.anonymized");
+                    user.setNickname("anonymized-" + user.getId());
                     user.setPhotoBase64(null);
                     user.setPassword("");
                     user.setDeletedAt(Instant.now());

@@ -1,10 +1,12 @@
 package com.example.bookexchange.admin.service;
 
 import com.example.bookexchange.admin.dto.ReportAdminDTO;
-import com.example.bookexchange.admin.mapper.AdminMapper;
 import com.example.bookexchange.common.audit.model.AuditEvent;
 import com.example.bookexchange.common.audit.model.AuditResult;
 import com.example.bookexchange.common.audit.service.AuditService;
+import com.example.bookexchange.common.audit.service.VersionedEntityTransitionHelper;
+import com.example.bookexchange.common.dto.PageQueryDTO;
+import com.example.bookexchange.common.dto.SortDirectionDTO;
 import com.example.bookexchange.common.i18n.MessageKey;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.common.result.ResultFactory;
@@ -18,7 +20,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,19 +32,19 @@ public class AdminReportServiceImpl implements AdminReportService {
 
     private final ReportRepository reportRepository;
     private final ReportMapper reportMapper;
-    private final AdminMapper adminMapper;
     private final AuditService auditService;
+    private final VersionedEntityTransitionHelper versionedEntityTransitionHelper;
 
     @Transactional(readOnly = true)
     @Override
-    public Result<Page<ReportAdminDTO>> findReports(Integer pageIndex, Integer pageSize, Set<ReportStatus> reportStatuses, String sortDirection) {
+    public Result<Page<ReportAdminDTO>> findReports(PageQueryDTO queryDTO, Set<ReportStatus> reportStatuses, SortDirectionDTO sortDirection) {
         Pageable pageable;
 
-        Sort.Direction direction = sortDirection.equalsIgnoreCase(("desc"))
+        Sort.Direction direction = sortDirection == SortDirectionDTO.DESC
                 ? Sort.Direction.DESC
                 : Sort.Direction.ASC;
 
-        pageable = PageRequest.of(pageIndex, pageSize, Sort.by(direction, "createdAt"));
+        pageable = PageRequest.of(queryDTO.getPageIndex(), queryDTO.getPageSize(), Sort.by(direction, "createdAt"));
 
         Page<Report> reportPage;
 
@@ -63,7 +64,7 @@ public class AdminReportServiceImpl implements AdminReportService {
                         reportId,
                         MessageKey.ADMIN_REPORT_NOT_FOUND
                 )
-                .map(report -> {
+                .flatMap(report -> {
                             auditService.log(AuditEvent.builder()
                                     .action("ADMIN_REPORT_FIND")
                                     .result(AuditResult.SUCCESS)
@@ -74,12 +75,11 @@ public class AdminReportServiceImpl implements AdminReportService {
                             );
 
                             return ResultFactory.okETag(
-                                    adminMapper.reportToReportAdminDto(report),
+                                    reportMapper.reportToReportDto(report),
                                     ETagUtil.form(report)
                             );
                         }
-                )
-                .flatMap(r -> r);
+                );
     }
 
     @Transactional
@@ -91,18 +91,18 @@ public class AdminReportServiceImpl implements AdminReportService {
                         MessageKey.ADMIN_REPORT_NOT_FOUND
                 )
                 .flatMap(report -> {
-                    if (!report.getVersion().equals(version)) {
-                        auditService.log(AuditEvent.builder()
-                                .action("ADMIN_REPORT_RESOLVE")
-                                .result(AuditResult.FAILURE)
-                                .actorEmail(adminUser.getUsername())
-                                .reason("SYSTEM_OPTIMISTIC_LOCK")
-                                .detail("actorUserRoles", adminUser.getAuthorities())
-                                .detail("reportId", reportId)
-                                .build()
-                        );
+                    Result<Report> versionValidation = versionedEntityTransitionHelper.requireVersion(
+                            report,
+                            version,
+                            "ADMIN_REPORT_RESOLVE",
+                            builder -> builder
+                                    .actorEmail(adminUser.getUsername())
+                                    .detail("actorUserRoles", adminUser.getAuthorities())
+                                    .detail("reportId", reportId)
+                    );
 
-                        return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
+                    if (versionValidation.isFailure()) {
+                        return versionValidation.map(reportMapper::reportToReportDto);
                     }
 
                     report.setStatus(ReportStatus.RESOLVED);
@@ -119,7 +119,7 @@ public class AdminReportServiceImpl implements AdminReportService {
                     );
 
                     return ResultFactory.updated(
-                            adminMapper.reportToReportAdminDto(report),
+                            reportMapper.reportToReportDto(report),
                             MessageKey.ADMIN_REPORT_RESOLVED,
                             ETagUtil.form(report)
                     );
@@ -135,18 +135,18 @@ public class AdminReportServiceImpl implements AdminReportService {
                         MessageKey.ADMIN_REPORT_NOT_FOUND
                 )
                 .flatMap(report -> {
-                    if (!report.getVersion().equals(version)) {
-                        auditService.log(AuditEvent.builder()
-                                .action("ADMIN_REPORT_REJECT")
-                                .result(AuditResult.FAILURE)
-                                .actorEmail(adminUser.getUsername())
-                                .reason("SYSTEM_OPTIMISTIC_LOCK")
-                                .detail("actorUserRoles", adminUser.getAuthorities())
-                                .detail("reportId", reportId)
-                                .build()
-                        );
+                    Result<Report> versionValidation = versionedEntityTransitionHelper.requireVersion(
+                            report,
+                            version,
+                            "ADMIN_REPORT_REJECT",
+                            builder -> builder
+                                    .actorEmail(adminUser.getUsername())
+                                    .detail("actorUserRoles", adminUser.getAuthorities())
+                                    .detail("reportId", reportId)
+                    );
 
-                        return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
+                    if (versionValidation.isFailure()) {
+                        return versionValidation.map(reportMapper::reportToReportDto);
                     }
 
                     report.setStatus(ReportStatus.REJECTED);
@@ -163,7 +163,7 @@ public class AdminReportServiceImpl implements AdminReportService {
                     );
 
                     return ResultFactory.updated(
-                            adminMapper.reportToReportAdminDto(report),
+                            reportMapper.reportToReportDto(report),
                             MessageKey.ADMIN_REPORT_REJECTED,
                             ETagUtil.form(report)
                     );

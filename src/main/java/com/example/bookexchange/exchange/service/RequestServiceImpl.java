@@ -4,6 +4,7 @@ import com.example.bookexchange.book.model.Book;
 import com.example.bookexchange.common.audit.model.AuditEvent;
 import com.example.bookexchange.common.audit.model.AuditResult;
 import com.example.bookexchange.common.audit.service.AuditService;
+import com.example.bookexchange.common.dto.PageQueryDTO;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.common.result.ResultFactory;
 import com.example.bookexchange.book.repository.BookRepository;
@@ -22,6 +23,7 @@ import lombok.AllArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -84,8 +86,12 @@ public class RequestServiceImpl implements RequestService {
 
     @Transactional(readOnly = true)
     @Override
-    public Result<Page<ExchangeDTO>> getSenderRequests(Long senderUserId, Integer pageIndex, Integer pageSize) {
-        Pageable pageable = PageRequest.of(pageIndex, pageSize);
+    public Result<Page<ExchangeDTO>> getSenderRequests(Long senderUserId, PageQueryDTO queryDTO) {
+        Pageable pageable = PageRequest.of(
+                queryDTO.getPageIndex(),
+                queryDTO.getPageSize(),
+                Sort.by(Sort.Direction.DESC, "updatedAt")
+        );
 
         Page<Exchange> pendingExchangesPage = exchangeRepository.findBySenderUserIdAndStatus(senderUserId, ExchangeStatus.PENDING, pageable);
 

@@ -32,7 +32,7 @@ public class RefreshToken {
     private String token;
 
     @JsonBackReference
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     private User user;
 
     @NotNull

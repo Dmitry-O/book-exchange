@@ -38,7 +38,7 @@ public class AuthController {
             description = "User's account has been created",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = ApiResponse.class),
+                    schema = @Schema(implementation = com.example.bookexchange.common.web.ApiResponse.class),
                     examples = @ExampleObject(
                             value = """
                                         {
@@ -108,7 +108,7 @@ public class AuthController {
             description = "A new access token has been generated",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = ApiResponse.class),
+                    schema = @Schema(implementation = com.example.bookexchange.common.web.ApiResponse.class),
                     examples = @ExampleObject(
                             value = """
                                         {
@@ -141,7 +141,7 @@ public class AuthController {
             description = "User's email address has been confirmed",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = ApiResponse.class),
+                    schema = @Schema(implementation = com.example.bookexchange.common.web.ApiResponse.class),
                     examples = @ExampleObject(
                             value = """
                                         {
@@ -171,7 +171,7 @@ public class AuthController {
             description = "An E-Mail has been sent to reset user's password",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = ApiResponse.class),
+                    schema = @Schema(implementation = com.example.bookexchange.common.web.ApiResponse.class),
                     examples = @ExampleObject(
                             value = """
                                         {
@@ -204,7 +204,7 @@ public class AuthController {
             description = "User's password has been reset",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = ApiResponse.class),
+                    schema = @Schema(implementation = com.example.bookexchange.common.web.ApiResponse.class),
                     examples = @ExampleObject(
                             value = """
                                         {
@@ -240,7 +240,7 @@ public class AuthController {
             description = "An additional confirmation has been sent to verify the E-Mail address",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = ApiResponse.class),
+                    schema = @Schema(implementation = com.example.bookexchange.common.web.ApiResponse.class),
                     examples = @ExampleObject(
                             value = """
                                         {
@@ -272,7 +272,7 @@ public class AuthController {
             description = "An E-Mail has been sent to delete user's account",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = ApiResponse.class),
+                    schema = @Schema(implementation = com.example.bookexchange.common.web.ApiResponse.class),
                     examples = @ExampleObject(
                             value = """
                                         {
@@ -308,7 +308,7 @@ public class AuthController {
             description = "User's account has been deleted",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = ApiResponse.class),
+                    schema = @Schema(implementation = com.example.bookexchange.common.web.ApiResponse.class),
                     examples = @ExampleObject(
                             value = """
                                         {

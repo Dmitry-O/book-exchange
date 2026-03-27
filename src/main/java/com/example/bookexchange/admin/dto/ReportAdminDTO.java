@@ -11,9 +11,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import tools.jackson.databind.annotation.JsonDeserialize;
 
-@JsonDeserialize(builder = ReportAdminDTO.ReportAdminDTOBuilder.class)
 @Builder
 @Data
 @AllArgsConstructor
@@ -28,7 +26,7 @@ public class ReportAdminDTO {
     @JsonProperty("targetType")
     private TargetType targetType;
 
-    @Schema(example = "http://current_host/api/v1/admin/books/1")
+    @Schema(example = "http://current_host/api/v1/admin/users/1")
     @JsonProperty("targetUrl")
     private String targetUrl;
 

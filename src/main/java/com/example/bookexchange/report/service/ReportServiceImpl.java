@@ -14,6 +14,7 @@ import com.example.bookexchange.report.repository.ReportRepository;
 import com.example.bookexchange.user.model.User;
 import com.example.bookexchange.user.repository.UserRepository;
 import lombok.AllArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,13 +42,23 @@ public class ReportServiceImpl implements ReportService {
                 )
                 .flatMap(reporter -> {
                     if (reportCreateDTO.getTargetType() == TargetType.USER) {
+                        if (reporterId.equals(targetId)) {
+                            return ResultFactory.error(MessageKey.REPORT_CANNOT_REPORT_YOURSELF, HttpStatus.BAD_REQUEST);
+                        }
+
                         return ResultFactory.fromRepository(
                                         userRepository,
                                         targetId,
                                         MessageKey.USER_ACCOUNT_NOT_FOUND
                                 )
                                 .flatMap(u -> ResultFactory.ok(reporter));
-                    } else {
+                    }
+
+                    if (reportCreateDTO.getTargetType() == TargetType.BOOK) {
+                        if (bookRepository.findByIdAndUserId(targetId, reporterId).isPresent()) {
+                            return ResultFactory.error(MessageKey.REPORT_CANNOT_REPORT_YOUR_BOOK, HttpStatus.BAD_REQUEST);
+                        }
+
                         return ResultFactory.fromRepository(
                                         bookRepository,
                                         targetId,
@@ -55,6 +66,8 @@ public class ReportServiceImpl implements ReportService {
                                 )
                                 .flatMap(b -> ResultFactory.ok(reporter));
                     }
+
+                    return ResultFactory.error(MessageKey.SYSTEM_INVALID_DATA, HttpStatus.BAD_REQUEST);
                 });
     }
 

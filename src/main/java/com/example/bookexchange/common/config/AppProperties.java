@@ -13,4 +13,5 @@ public class AppProperties {
     private String jwtSecretKey;
     private String emailSentFrom;
     private String baseApiPath = "/api/v1";
+    private int accessTokenTimeToLive = 54000;
 }

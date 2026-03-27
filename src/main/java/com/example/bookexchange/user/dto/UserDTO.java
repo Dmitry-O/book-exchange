@@ -7,11 +7,10 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import tools.jackson.databind.annotation.JsonDeserialize;
 
+import java.time.OffsetDateTime;
 import java.util.Set;
 
-@JsonDeserialize(builder = UserDTO.UserDTOBuilder.class)
 @Builder
 @Data
 @AllArgsConstructor
@@ -34,9 +33,9 @@ public class UserDTO {
     @JsonProperty("photoBase64")
     private String photoBase64;
 
-    @Schema(example = "2026-04-21 12:00:00")
+    @Schema(example = "2026-04-21T12:00:00Z")
     @JsonProperty("bannedUntil")
-    private String bannedUntil;
+    private OffsetDateTime bannedUntil;
 
     @Schema(example = "false")
     @JsonProperty("bannedPermanently")
@@ -46,11 +45,11 @@ public class UserDTO {
     @JsonProperty("banReason")
     private String banReason;
 
-    @Schema(example = "[USER, ADMIN]")
+    @Schema(example = "[\"USER\", \"ADMIN\"]")
     @JsonProperty("roles")
     private Set<UserRole> roles;
 
     @Schema(example = "de")
     @JsonProperty("locale")
-    private String locale;
+    private SupportedLocalesDTO locale;
 }

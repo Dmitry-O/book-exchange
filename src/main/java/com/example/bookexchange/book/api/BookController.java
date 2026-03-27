@@ -1,5 +1,6 @@
 package com.example.bookexchange.book.api;
 
+import com.example.bookexchange.common.dto.PageQueryDTO;
 import com.example.bookexchange.security.auth.CurrentUser;
 import com.example.bookexchange.book.dto.BookCreateDTO;
 import com.example.bookexchange.book.dto.BookDTO;
@@ -22,6 +23,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -54,6 +56,7 @@ public class BookController {
                                         {
                                           "success": true,
                                           "data": {
+                                            "id": 1,
                                             "name": "Charley Smash",
                                             "description": "An interesting book about ...",
                                             "author": "Frank Oester",
@@ -61,8 +64,8 @@ public class BookController {
                                             "publicationYear": 1765,
                                             "photoBase64": "Book photo",
                                             "city": "string",
-                                            "contactDetails": "London",
-                                            "isGift": true
+                                            "isGift": true,
+                                            "isExchanged": false
                                           },
                                           "message": "The book has been created",
                                           "error": null
@@ -99,15 +102,12 @@ public class BookController {
             @Parameter(description = "User ID", example = "1")
             @CurrentUser Long userId,
 
-            @Parameter(description = "Page index, starts from 0", example = "0")
-            @RequestParam(value = "pageIndex", defaultValue = "0") Integer pageIndex,
-
-            @Parameter(description = "Page size", example = "20")
-            @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize,
+            @ParameterObject
+            @Validated @ModelAttribute PageQueryDTO queryDTO,
 
             HttpServletRequest request
     ) {
-        return responseMapper.map(bookService.findUserBooks(userId, pageIndex, pageSize), request);
+        return responseMapper.map(bookService.findUserBooks(userId, queryDTO), request);
     }
 
     @UnauthorizedErrorResponse
@@ -153,15 +153,12 @@ public class BookController {
             @Parameter(description = "User ID", example = "1")
             @CurrentUser Long userId,
 
-            @Parameter(description = "Page index, starts from 0", example = "0")
-            @RequestParam(value = "pageIndex", defaultValue = "0") Integer pageIndex,
-
-            @Parameter(description = "Page size", example = "20")
-            @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize,
+            @ParameterObject
+            @Validated @ModelAttribute PageQueryDTO queryDTO,
 
             HttpServletRequest request
     ) {
-        return responseMapper.map(bookService.findExchangedUserBooks(userId, pageIndex, pageSize), request);
+        return responseMapper.map(bookService.findExchangedUserBooks(userId, queryDTO), request);
     }
 
     @UnauthorizedErrorResponse
@@ -177,18 +174,15 @@ public class BookController {
     )
     @GetMapping(BookPaths.BOOK_PATH_SEARCH)
     public ResponseEntity<?> getBooks(
-            @Parameter(description = "Page index, starts from 0", example = "0")
-            @RequestParam(value = "pageIndex", defaultValue = "0") Integer pageIndex,
+            @ParameterObject
+            @Validated @ModelAttribute PageQueryDTO queryDTO,
 
-            @Parameter(description = "Page size", example = "20")
-            @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize,
-
-            @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "Book search data")
-            @Validated @RequestBody(required = false) BookSearchDTO dto,
+            @ParameterObject
+            @Validated @ModelAttribute BookSearchDTO dto,
 
             HttpServletRequest request
     ) {
-        return responseMapper.map(bookService.findBooks(dto, pageIndex, pageSize), request);
+        return responseMapper.map(bookService.findBooks(dto, queryDTO), request);
     }
 
     @UnauthorizedErrorResponse
@@ -199,7 +193,7 @@ public class BookController {
             description = "The book has been deleted",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = ApiResponse.class),
+                    schema = @Schema(implementation = com.example.bookexchange.common.web.ApiResponse.class),
                     examples = @ExampleObject(
                             value = """
                                         {
@@ -253,6 +247,7 @@ public class BookController {
                                         {
                                           "success": true,
                                           "data": {
+                                            "id": 1,
                                             "name": "Charley Smash",
                                             "description": "An interesting book about ...",
                                             "author": "Frank Oester",
@@ -260,8 +255,8 @@ public class BookController {
                                             "publicationYear": 1765,
                                             "photoBase64": "Book photo",
                                             "city": "string",
-                                            "contactDetails": "London",
-                                            "isGift": true
+                                            "isGift": true,
+                                            "isExchanged": false
                                           },
                                           "message": "The book has been updated",
                                           "error": null

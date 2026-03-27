@@ -7,6 +7,8 @@ import com.example.bookexchange.common.audit.model.AuditResult;
 import com.example.bookexchange.common.audit.service.AuditService;
 import com.example.bookexchange.common.i18n.MessageKey;
 import com.example.bookexchange.common.web.ErrorResponseWriter;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
 import io.github.bucket4j.ConsumptionProbe;
@@ -23,16 +25,25 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Component
 @RequiredArgsConstructor
 public class RateLimitFilter extends OncePerRequestFilter {
 
     private final ErrorResponseWriter errorResponseWriter;
-    private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();
     private final AuditService auditService;
+
+    private final Cache<String, Bucket> buckets = Caffeine.newBuilder()
+            .expireAfterAccess(Duration.ofHours(1))
+            .maximumSize(50_000)
+            .build();
+
+    private enum RateLimitType {
+        LOGIN,
+        SEARCH,
+        EMAIL_FLOW,
+        OTHER_AUTH
+    }
 
     private Bucket createLoginBucket() {
         Bandwidth limit = Bandwidth.classic(5,
@@ -58,16 +69,41 @@ public class RateLimitFilter extends OncePerRequestFilter {
         return Bucket.builder().addLimit(limit).build();
     }
 
-    private Bucket resolveBucket(String ip, String path) {
-        String endpointName = path.split("/")[4];
+    private Bucket resolveBucket(String ip, RateLimitType type) {
+        String key = ip + ":" + type.name();
 
-        return switch (endpointName) {
-            case "login" -> buckets.computeIfAbsent(ip, k -> createLoginBucket());
-            case "search" -> buckets.computeIfAbsent(ip, k -> createGetBooksBucket());
-            case "register", "forgot_password", "resend_confirmation_email" ->
-                    buckets.computeIfAbsent(ip, k -> createSendEmailAPIsBucket());
-            default -> buckets.computeIfAbsent(ip, k -> createOtherAPIsBucket());
+        return buckets.get(key, ignored -> createBucket(type));
+    }
+
+    private Bucket createBucket(RateLimitType type) {
+        return switch (type) {
+            case LOGIN -> createLoginBucket();
+            case SEARCH -> createGetBooksBucket();
+            case EMAIL_FLOW -> createSendEmailAPIsBucket();
+            case OTHER_AUTH -> createOtherAPIsBucket();
         };
+    }
+
+    private RateLimitType resolveRateLimitType(String path) {
+        if (path.endsWith(AuthPaths.AUTH_PATH_LOGIN)) {
+            return RateLimitType.LOGIN;
+        }
+
+        if (path.endsWith(BookPaths.BOOK_PATH_SEARCH)) {
+            return RateLimitType.SEARCH;
+        }
+
+        if (path.endsWith(AuthPaths.AUTH_PATH_REGISTER)
+                || path.endsWith(AuthPaths.AUTH_PATH_FORGOT_PASSWORD)
+                || path.endsWith(AuthPaths.AUTH_PATH_RESEND_CONFIRMATION_EMAIL)) {
+            return RateLimitType.EMAIL_FLOW;
+        }
+
+        if (path.contains(AuthPaths.AUTH_PATH + "/")) {
+            return RateLimitType.OTHER_AUTH;
+        }
+
+        return null;
     }
 
     @Override
@@ -77,10 +113,11 @@ public class RateLimitFilter extends OncePerRequestFilter {
         @NonNull FilterChain filterChain
     ) throws ServletException, IOException {
         String path = request.getRequestURI();
+        RateLimitType rateLimitType = resolveRateLimitType(path);
 
-        if (path.contains(AuthPaths.AUTH_PATH) || path.contains(BookPaths.BOOK_PATH_SEARCH)) {
+        if (rateLimitType != null) {
             String ip = request.getRemoteAddr();
-            Bucket bucket = resolveBucket(ip, path);
+            Bucket bucket = resolveBucket(ip, rateLimitType);
 
             ConsumptionProbe probe = bucket.tryConsumeAndReturnRemaining(1);
 
@@ -102,9 +139,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
                         .action("RATE_LIMIT_FILTERING")
                         .result(AuditResult.FAILURE)
                         .reason("SYSTEM_TOO_MANY_REQUESTS")
+                        .detail("rateLimitType", rateLimitType)
                         .detail("path", path)
                         .detail("ip", ip)
-                        .detail("path", path)
                         .detail("waitForRefill", waitForRefill)
                         .build()
                 );

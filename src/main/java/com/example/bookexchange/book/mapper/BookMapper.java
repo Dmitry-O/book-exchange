@@ -13,12 +13,33 @@ import org.mapstruct.*;
 )
 public interface BookMapper {
 
-    @Mapping(target = "isGift", defaultValue = "false")
-    @Mapping(target = "isExchanged", defaultValue = "false")
+    @BeanMapping(ignoreByDefault = true)
+    @Mapping(target = "name", source = "name")
+    @Mapping(target = "description", source = "description")
+    @Mapping(target = "author", source = "author")
+    @Mapping(target = "category", source = "category")
+    @Mapping(target = "publicationYear", source = "publicationYear")
+    @Mapping(target = "photoBase64", source = "photoBase64")
+    @Mapping(target = "city", source = "city")
+    @Mapping(target = "contactDetails", source = "contactDetails")
+    @Mapping(target = "isGift", source = "isGift", defaultValue = "false")
+    @Mapping(target = "isExchanged", constant = "false")
     Book bookDtoToBook(BookCreateDTO dto);
 
+    @BeanMapping(ignoreByDefault = true)
+    @Mapping(target = "id", source = "id")
+    @Mapping(target = "name", source = "name")
+    @Mapping(target = "description", source = "description")
+    @Mapping(target = "author", source = "author")
+    @Mapping(target = "category", source = "category")
+    @Mapping(target = "publicationYear", source = "publicationYear")
+    @Mapping(target = "photoBase64", source = "photoBase64")
+    @Mapping(target = "city", source = "city")
+    @Mapping(target = "isGift", source = "isGift")
+    @Mapping(target = "isExchanged", source = "isExchanged")
     BookDTO bookToBookDto(Book book);
 
+    @BeanMapping(ignoreByDefault = true, nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     @Mapping(target = "name", source = "dto.name")
     @Mapping(target = "description", source = "dto.description")
     @Mapping(target = "author", source = "dto.author")

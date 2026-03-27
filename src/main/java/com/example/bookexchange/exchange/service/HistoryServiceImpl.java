@@ -1,5 +1,6 @@
 package com.example.bookexchange.exchange.service;
 
+import com.example.bookexchange.common.dto.PageQueryDTO;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.common.result.ResultFactory;
 import com.example.bookexchange.common.i18n.MessageKey;
@@ -13,15 +14,11 @@ import com.example.bookexchange.exchange.repository.ExchangeRepository;
 import com.example.bookexchange.exchange.util.ExchangeUtil;
 import lombok.AllArgsConstructor;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 
 @Service
 @AllArgsConstructor
@@ -33,42 +30,19 @@ public class HistoryServiceImpl implements HistoryService {
 
     @Transactional(readOnly = true)
     @Override
-    public Result<Page<ExchangeHistoryDTO>> getUserExchangeHistory(Long userId, Integer pageIndex, Integer pageSize) {
-        Pageable pageable = PageRequest.of(pageIndex, pageSize);
-
-        List<Exchange> exchangesAsSender = exchangeRepository
-                .findBySenderUserIdAndStatusNot(userId, ExchangeStatus.PENDING);
-        List<Exchange> exchangesAsReceiver = exchangeRepository
-                .findByReceiverUserIdAndStatusNot(userId, ExchangeStatus.PENDING);
-
-        List<ExchangeHistoryDTO> allExchanges = new ArrayList<>();
-
-        allExchanges.addAll(
-                exchangesAsSender.stream()
-                        .map(exchange -> exchangeMapper.exchangeToExchangeHistoryDto(
-                                exchange,
-                                UserExchangeRole.SENDER)
-                        )
-                        .toList()
+    public Result<Page<ExchangeHistoryDTO>> getUserExchangeHistory(Long userId, PageQueryDTO queryDTO) {
+        Pageable pageable = PageRequest.of(
+                queryDTO.getPageIndex(),
+                queryDTO.getPageSize(),
+                Sort.by(Sort.Direction.DESC, "updatedAt")
         );
 
-        allExchanges.addAll(
-                exchangesAsReceiver.stream()
-                        .map(exchange -> exchangeMapper.exchangeToExchangeHistoryDto(
-                                exchange,
-                                UserExchangeRole.RECEIVER)
-                        )
-                        .toList()
-        );
-
-        int start = (int) pageable.getOffset();
-        int end = Math.min(start + pageable.getPageSize(), allExchanges.size());
-
-        List<ExchangeHistoryDTO> paginatedList = start > end
-                ? Collections.emptyList()
-                : allExchanges.subList(start, end);
-
-        Page<ExchangeHistoryDTO> page = new PageImpl<>(paginatedList, pageable, allExchanges.size());
+        Page<ExchangeHistoryDTO> page = exchangeRepository
+                .findUserExchangeHistory(userId, ExchangeStatus.PENDING, pageable)
+                .map(exchange -> exchangeMapper.exchangeToExchangeHistoryDto(
+                        exchange,
+                        resolveUserExchangeRole(exchange, userId)
+                ));
 
         return ResultFactory.ok(page);
     }
@@ -93,6 +67,12 @@ public class HistoryServiceImpl implements HistoryService {
             case SENDER -> markAsReadBySender(exchange);
             case RECEIVER -> markAsReadByReceiver(exchange);
         };
+    }
+
+    private UserExchangeRole resolveUserExchangeRole(Exchange exchange, Long userId) {
+        return exchange.getSenderUser().getId().equals(userId)
+                ? UserExchangeRole.SENDER
+                : UserExchangeRole.RECEIVER;
     }
 
     private Exchange markAsReadBySender(Exchange exchange) {

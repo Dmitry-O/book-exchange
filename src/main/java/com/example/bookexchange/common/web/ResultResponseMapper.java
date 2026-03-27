@@ -34,7 +34,7 @@ public class ResultResponseMapper {
     public ResponseEntity<?> map(Result<?> result, HttpServletRequest request) {
         if (result instanceof Success<?> success) {
             String message = success.messageKey() != null
-                    ? messageService.getMessage(success.messageKey())
+                    ? messageService.getMessage(success.messageKey(), success.args())
                     : null;
 
             ApiResponse<?> response = ApiResponse.builder()
@@ -132,7 +132,7 @@ public class ResultResponseMapper {
 
         String message = messageService.getMessage(MessageKey.SYSTEM_UNEXPECTED_DB_ERROR);
 
-        if (ex.getCause().getCause() instanceof ConstraintViolationException constraintViolationException) {
+        if (ex.getCause() != null && ex.getCause().getCause() instanceof ConstraintViolationException constraintViolationException) {
             message = constraintViolationException.getConstraintViolations()
                     .stream()
                     .map(e -> e.getPropertyPath().toString() + ": " + e.getMessage())

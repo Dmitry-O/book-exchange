@@ -52,6 +52,8 @@ public enum MessageKey {
     EMAIL_DELETE_ACCOUNT("email.delete.account"),
 
     REPORT_SENT("report.sent"),
+    REPORT_CANNOT_REPORT_YOURSELF("report.cannot.report.yourself"),
+    REPORT_CANNOT_REPORT_YOUR_BOOK("report.cannot.report.your.book"),
 
     ADMIN_USER_NOT_FOUND("admin.user.not.found"),
     ADMIN_USER_ALREADY_ADMIN("admin.user.already.admin"),

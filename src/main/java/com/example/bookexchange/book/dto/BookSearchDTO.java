@@ -1,15 +1,19 @@
 package com.example.bookexchange.book.dto;
 
+import com.example.bookexchange.common.dto.SortDirectionDTO;
+import com.example.bookexchange.common.validation.ValidPublicationYear;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Size;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
-import tools.jackson.databind.annotation.JsonDeserialize;
+import lombok.NoArgsConstructor;
 
-@JsonDeserialize(builder = BookSearchDTO.BookSearchDTOBuilder.class)
 @Builder
 @Data
+@AllArgsConstructor
+@NoArgsConstructor
 public class BookSearchDTO {
 
     @Schema(example = "Frank Oester")
@@ -29,6 +33,7 @@ public class BookSearchDTO {
 
     @Schema(example = "1765")
     @JsonProperty("publicationYear")
+    @ValidPublicationYear
     private Integer publicationYear;
 
     @Schema(example = "true")
@@ -40,11 +45,11 @@ public class BookSearchDTO {
     @Size(min = 3, max = 25)
     private String searchText;
 
-    @Schema(example = "category")
+    @Schema(example = "CATEGORY")
     @JsonProperty("sortBy")
-    private String sortBy;
+    private BookSortFieldDTO sortBy;
 
-    @Schema(example = "true")
+    @Schema(example = "ASC")
     @JsonProperty("sortDirection")
-    private String sortDirection;
+    private SortDirectionDTO sortDirection;
 }

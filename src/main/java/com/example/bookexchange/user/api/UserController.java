@@ -68,7 +68,7 @@ public class UserController {
             description = "User's profile has been updated",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = UserUpdateDTO.class),
+                    schema = @Schema(implementation = UserDTO.class),
                     examples = @ExampleObject(
                             value = """
                                         {
@@ -78,10 +78,10 @@ public class UserController {
                                             "email": "example@info.com",
                                             "nickname": "user_12345",
                                             "photoBase64": "User photo",
-                                            "bannedUntil": "2026-04-21 12:00:00",
+                                            "bannedUntil": "2026-04-21T12:00:00Z",
                                             "bannedPermanently": false,
                                             "banReason": "Spam distribution",
-                                            "roles": "USER",
+                                            "roles": ["USER"],
                                             "locale": "de"
                                           },
                                           "message": "Your profile has been updated",
@@ -120,7 +120,7 @@ public class UserController {
             description = "User account has been deleted",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = ApiResponse.class),
+                    schema = @Schema(implementation = com.example.bookexchange.common.web.ApiResponse.class),
                     examples = @ExampleObject(
                             value = """
                                         {
@@ -160,7 +160,7 @@ public class UserController {
             description = "User's password has been changed",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = ApiResponse.class),
+                    schema = @Schema(implementation = com.example.bookexchange.common.web.ApiResponse.class),
                     examples = @ExampleObject(
                             value = """
                                         {
@@ -201,7 +201,7 @@ public class UserController {
             description = "User has been logged out",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = ApiResponse.class),
+                    schema = @Schema(implementation = com.example.bookexchange.common.web.ApiResponse.class),
                     examples = @ExampleObject(
                             value = """
                                         {

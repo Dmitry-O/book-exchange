@@ -3,6 +3,7 @@ package com.example.bookexchange.exchange.service;
 import com.example.bookexchange.common.audit.model.AuditEvent;
 import com.example.bookexchange.common.audit.model.AuditResult;
 import com.example.bookexchange.common.audit.service.AuditService;
+import com.example.bookexchange.common.audit.service.VersionedEntityTransitionHelper;
 import com.example.bookexchange.common.i18n.MessageKey;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.common.result.ResultFactory;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Service;
 public class ExchangeTransitionHelper {
 
     private final AuditService auditService;
+    private final VersionedEntityTransitionHelper versionedEntityTransitionHelper;
 
     public Result<Exchange> requirePendingVersion(
             Exchange exchange,
@@ -27,36 +29,18 @@ public class ExchangeTransitionHelper {
             MessageKey invalidStatusMessageKey,
             String invalidStatusReason
     ) {
-        return validateVersion(exchange, incomingVersion, action, actorId, actorEmail)
+        return versionedEntityTransitionHelper.requireVersion(
+                        exchange,
+                        incomingVersion,
+                        action,
+                        builder -> builder
+                                .actorId(actorId)
+                                .actorEmail(actorEmail)
+                                .detail("currentExchangeState", exchange.getStatus())
+                )
                 .flatMap(validExchange ->
                         validatePendingStatus(validExchange, action, actorId, actorEmail, invalidStatusMessageKey, invalidStatusReason)
                 );
-    }
-
-    private Result<Exchange> validateVersion(
-            Exchange exchange,
-            Long incomingVersion,
-            String action,
-            Long actorId,
-            String actorEmail
-    ) {
-        if (!exchange.getVersion().equals(incomingVersion)) {
-            auditService.log(AuditEvent.builder()
-                    .action(action)
-                    .result(AuditResult.FAILURE)
-                    .actorId(actorId)
-                    .actorEmail(actorEmail)
-                    .reason("SYSTEM_OPTIMISTIC_LOCK")
-                    .detail("currentVersion", exchange.getVersion())
-                    .detail("incomingVersion", incomingVersion)
-                    .detail("currentExchangeState", exchange.getStatus())
-                    .build()
-            );
-
-            return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
-        }
-
-        return ResultFactory.ok(exchange);
     }
 
     private Result<Exchange> validatePendingStatus(
