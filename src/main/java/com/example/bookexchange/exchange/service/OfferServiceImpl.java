@@ -4,6 +4,7 @@ import com.example.bookexchange.book.model.Book;
 import com.example.bookexchange.common.audit.model.AuditEvent;
 import com.example.bookexchange.common.audit.model.AuditResult;
 import com.example.bookexchange.common.audit.service.AuditService;
+import com.example.bookexchange.common.dto.PageQueryDTO;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.common.result.ResultFactory;
 import com.example.bookexchange.common.i18n.MessageKey;
@@ -19,6 +20,7 @@ import lombok.AllArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,8 +39,12 @@ public class OfferServiceImpl implements OfferService {
 
     @Transactional(readOnly = true)
     @Override
-    public Result<Page<ExchangeDTO>> getUserOffers(Long receiverUserId, Integer pageIndex, Integer pageSize) {
-        Pageable pageable = PageRequest.of(pageIndex, pageSize);
+    public Result<Page<ExchangeDTO>> getUserOffers(Long receiverUserId, PageQueryDTO queryDTO) {
+        Pageable pageable = PageRequest.of(
+                queryDTO.getPageIndex(),
+                queryDTO.getPageSize(),
+                Sort.by(Sort.Direction.DESC, "updatedAt")
+        );
 
         Page<Exchange> exchangesPage = exchangeRepository.findByReceiverUserIdAndStatus(receiverUserId, ExchangeStatus.PENDING, pageable);
 
@@ -57,7 +63,7 @@ public class OfferServiceImpl implements OfferService {
                 ),
                 MessageKey.EXCHANGE_NOT_FOUND
         )
-                .map(exchange ->
+                .flatMap(exchange ->
                         ResultFactory.okETag(
                                 exchangeMapper.exchangeToExchangeDetailsDto(
                                         exchange,
@@ -65,8 +71,7 @@ public class OfferServiceImpl implements OfferService {
                                 ),
                                 ETagUtil.form(exchange)
                         )
-                )
-                .flatMap(r -> r);
+                );
     }
 
     @Transactional

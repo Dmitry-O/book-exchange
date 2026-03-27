@@ -1,5 +1,6 @@
 package com.example.bookexchange.exchange.service;
 
+import com.example.bookexchange.common.dto.PageQueryDTO;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.exchange.dto.ExchangeDTO;
 import com.example.bookexchange.exchange.dto.ExchangeDetailsDTO;
@@ -12,7 +13,7 @@ public interface RequestService {
 
     Result<ExchangeDetailsDTO> getSenderRequestDetails(Long senderUserId, Long exchangeId);
 
-    Result<Page<ExchangeDTO>> getSenderRequests(Long senderUserId, Integer pageIndex, Integer pageSize);
+    Result<Page<ExchangeDTO>> getSenderRequests(Long senderUserId, PageQueryDTO queryDTO);
 
     Result<ExchangeDetailsDTO> declineUserRequest(Long senderUserId, Long exchangeId, Long version);
 }

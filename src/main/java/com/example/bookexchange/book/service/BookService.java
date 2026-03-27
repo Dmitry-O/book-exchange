@@ -1,5 +1,6 @@
 package com.example.bookexchange.book.service;
 
+import com.example.bookexchange.common.dto.PageQueryDTO;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.book.dto.BookCreateDTO;
 import com.example.bookexchange.book.dto.BookDTO;
@@ -14,11 +15,11 @@ public interface BookService {
 
     Result<BookDTO> addUserBook(Long userId, BookCreateDTO dto);
 
-    Result<Page<BookDTO>> findUserBooks(Long userId, Integer pageIndex, Integer pageSize);
+    Result<Page<BookDTO>> findUserBooks(Long userId, PageQueryDTO queryDTO);
 
-    Result<Page<BookDTO>> findExchangedUserBooks(Long userId,  Integer pageIndex, Integer pageSize);
+    Result<Page<BookDTO>> findExchangedUserBooks(Long userId, PageQueryDTO queryDTO);
 
-    Result<Page<BookDTO>> findBooks(BookSearchDTO dto, Integer pageIndex, Integer pageSize);
+    Result<Page<BookDTO>> findBooks(BookSearchDTO dto, PageQueryDTO queryDTO);
 
     Result<Void> deleteUserBookById(Long userId, Long bookId, Long version);
 

@@ -4,8 +4,6 @@ import com.example.bookexchange.common.i18n.MessageKey;
 import com.example.bookexchange.common.i18n.MessageService;
 import com.example.bookexchange.common.util.ErrorHelper;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +19,7 @@ public final class ErrorResponseWriter {
 
     private final MessageService messageService;
     private final ErrorHelper errorHelper;
+    private final ObjectMapper objectMapper;
 
     public void writeError(
             HttpServletRequest request,
@@ -37,10 +36,8 @@ public final class ErrorResponseWriter {
 
         response.setContentType("application/json");
         response.setHeader("X-Request-Id", (String) request.getAttribute("requestId"));
+        response.setStatus(status.value());
 
-        ObjectMapper mapper = new ObjectMapper();
-        mapper.registerModule(new JavaTimeModule());
-        mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        mapper.writeValue(response.getOutputStream(), apiResponse.getBody());
+        objectMapper.writeValue(response.getOutputStream(), apiResponse.getBody());
     }
 }

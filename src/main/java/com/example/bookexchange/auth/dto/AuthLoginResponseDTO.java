@@ -3,9 +3,7 @@ package com.example.bookexchange.auth.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Data;
-import tools.jackson.databind.annotation.JsonDeserialize;
 
-@JsonDeserialize(builder = AuthLoginResponseDTO.AuthLoginResponseDTOBuilder.class)
 @Builder
 @Data
 public class AuthLoginResponseDTO {

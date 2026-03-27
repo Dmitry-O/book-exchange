@@ -1,5 +1,6 @@
 package com.example.bookexchange.exchange.api;
 
+import com.example.bookexchange.common.dto.PageQueryDTO;
 import com.example.bookexchange.security.auth.CurrentUser;
 import com.example.bookexchange.common.swagger.error_response.BadRequestErrorResponse;
 import com.example.bookexchange.common.swagger.error_response.ConflictErrorResponse;
@@ -20,6 +21,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.AllArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -88,7 +90,7 @@ public class RequestController {
                     )
             )
     )
-    @PostMapping(RequestPaths.REQUEST_PATH)
+    @PostMapping(ExchangePaths.REQUEST_PATH)
     public ResponseEntity<?> createRequest(
             @Parameter(description = "User ID", example = "1")
             @CurrentUser Long userId,
@@ -122,7 +124,7 @@ public class RequestController {
                     schema = @Schema(implementation = ExchangeDetailsDTO.class)
             )
     )
-    @GetMapping(RequestPaths.REQUEST_PATH_EXCHANGE_ID)
+    @GetMapping(ExchangePaths.REQUEST_PATH_EXCHANGE_ID)
     public ResponseEntity<?> getUserRequestDetails(
             @Parameter(description = "User ID", example = "1")
             @CurrentUser Long userId,
@@ -145,25 +147,18 @@ public class RequestController {
                     schema = @Schema(implementation = ExchangePageData.class)
             )
     )
-    @GetMapping(RequestPaths.REQUEST_PATH)
+    @GetMapping(ExchangePaths.REQUEST_PATH)
     public ResponseEntity<?> getUserRequests(
             @Parameter(description = "User ID", example = "1")
             @CurrentUser Long userId,
 
-            @Parameter(description = "Page index, starts from 0", example = "0")
-            @RequestParam(value = "pageIndex", defaultValue = "0") Integer pageIndex,
-
-            @Parameter(description = "Page size", example = "20")
-            @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize,
+            @ParameterObject
+            @Validated @ModelAttribute PageQueryDTO queryDTO,
 
             HttpServletRequest request
     ) {
         return responseMapper.map(
-                requestService.getSenderRequests(
-                        userId,
-                        pageIndex,
-                        pageSize
-                ),
+                requestService.getSenderRequests(userId, queryDTO),
                 request
         );
     }
@@ -223,7 +218,7 @@ public class RequestController {
                     )
             )
     )
-    @PatchMapping(RequestPaths.REQUEST_PATH_DECLINE_REQUEST)
+    @PatchMapping(ExchangePaths.REQUEST_PATH_DECLINE_REQUEST)
     public ResponseEntity<?> declineUserRequest(
             @Parameter(description = "User ID", example = "1")
             @CurrentUser Long userId,

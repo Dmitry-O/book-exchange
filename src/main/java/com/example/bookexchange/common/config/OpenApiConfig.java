@@ -24,7 +24,10 @@ public class OpenApiConfig {
                 .addTagsItem(new Tag().name("Exchange requests").description("Operations with exchange requests"))
                 .addTagsItem(new Tag().name("Exchange offers").description("Operations with exchange offers"))
                 .addTagsItem(new Tag().name("Exchange history").description("Operations with exchange history"))
-                .addTagsItem(new Tag().name("Administrator services").description("Operations with all services for administrators"))
+                .addTagsItem(new Tag().name("Administrator services - Users").description("Operations with user services for administrators"))
+                .addTagsItem(new Tag().name("Administrator services - Books").description("Operations with book services for administrators"))
+                .addTagsItem(new Tag().name("Administrator services - Exchanges").description("Operations with exchange services for administrators"))
+                .addTagsItem(new Tag().name("Administrator services - Reports").description("Operations with report services for administrators"))
                 .addSecurityItem(new SecurityRequirement().addList("bearerAuth"))
                 .components(new Components()
                         .addSecuritySchemes("bearerAuth",

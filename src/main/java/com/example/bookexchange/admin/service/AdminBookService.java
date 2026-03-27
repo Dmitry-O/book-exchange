@@ -4,13 +4,14 @@ import com.example.bookexchange.admin.dto.BookAdminDTO;
 import com.example.bookexchange.book.dto.BookSearchDTO;
 import com.example.bookexchange.book.dto.BookUpdateDTO;
 import com.example.bookexchange.book.model.BookType;
+import com.example.bookexchange.common.dto.PageQueryDTO;
 import com.example.bookexchange.common.result.Result;
 import org.springframework.data.domain.Page;
 import org.springframework.security.core.userdetails.UserDetails;
 
 public interface AdminBookService {
 
-    Result<Page<BookAdminDTO>> findBooks(BookSearchDTO dto, Integer pageIndex, Integer pageSize, BookType bookType);
+    Result<Page<BookAdminDTO>> findBooks(BookSearchDTO dto, PageQueryDTO queryDTO, BookType bookType);
 
     Result<BookAdminDTO> findBookById(UserDetails adminUser, Long bookId);
 

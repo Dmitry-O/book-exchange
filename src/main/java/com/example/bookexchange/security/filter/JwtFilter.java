@@ -3,7 +3,8 @@ package com.example.bookexchange.security.filter;
 import com.example.bookexchange.common.audit.model.AuditEvent;
 import com.example.bookexchange.common.audit.model.AuditResult;
 import com.example.bookexchange.common.audit.service.AuditService;
-import com.example.bookexchange.security.auth.CurrentUserArgumentResolver;
+import com.example.bookexchange.common.i18n.MessageKey;
+import com.example.bookexchange.common.web.ErrorResponseWriter;
 import com.example.bookexchange.security.auth.CustomUserDetailsServiceImpl;
 import com.example.bookexchange.security.auth.JwtService;
 import com.example.bookexchange.security.auth.UserPrincipal;
@@ -13,11 +14,12 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import org.apache.coyote.BadRequestException;
 import org.jspecify.annotations.NonNull;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
@@ -32,6 +34,7 @@ public class JwtFilter extends OncePerRequestFilter {
     private final JwtService jwtService;
     private final CustomUserDetailsServiceImpl customUserDetailsService;
     private final AuditService auditService;
+    private final ErrorResponseWriter errorResponseWriter;
 
     @Override
     protected void doFilterInternal(
@@ -47,9 +50,11 @@ public class JwtFilter extends OncePerRequestFilter {
             return;
         }
 
+        Long userId = null;
+
         try {
             String token = header.substring(7);
-            Long userId = jwtService.extractUserId(token);
+            userId = jwtService.extractUserId(token);
 
             Authentication existingAuth = SecurityContextHolder.getContext().getAuthentication();
 
@@ -69,17 +74,31 @@ public class JwtFilter extends OncePerRequestFilter {
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }
-        } catch (JwtException ex) {
+        } catch (JwtException | AuthenticationException ex) {
+            SecurityContextHolder.clearContext();
+
             auditService.log(AuditEvent.builder()
                     .action("JWT_FILTERING")
                     .result(AuditResult.FAILURE)
-                    .reason("ACCESS_FAILURE")
-                    .detail("authHader", header)
-                    .detail("exception", ex)
+                    .reason("SYSTEM_INVALID_TOKEN")
+                    .detail("exceptionClass", ex.getClass().getSimpleName())
+                    .detail("ipAddress", request.getRemoteAddr())
+                    .detail("method", request.getMethod())
+                    .detail("path", request.getRequestURI())
+                    .detail("queryString", request.getQueryString())
+                    .detail("userId", userId)
+                    .detail("hasBearerHeader", true)
                     .build()
             );
 
-            throw new BadRequestException();
+            errorResponseWriter.writeError(
+                    request,
+                    response,
+                    HttpStatus.UNAUTHORIZED,
+                    MessageKey.SYSTEM_INVALID_TOKEN
+            );
+
+            return;
         }
 
         filterChain.doFilter(request, response);

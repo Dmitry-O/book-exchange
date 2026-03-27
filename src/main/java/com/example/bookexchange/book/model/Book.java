@@ -82,7 +82,7 @@ public class Book extends SoftDeletableEntity {
     @Column(nullable = false)
     private Boolean isExchanged = Boolean.FALSE;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JsonBackReference
     private User user;
 

@@ -12,6 +12,9 @@ import com.example.bookexchange.book.specification.BookSpecificationBuilder;
 import com.example.bookexchange.common.audit.model.AuditEvent;
 import com.example.bookexchange.common.audit.model.AuditResult;
 import com.example.bookexchange.common.audit.service.AuditService;
+import com.example.bookexchange.common.audit.service.VersionedEntityTransitionHelper;
+import com.example.bookexchange.common.dto.PageQueryDTO;
+import com.example.bookexchange.common.dto.SortDirectionDTO;
 import com.example.bookexchange.common.i18n.MessageKey;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.common.result.ResultFactory;
@@ -22,7 +25,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,27 +39,34 @@ public class AdminBookServiceImpl implements AdminBookService {
     private final BookMapper bookMapper;
     private final AdminMapper adminMapper;
     private final AuditService auditService;
+    private final VersionedEntityTransitionHelper versionedEntityTransitionHelper;
 
     @Transactional(readOnly = true)
     @Override
-    public Result<Page<BookAdminDTO>> findBooks(BookSearchDTO dto, Integer pageIndex, Integer pageSize, BookType bookType) {
-        Specification<Book> specification = BookSpecificationBuilder.build(dto, bookType);
-
-        Pageable pageable;
-
-        if (dto.getSortBy() != null && dto.getSortDirection() != null) {
-            Sort.Direction direction = dto.getSortDirection().equalsIgnoreCase(("desc"))
-                    ? Sort.Direction.DESC
-                    : Sort.Direction.ASC;
-
-            pageable = PageRequest.of(pageIndex, pageSize, Sort.by(direction, dto.getSortBy()));
-        } else {
-            pageable = PageRequest.of(pageIndex, pageSize);
-        }
+    public Result<Page<BookAdminDTO>> findBooks(BookSearchDTO dto, PageQueryDTO queryDTO, BookType bookType) {
+        BookSearchDTO searchDto = normalizeSearchDto(dto);
+        Specification<Book> specification = BookSpecificationBuilder.build(searchDto, bookType);
+        Pageable pageable = createSearchPageable(searchDto, queryDTO.getPageIndex(), queryDTO.getPageSize());
 
         Page<BookAdminDTO> page = bookRepository.findAll(specification, pageable).map(adminMapper::bookToBookAdminDto);
 
         return ResultFactory.ok(page);
+    }
+
+    private BookSearchDTO normalizeSearchDto(BookSearchDTO dto) {
+        return dto != null ? dto : BookSearchDTO.builder().build();
+    }
+
+    private Pageable createSearchPageable(BookSearchDTO dto, Integer pageIndex, Integer pageSize) {
+        if (dto.getSortBy() == null || dto.getSortDirection() == null) {
+            return PageRequest.of(pageIndex, pageSize, Sort.by(Sort.Direction.DESC, "createdAt"));
+        }
+
+        Sort.Direction direction = dto.getSortDirection() == SortDirectionDTO.DESC
+                ? Sort.Direction.DESC
+                : Sort.Direction.ASC;
+
+        return PageRequest.of(pageIndex, pageSize, Sort.by(direction, dto.getSortBy().getProperty()));
     }
 
     @Transactional(readOnly = true)
@@ -68,7 +77,7 @@ public class AdminBookServiceImpl implements AdminBookService {
                         bookId,
                         MessageKey.ADMIN_BOOK_NOT_FOUND
                 )
-                .map(book -> {
+                .flatMap(book -> {
                             auditService.log(AuditEvent.builder()
                                     .action("ADMIN_BOOK_FIND")
                                     .result(AuditResult.SUCCESS)
@@ -85,8 +94,7 @@ public class AdminBookServiceImpl implements AdminBookService {
                             );
                         }
 
-                )
-                .flatMap(r -> r);
+                );
     }
 
     @Transactional
@@ -98,19 +106,19 @@ public class AdminBookServiceImpl implements AdminBookService {
                         MessageKey.ADMIN_BOOK_NOT_FOUND
                 )
                 .flatMap(book -> {
-                    if (!book.getVersion().equals(version)) {
-                        auditService.log(AuditEvent.builder()
-                                .action("ADMIN_BOOK_UPDATE")
-                                .result(AuditResult.FAILURE)
-                                .actorEmail(adminUser.getUsername())
-                                .reason("SYSTEM_OPTIMISTIC_LOCK")
-                                .detail("actorUserRoles", adminUser.getAuthorities())
-                                .detail("bookId", bookId)
-                                .detail("bookName", book.getName())
-                                .build()
-                        );
+                    Result<Book> versionValidation = versionedEntityTransitionHelper.requireVersion(
+                            book,
+                            version,
+                            "ADMIN_BOOK_UPDATE",
+                            builder -> builder
+                                    .actorEmail(adminUser.getUsername())
+                                    .detail("actorUserRoles", adminUser.getAuthorities())
+                                    .detail("bookId", bookId)
+                                    .detail("bookName", book.getName())
+                    );
 
-                        return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
+                    if (versionValidation.isFailure()) {
+                        return versionValidation.map(adminMapper::bookToBookAdminDto);
                     }
 
                     bookMapper.updateBookDtoToBook(dto, book);
@@ -144,19 +152,19 @@ public class AdminBookServiceImpl implements AdminBookService {
                         MessageKey.ADMIN_BOOK_NOT_FOUND
                 )
                 .flatMap(book -> {
-                    if (!book.getVersion().equals(version)) {
-                        auditService.log(AuditEvent.builder()
-                                .action("ADMIN_BOOK_DELETE")
-                                .result(AuditResult.FAILURE)
-                                .actorEmail(adminUser.getUsername())
-                                .reason("SYSTEM_OPTIMISTIC_LOCK")
-                                .detail("actorUserRoles", adminUser.getAuthorities())
-                                .detail("bookId", bookId)
-                                .detail("bookName", book.getName())
-                                .build()
-                        );
+                    Result<Book> versionValidation = versionedEntityTransitionHelper.requireVersion(
+                            book,
+                            version,
+                            "ADMIN_BOOK_DELETE",
+                            builder -> builder
+                                    .actorEmail(adminUser.getUsername())
+                                    .detail("actorUserRoles", adminUser.getAuthorities())
+                                    .detail("bookId", bookId)
+                                    .detail("bookName", book.getName())
+                    );
 
-                        return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
+                    if (versionValidation.isFailure()) {
+                        return versionValidation.map(adminMapper::bookToBookAdminDto);
                     }
 
                     book.setDeletedAt(Instant.now());
@@ -189,19 +197,19 @@ public class AdminBookServiceImpl implements AdminBookService {
                         MessageKey.ADMIN_BOOK_NOT_FOUND
                 )
                 .flatMap(book -> {
-                    if (!book.getVersion().equals(version)) {
-                        auditService.log(AuditEvent.builder()
-                                .action("ADMIN_BOOK_RESTORE")
-                                .result(AuditResult.FAILURE)
-                                .actorEmail(adminUser.getUsername())
-                                .reason("SYSTEM_OPTIMISTIC_LOCK")
-                                .detail("actorUserRoles", adminUser.getAuthorities())
-                                .detail("bookId", bookId)
-                                .detail("bookName", book.getName())
-                                .build()
-                        );
+                    Result<Book> versionValidation = versionedEntityTransitionHelper.requireVersion(
+                            book,
+                            version,
+                            "ADMIN_BOOK_RESTORE",
+                            builder -> builder
+                                    .actorEmail(adminUser.getUsername())
+                                    .detail("actorUserRoles", adminUser.getAuthorities())
+                                    .detail("bookId", bookId)
+                                    .detail("bookName", book.getName())
+                    );
 
-                        return ResultFactory.error(MessageKey.SYSTEM_OPTIMISTIC_LOCK, HttpStatus.CONFLICT);
+                    if (versionValidation.isFailure()) {
+                        return versionValidation.map(adminMapper::bookToBookAdminDto);
                     }
 
                     book.setDeletedAt(null);

@@ -9,7 +9,8 @@ public record Success<T>(
         T body,
         HttpStatus status,
         MessageKey messageKey,
-        String eTag
+        String eTag,
+        Object... args
 ) implements Result<T> {
 
     @Override
@@ -19,7 +20,7 @@ public record Success<T>(
 
     @Override
     public <R> Result<R> map(Function<T, R> mapper) {
-        return new Success<>(mapper.apply(body), status, messageKey, eTag);
+        return new Success<>(mapper.apply(body), status, messageKey, eTag, args);
     }
 
     @Override

@@ -1,5 +1,6 @@
 package com.example.bookexchange.exchange.api;
 
+import com.example.bookexchange.common.dto.PageQueryDTO;
 import com.example.bookexchange.security.auth.CurrentUser;
 import com.example.bookexchange.common.swagger.error_response.BadRequestErrorResponse;
 import com.example.bookexchange.common.swagger.error_response.ConflictErrorResponse;
@@ -19,7 +20,9 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.AllArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 @Tag(name = "Exchange offers")
@@ -41,25 +44,18 @@ public class OfferController {
                     schema = @Schema(implementation = ExchangePageData.class)
             )
     )
-    @GetMapping(OfferPaths.OFFER_PATH)
+    @GetMapping(ExchangePaths.OFFER_PATH)
     public ResponseEntity<?> getUserOffers(
             @Parameter(description = "User ID", example = "1")
             @CurrentUser Long userId,
 
-            @Parameter(description = "Page index, starts from 0", example = "0")
-            @RequestParam(value = "pageIndex", defaultValue = "0") Integer pageIndex,
-
-            @Parameter(description = "Page size", example = "20")
-            @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize,
+            @ParameterObject
+            @Validated @ModelAttribute PageQueryDTO queryDTO,
 
             HttpServletRequest request
     ) {
         return responseMapper.map(
-                offerService.getUserOffers(
-                        userId,
-                        pageIndex,
-                        pageSize
-                ),
+                offerService.getUserOffers(userId, queryDTO),
                 request
         );
     }
@@ -79,7 +75,7 @@ public class OfferController {
                     schema = @Schema(implementation = ExchangeDetailsDTO.class)
             )
     )
-    @GetMapping(OfferPaths.OFFER_PATH_EXCHANGE_ID)
+    @GetMapping(ExchangePaths.OFFER_PATH_EXCHANGE_ID)
     public ResponseEntity<?> getUserOfferDetails(
             @Parameter(description = "User ID", example = "1")
             @CurrentUser Long userId,
@@ -153,7 +149,7 @@ public class OfferController {
                     )
             )
     )
-    @PatchMapping(OfferPaths.OFFER_PATH_APPROVE_OFFER)
+    @PatchMapping(ExchangePaths.OFFER_PATH_APPROVE_OFFER)
     public ResponseEntity<?> approveUserOffer(
             @Parameter(description = "User ID", example = "1")
             @CurrentUser Long userId,
@@ -236,7 +232,7 @@ public class OfferController {
                     )
             )
     )
-    @PatchMapping(OfferPaths.OFFER_PATH_DECLINE_OFFER)
+    @PatchMapping(ExchangePaths.OFFER_PATH_DECLINE_OFFER)
     public ResponseEntity<?> declineUserOffer(
             @Parameter(description = "User ID", example = "1")
             @CurrentUser Long userId,

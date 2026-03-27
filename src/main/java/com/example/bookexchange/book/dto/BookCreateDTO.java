@@ -1,5 +1,7 @@
 package com.example.bookexchange.book.dto;
 
+import com.example.bookexchange.common.validation.Base64Image;
+import com.example.bookexchange.common.validation.ValidPublicationYear;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
@@ -9,9 +11,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import tools.jackson.databind.annotation.JsonDeserialize;
 
-@JsonDeserialize(builder = BookCreateDTO.BookCreateDTOBuilder.class)
 @Builder
 @Data
 @AllArgsConstructor
@@ -49,10 +49,12 @@ public class BookCreateDTO {
     @Schema(example = "1765")
     @JsonProperty("publicationYear")
     @NotNull
+    @ValidPublicationYear
     private Integer publicationYear;
 
     @Schema(example = "Book photo")
     @JsonProperty("photoBase64")
+    @Base64Image
     private String photoBase64;
 
     @Schema(example = "London")
@@ -66,13 +68,10 @@ public class BookCreateDTO {
     @JsonProperty("contactDetails")
     @NotBlank
     @NotNull
+    @Size(min = 3, max = 255)
     private String contactDetails;
 
     @Schema(example = "true")
     @JsonProperty("isGift")
     private Boolean isGift = false;
-
-    @Schema(example = "false")
-    @JsonProperty("isExchanged")
-    private Boolean isExchanged = false;
 }

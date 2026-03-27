@@ -19,15 +19,15 @@ public final class ResultFactory {
     }
 
     public static Result<Void> okMessage(MessageKey messageKey, Object... args) {
-        return new Success<>(null, HttpStatus.OK, messageKey, null);
+        return new Success<>(null, HttpStatus.OK, messageKey, null, args);
     }
 
-    public static <T> Result<T> created(T body, MessageKey messageKey, String eTag) {
-        return new Success<>(body, HttpStatus.CREATED, messageKey, eTag);
+    public static <T> Result<T> created(T body, MessageKey messageKey, String eTag, Object... args) {
+        return new Success<>(body, HttpStatus.CREATED, messageKey, eTag, args);
     }
 
     public static <T> Result<T> updated(T body, MessageKey messageKey, String eTag, Object... args) {
-        return new Success<>(body, HttpStatus.OK, messageKey, eTag);
+        return new Success<>(body, HttpStatus.OK, messageKey, eTag, args);
     }
 
     public static <T> Result<T> successVoid() {

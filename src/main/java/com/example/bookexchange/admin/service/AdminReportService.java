@@ -1,6 +1,8 @@
 package com.example.bookexchange.admin.service;
 
 import com.example.bookexchange.admin.dto.ReportAdminDTO;
+import com.example.bookexchange.common.dto.PageQueryDTO;
+import com.example.bookexchange.common.dto.SortDirectionDTO;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.report.model.ReportStatus;
 import org.springframework.data.domain.Page;
@@ -10,7 +12,7 @@ import java.util.Set;
 
 public interface AdminReportService {
 
-    Result<Page<ReportAdminDTO>> findReports(Integer pageIndex, Integer pageSize, Set<ReportStatus> statuses, String sortDirection);
+    Result<Page<ReportAdminDTO>> findReports(PageQueryDTO queryDTO, Set<ReportStatus> statuses, SortDirectionDTO sortDirection);
 
     Result<ReportAdminDTO> findReportById(UserDetails adminUser, Long reportId);
 
