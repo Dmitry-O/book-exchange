@@ -31,7 +31,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.HashSet;
 
 @Service
 @AllArgsConstructor
@@ -205,11 +204,8 @@ public class BookServiceImpl implements BookService {
     @Transactional
     @Override
     public void softDeleteBooks(User user, Instant deletedAt) {
-        for (Book book : new HashSet<>(user.getBooks())) {
-            if (book.getDeletedAt() == null) {
-                book.setDeletedAt(deletedAt);
-            }
-        }
+        bookRepository.findAllByUserIdAndDeletedAtIsNull(user.getId())
+                .forEach(book -> book.setDeletedAt(deletedAt));
     }
 
     private void logBookSuccess(String action, Long actorId, Book book) {

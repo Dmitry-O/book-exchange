@@ -16,7 +16,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.HashSet;
 import java.util.UUID;
 
 import static java.time.temporal.ChronoUnit.HOURS;
@@ -110,7 +109,7 @@ public class VerificationTokenServiceImpl implements VerificationTokenService {
 
     @Override
     public Result<User> deleteUserTokens(User user) {
-        verificationTokenRepository.deleteAll(new HashSet<>(user.getVerificationToken()));
+        verificationTokenRepository.deleteByUserId(user.getId());
 
         return ResultFactory.ok(user);
     }

@@ -7,6 +7,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface BookRepository extends JpaRepository<Book, Long>, JpaSpecificationExecutor<Book> {
@@ -16,6 +17,8 @@ public interface BookRepository extends JpaRepository<Book, Long>, JpaSpecificat
     Page<Book> findAll(Specification<Book> specification, Pageable pageable);
 
     Optional<Book> findByIdAndUserId(Long bookId, Long userId);
+
+    List<Book> findAllByUserIdAndDeletedAtIsNull(Long userId);
 
     void deleteByUserId(Long userId);
 }

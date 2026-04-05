@@ -5,7 +5,7 @@ import com.example.bookexchange.admin.dto.UserAdminDTO;
 import com.example.bookexchange.admin.mapper.AdminMapper;
 import com.example.bookexchange.auth.repository.RefreshTokenRepository;
 import com.example.bookexchange.auth.repository.VerificationTokenRepository;
-import com.example.bookexchange.book.model.Book;
+import com.example.bookexchange.book.repository.BookRepository;
 import com.example.bookexchange.common.audit.model.AuditEvent;
 import com.example.bookexchange.common.audit.model.AuditResult;
 import com.example.bookexchange.common.audit.service.AuditService;
@@ -32,7 +32,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.HashSet;
 import java.util.Set;
 
 @Service
@@ -40,6 +39,7 @@ import java.util.Set;
 public class AdminUserServiceImpl implements AdminUserService {
 
     private final UserRepository userRepository;
+    private final BookRepository bookRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final VerificationTokenRepository verificationTokenRepository;
     private final AdminMapper adminMapper;
@@ -262,7 +262,7 @@ public class AdminUserServiceImpl implements AdminUserService {
 
                     user.setBanReason(banUserDTO.getBanReason());
 
-                    refreshTokenRepository.deleteAll(new HashSet<>(user.getRefreshTokens()));
+                    refreshTokenRepository.deleteByUserId(userId);
 
                     auditService.log(AuditEvent.builder()
                             .action("ADMIN_BAN_USER")
@@ -358,21 +358,19 @@ public class AdminUserServiceImpl implements AdminUserService {
                     }
 
                     String oldUserEmail = user.getEmail();
+                    Instant deletedAt = Instant.now();
 
                     user.setEmail("anonymized-" + user.getId() + "@anonymized.anonymized");
                     user.setNickname("anonymized-" + user.getId());
                     user.setPhotoBase64(null);
                     user.setPassword("");
-                    user.setDeletedAt(Instant.now());
+                    user.setDeletedAt(deletedAt);
 
-                    for (Book book : new HashSet<>(user.getBooks())) {
-                        if (book.getDeletedAt() == null) {
-                            book.setDeletedAt(Instant.now());
-                        }
-                    }
+                    bookRepository.findAllByUserIdAndDeletedAtIsNull(userId)
+                            .forEach(book -> book.setDeletedAt(deletedAt));
 
-                    refreshTokenRepository.deleteAll(new HashSet<>(user.getRefreshTokens()));
-                    verificationTokenRepository.deleteAll(new HashSet<>(user.getVerificationToken()));
+                    refreshTokenRepository.deleteByUserId(userId);
+                    verificationTokenRepository.deleteByUserId(userId);
 
                     auditService.log(AuditEvent.builder()
                             .action("ADMIN_USER_DELETE")

@@ -1,0 +1,517 @@
+package com.example.bookexchange.book.api;
+
+import com.example.bookexchange.support.IntegrationTestSupport;
+import com.example.bookexchange.book.dto.BookCreateDTO;
+import com.example.bookexchange.book.dto.BookUpdateDTO;
+import com.example.bookexchange.book.model.Book;
+import com.example.bookexchange.book.repository.BookRepository;
+import com.example.bookexchange.common.i18n.MessageKey;
+import com.example.bookexchange.exchange.model.Exchange;
+import com.example.bookexchange.exchange.model.ExchangeStatus;
+import com.example.bookexchange.exchange.repository.ExchangeRepository;
+import com.example.bookexchange.user.model.User;
+import com.example.bookexchange.support.fixture.BookFixtureSupport;
+import com.example.bookexchange.support.fixture.ExchangeFixtureSupport;
+import com.example.bookexchange.support.fixture.UserFixtureSupport;
+import com.fasterxml.jackson.databind.JsonNode;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.test.annotation.Rollback;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.testcontainers.junit.jupiter.Testcontainers;
+
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.HashSet;
+import java.util.Set;
+
+import static com.example.bookexchange.support.PageTestDefaults.PAGE_INDEX;
+import static com.example.bookexchange.support.PageTestDefaults.PAGE_SIZE;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@Testcontainers
+@Transactional
+@Rollback
+class BookControllerIT extends IntegrationTestSupport {
+
+    @Autowired
+    BookRepository bookRepository;
+
+    @Autowired
+    ExchangeRepository exchangeRepository;
+
+    @Autowired
+    UserFixtureSupport userUtil;
+
+    @Autowired
+    BookFixtureSupport bookUtil;
+
+    @Autowired
+    ExchangeFixtureSupport exchangeUtilIT;
+
+    @Autowired
+    TransactionTemplate transactionTemplate;
+
+    MockMvc mockMvc;
+
+    private User user;
+    private Long bookId;
+
+    @BeforeEach
+    void setUp() {
+        mockMvc = buildMockMvc();
+    }
+
+    @BeforeAll
+    void init() {
+        user = userUtil.createUser(null);
+        bookId = bookUtil.createBook(user.getId(), null);
+    }
+
+    @AfterAll
+    void cleanup() {
+        transactionTemplate.executeWithoutResult(status -> {
+            bookUtil.deleteUserBooks(user.getId());
+            userUtil.deleteUser(user.getId());
+        });
+
+        user = null;
+        bookId = null;
+    }
+
+    @Test
+    void addUserBook() throws Exception {
+        BookCreateDTO bookCreateDTO = buildBookCreateDTO(10);
+
+        MvcResult mvcResult = mockMvc.perform(post(BookPaths.BOOK_PATH_USER)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(bookCreateDTO)))
+                .andExpect(status().isCreated())
+                .andExpect(header().exists(HttpHeaders.ETAG))
+                .andReturn();
+
+        JsonNode body = responseBody(mvcResult);
+        Long savedId = body.path("data").path("id").asLong();
+        Book savedBook = bookRepository.findById(savedId).orElseThrow();
+
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(body.path("error").isNull()).isTrue();
+        assertThat(body.path("message").asText()).isNotBlank();
+        assertThat(savedId).isPositive();
+        assertThat(savedBook.getUser().getId()).isEqualTo(user.getId());
+        assertThat(savedBook.getName()).isEqualTo(bookCreateDTO.getName());
+        assertThat(savedBook.getDescription()).isEqualTo(bookCreateDTO.getDescription());
+        assertThat(savedBook.getAuthor()).isEqualTo(bookCreateDTO.getAuthor());
+        assertThat(savedBook.getCategory()).isEqualTo(bookCreateDTO.getCategory());
+        assertThat(savedBook.getPublicationYear()).isEqualTo(bookCreateDTO.getPublicationYear());
+        assertThat(savedBook.getPhotoBase64()).isEqualTo(bookCreateDTO.getPhotoBase64());
+        assertThat(savedBook.getCity()).isEqualTo(bookCreateDTO.getCity());
+        assertThat(savedBook.getContactDetails()).isEqualTo(bookCreateDTO.getContactDetails());
+        assertThat(savedBook.getIsGift()).isFalse();
+        assertThat(savedBook.getIsExchanged()).isFalse();
+        assertThat(eTagVersion(mvcResult)).isEqualTo(savedBook.getVersion());
+    }
+
+    @Test
+    void addUserBookBadRequest() throws Exception {
+        MvcResult mvcResult = mockMvc.perform(post(BookPaths.BOOK_PATH_USER)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(BookCreateDTO.builder().build())))
+                .andExpect(status().isBadRequest())
+                .andReturn();
+
+        assertValidationErrorResponse(responseBody(mvcResult), BookPaths.BOOK_PATH_USER);
+    }
+
+    @Test
+    void getUserBooks() throws Exception {
+        Long secondBookId = bookUtil.createBook(user.getId(), 2);
+        Long exchangedBookId = bookUtil.createBook(user.getId(), 3);
+
+        Book exchangedBook = bookRepository.findById(exchangedBookId).orElseThrow();
+        exchangedBook.setIsExchanged(true);
+        bookRepository.save(exchangedBook);
+
+        MvcResult mvcResult = mockMvc.perform(get(BookPaths.BOOK_PATH_USER)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
+                        .queryParam("pageIndex", PAGE_INDEX.toString())
+                        .queryParam("pageSize", PAGE_SIZE.toString()))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode body = responseBody(mvcResult);
+        JsonNode content = body.path("data").path("content");
+        Set<Long> returnedIds = new HashSet<>();
+
+        for (JsonNode bookNode : content) {
+            returnedIds.add(bookNode.path("id").asLong());
+            assertThat(bookNode.path("isExchanged").asBoolean()).isFalse();
+        }
+
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(body.path("data").path("totalElements").asLong()).isEqualTo(2);
+        assertThat(content.size()).isEqualTo(2);
+        assertThat(returnedIds).contains(bookId, secondBookId);
+        assertThat(returnedIds).doesNotContain(exchangedBookId);
+    }
+
+    @Test
+    void getUserBookById() throws Exception {
+        Book persistedBook = bookRepository.findById(bookId).orElseThrow();
+
+        MvcResult mvcResult = mockMvc.perform(get(BookPaths.BOOK_PATH_USER_BOOK_ID, bookId)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(header().exists(HttpHeaders.ETAG))
+                .andReturn();
+
+        JsonNode body = responseBody(mvcResult);
+        JsonNode data = body.path("data");
+
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(data.path("id").asLong()).isEqualTo(bookId);
+        assertThat(data.path("name").asText()).isEqualTo(persistedBook.getName());
+        assertThat(data.path("description").asText()).isEqualTo(persistedBook.getDescription());
+        assertThat(data.path("author").asText()).isEqualTo(persistedBook.getAuthor());
+        assertThat(data.path("category").asText()).isEqualTo(persistedBook.getCategory());
+        assertThat(data.path("publicationYear").asInt()).isEqualTo(persistedBook.getPublicationYear());
+        assertThat(data.path("city").asText()).isEqualTo(persistedBook.getCity());
+        assertThat(data.path("isGift").asBoolean()).isEqualTo(persistedBook.getIsGift());
+        assertThat(data.path("isExchanged").asBoolean()).isEqualTo(persistedBook.getIsExchanged());
+        assertThat(eTagVersion(mvcResult)).isEqualTo(persistedBook.getVersion());
+    }
+
+    @Test
+    void getUserBookByIdNotFound() throws Exception {
+        User anotherUser = userUtil.createUser(20);
+        Long anotherUserBookId = bookUtil.createBook(anotherUser.getId(), 20);
+
+        MvcResult mvcResult = mockMvc.perform(get(BookPaths.BOOK_PATH_USER_BOOK_ID, anotherUserBookId)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isNotFound())
+                .andReturn();
+
+        assertErrorResponse(
+                responseBody(mvcResult),
+                404,
+                MessageKey.BOOK_NOT_FOUND,
+                userBookPath(anotherUserBookId)
+        );
+    }
+
+    @Test
+    void getExchangedUserBooks() throws Exception {
+        User receiverUser = userUtil.createUser(30);
+        Long senderBookId = bookUtil.createBook(user.getId(), 30);
+        Long receiverBookId = bookUtil.createBook(receiverUser.getId(), 31);
+        Long exchangeId = exchangeUtilIT.createExchange(user.getId(), receiverUser.getId(), senderBookId, receiverBookId);
+
+        Exchange exchange = exchangeRepository.findById(exchangeId).orElseThrow();
+        Book senderBook = bookRepository.findById(senderBookId).orElseThrow();
+
+        exchange.setStatus(ExchangeStatus.APPROVED);
+        senderBook.setIsExchanged(true);
+
+        exchangeRepository.save(exchange);
+        bookRepository.save(senderBook);
+
+        MvcResult mvcResult = mockMvc.perform(get(BookPaths.BOOK_PATH_HISTORY)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
+                        .queryParam("pageIndex", PAGE_INDEX.toString())
+                        .queryParam("pageSize", PAGE_SIZE.toString()))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode body = responseBody(mvcResult);
+        JsonNode content = body.path("data").path("content");
+
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(body.path("data").path("totalElements").asLong()).isEqualTo(1);
+        assertThat(content.size()).isEqualTo(1);
+        assertThat(content.get(0).path("id").asLong()).isEqualTo(senderBookId);
+        assertThat(content.get(0).path("isExchanged").asBoolean()).isTrue();
+    }
+
+    @Test
+    void getExchangedUserBooksNotFound() throws Exception {
+        MvcResult mvcResult = mockMvc.perform(get(BookPaths.BOOK_PATH_HISTORY)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
+                        .queryParam("pageIndex", PAGE_INDEX.toString())
+                        .queryParam("pageSize", PAGE_SIZE.toString()))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode body = responseBody(mvcResult);
+
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(body.path("data").path("totalElements").asLong()).isZero();
+        assertThat(body.path("data").path("content").size()).isZero();
+    }
+
+    @Test
+    void getBooks() throws Exception {
+        MvcResult mvcResult = mockMvc.perform(get(BookPaths.BOOK_PATH_SEARCH)
+                        .queryParam("pageIndex", PAGE_INDEX.toString())
+                        .queryParam("pageSize", PAGE_SIZE.toString())
+                        .queryParam("author", "Author 1")
+                        .queryParam("category", "Category 1")
+                        .queryParam("publicationYear", "2000")
+                        .queryParam("city", "City 1")
+                        .queryParam("isGift", "false")
+                        .queryParam("searchText", "Book 1")
+                        .queryParam("sortBy", "CATEGORY")
+                        .queryParam("sortDirection", "ASC"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode body = responseBody(mvcResult);
+        JsonNode content = body.path("data").path("content");
+
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(body.path("data").path("totalElements").asLong()).isEqualTo(1);
+        assertThat(content.size()).isEqualTo(1);
+        assertThat(content.get(0).path("id").asLong()).isEqualTo(bookId);
+    }
+
+    @Test
+    void getBooksBadRequest() throws Exception {
+        MvcResult mvcResult = mockMvc.perform(get(BookPaths.BOOK_PATH_SEARCH)
+                        .queryParam("pageIndex", PAGE_INDEX.toString())
+                        .queryParam("pageSize", PAGE_SIZE.toString())
+                        .queryParam("searchText", "ab"))
+                .andExpect(status().isBadRequest())
+                .andReturn();
+
+        assertValidationErrorResponse(responseBody(mvcResult), BookPaths.BOOK_PATH_SEARCH);
+    }
+
+    @Test
+    void deleteBookById() throws Exception {
+        Long bookToDeleteId = bookUtil.createBook(user.getId(), 40);
+
+        MvcResult mvcResult = mockMvc.perform(delete(BookPaths.BOOK_PATH_USER_BOOK_ID, bookToDeleteId)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
+                        .header(HttpHeaders.IF_MATCH, bookIfMatch(bookToDeleteId)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        clearPersistenceContext();
+
+        JsonNode body = responseBody(mvcResult);
+        Book deletedBook = bookRepository.findById(bookToDeleteId).orElseThrow();
+
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(body.path("data").isNull()).isTrue();
+        assertThat(body.path("message").asText()).isNotBlank();
+        assertThat(deletedBook.getDeletedAt()).isNotNull();
+    }
+
+    @Test
+    void deleteBookByIdNotFound() throws Exception {
+        User anotherUser = userUtil.createUser(50);
+        Long anotherUserBookId = bookUtil.createBook(anotherUser.getId(), 50);
+
+        MvcResult mvcResult = mockMvc.perform(delete(BookPaths.BOOK_PATH_USER_BOOK_ID, anotherUserBookId)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
+                        .header(HttpHeaders.IF_MATCH, bookIfMatch(anotherUserBookId)))
+                .andExpect(status().isNotFound())
+                .andReturn();
+
+        assertErrorResponse(
+                responseBody(mvcResult),
+                404,
+                MessageKey.BOOK_NOT_FOUND,
+                userBookPath(anotherUserBookId)
+        );
+    }
+
+    @Test
+    void deleteBookByIdConflict() throws Exception {
+        Long bookToDeleteId = bookUtil.createBook(user.getId(), 60);
+
+        MvcResult mvcResult = mockMvc.perform(delete(BookPaths.BOOK_PATH_USER_BOOK_ID, bookToDeleteId)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
+                        .header(HttpHeaders.IF_MATCH, "\"999\""))
+                .andExpect(status().isConflict())
+                .andReturn();
+
+        clearPersistenceContext();
+
+        assertErrorResponse(
+                responseBody(mvcResult),
+                409,
+                MessageKey.SYSTEM_OPTIMISTIC_LOCK,
+                userBookPath(bookToDeleteId)
+        );
+        assertThat(bookRepository.findById(bookToDeleteId)).isPresent();
+    }
+
+    @Test
+    void updateUserBookById() throws Exception {
+        Long bookToUpdateId = bookUtil.createBook(user.getId(), 70);
+        BookUpdateDTO bookUpdateDTO = buildBookUpdateDTO(70);
+
+        MvcResult mvcResult = mockMvc.perform(patch(BookPaths.BOOK_PATH_USER_BOOK_ID, bookToUpdateId)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
+                        .header(HttpHeaders.IF_MATCH, bookIfMatch(bookToUpdateId))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(bookUpdateDTO)))
+                .andExpect(status().isOk())
+                .andExpect(header().exists(HttpHeaders.ETAG))
+                .andReturn();
+
+        clearPersistenceContext();
+
+        JsonNode body = responseBody(mvcResult);
+        Book updatedBook = bookRepository.findById(bookToUpdateId).orElseThrow();
+
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(body.path("data").path("id").asLong()).isEqualTo(bookToUpdateId);
+        assertThat(body.path("data").path("name").asText()).isEqualTo(bookUpdateDTO.getName());
+        assertThat(body.path("data").path("city").asText()).isEqualTo(bookUpdateDTO.getCity());
+        assertThat(body.path("data").path("isGift").asBoolean()).isEqualTo(bookUpdateDTO.getIsGift());
+        assertThat(updatedBook.getName()).isEqualTo(bookUpdateDTO.getName());
+        assertThat(updatedBook.getDescription()).isEqualTo(bookUpdateDTO.getDescription());
+        assertThat(updatedBook.getAuthor()).isEqualTo(bookUpdateDTO.getAuthor());
+        assertThat(updatedBook.getCategory()).isEqualTo(bookUpdateDTO.getCategory());
+        assertThat(updatedBook.getPublicationYear()).isEqualTo(bookUpdateDTO.getPublicationYear());
+        assertThat(updatedBook.getPhotoBase64()).isEqualTo(bookUpdateDTO.getPhotoBase64());
+        assertThat(updatedBook.getCity()).isEqualTo(bookUpdateDTO.getCity());
+        assertThat(updatedBook.getContactDetails()).isEqualTo(bookUpdateDTO.getContactDetails());
+        assertThat(updatedBook.getIsGift()).isEqualTo(bookUpdateDTO.getIsGift());
+        assertThat(mvcResult.getResponse().getHeader(HttpHeaders.ETAG)).isNotBlank();
+    }
+
+    @Test
+    void updateUserBookByIdNotFound() throws Exception {
+        User anotherUser = userUtil.createUser(80);
+        Long anotherUserBookId = bookUtil.createBook(anotherUser.getId(), 80);
+
+        MvcResult mvcResult = mockMvc.perform(patch(BookPaths.BOOK_PATH_USER_BOOK_ID, anotherUserBookId)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
+                        .header(HttpHeaders.IF_MATCH, bookIfMatch(anotherUserBookId))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(buildBookUpdateDTO(80))))
+                .andExpect(status().isNotFound())
+                .andReturn();
+
+        assertErrorResponse(
+                responseBody(mvcResult),
+                404,
+                MessageKey.BOOK_NOT_FOUND,
+                userBookPath(anotherUserBookId)
+        );
+    }
+
+    @Test
+    void updateUserBookByIdBadRequest() throws Exception {
+        Long bookToUpdateId = bookUtil.createBook(user.getId(), 90);
+
+        BookUpdateDTO invalidBookUpdateDTO = BookUpdateDTO.builder()
+                .name("ab")
+                .build();
+
+        MvcResult mvcResult = mockMvc.perform(patch(BookPaths.BOOK_PATH_USER_BOOK_ID, bookToUpdateId)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
+                        .header(HttpHeaders.IF_MATCH, bookIfMatch(bookToUpdateId))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(invalidBookUpdateDTO)))
+                .andExpect(status().isBadRequest())
+                .andReturn();
+
+        clearPersistenceContext();
+
+        assertValidationErrorResponse(responseBody(mvcResult), userBookPath(bookToUpdateId));
+        assertThat(bookRepository.findById(bookToUpdateId).orElseThrow().getName()).isEqualTo("Book 90");
+    }
+
+    @Test
+    void updateUserBookByIdConflict() throws Exception {
+        Long bookToUpdateId = bookUtil.createBook(user.getId(), 100);
+        BookUpdateDTO bookUpdateDTO = buildBookUpdateDTO(100);
+
+        MvcResult mvcResult = mockMvc.perform(patch(BookPaths.BOOK_PATH_USER_BOOK_ID, bookToUpdateId)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
+                        .header(HttpHeaders.IF_MATCH, "\"999\"")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(bookUpdateDTO)))
+                .andExpect(status().isConflict())
+                .andReturn();
+
+        clearPersistenceContext();
+
+        assertErrorResponse(
+                responseBody(mvcResult),
+                409,
+                MessageKey.SYSTEM_OPTIMISTIC_LOCK,
+                userBookPath(bookToUpdateId)
+        );
+        assertThat(bookRepository.findById(bookToUpdateId).orElseThrow().getName()).isEqualTo("Book 100");
+    }
+
+    private BookCreateDTO buildBookCreateDTO(int bookNumber) {
+        return BookCreateDTO.builder()
+                .name("Book " + bookNumber)
+                .description("Book " + bookNumber + " description")
+                .author("Author " + bookNumber)
+                .category("Category " + bookNumber)
+                .publicationYear(2000)
+                .photoBase64(validPhotoBase64("photo-" + bookNumber))
+                .city("City " + bookNumber)
+                .contactDetails("Contact Details " + bookNumber)
+                .isGift(false)
+                .build();
+    }
+
+    private BookUpdateDTO buildBookUpdateDTO(int bookNumber) {
+        return BookUpdateDTO.builder()
+                .name("Updated Book " + bookNumber)
+                .description("Updated description " + bookNumber)
+                .author("Updated Author " + bookNumber)
+                .category("Updated Category " + bookNumber)
+                .publicationYear(2010)
+                .photoBase64(validPhotoBase64("updated-photo-" + bookNumber))
+                .city("Updated City " + bookNumber)
+                .contactDetails("Updated Contact Details " + bookNumber)
+                .isGift(true)
+                .build();
+    }
+
+    private String bookIfMatch(Long currentBookId) {
+        Long version = bookRepository.findById(currentBookId).orElseThrow().getVersion();
+        return "\"" + version + "\"";
+    }
+
+    private String userBookPath(Long currentBookId) {
+        return BookPaths.BOOK_PATH_USER + "/" + currentBookId;
+    }
+
+    private String validPhotoBase64(String value) {
+        return Base64.getEncoder()
+                .encodeToString(value.getBytes(StandardCharsets.UTF_8));
+    }
+}
