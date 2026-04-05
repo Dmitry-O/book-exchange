@@ -9,6 +9,7 @@ import com.example.bookexchange.common.result.ResultFactory;
 import com.example.bookexchange.common.i18n.MessageKey;
 import com.example.bookexchange.report.model.Report;
 import com.example.bookexchange.report.dto.ReportCreateDTO;
+import com.example.bookexchange.report.model.ReportStatus;
 import com.example.bookexchange.report.model.TargetType;
 import com.example.bookexchange.report.repository.ReportRepository;
 import com.example.bookexchange.user.model.User;
@@ -78,7 +79,7 @@ public class ReportServiceImpl implements ReportService {
                 targetId,
                 reportCreateDTO.getReason(),
                 reportCreateDTO.getComment(),
-                null,
+                ReportStatus.OPEN,
                 reporter
         );
 

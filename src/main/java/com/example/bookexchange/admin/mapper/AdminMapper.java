@@ -8,6 +8,7 @@ import com.example.bookexchange.common.audit.dto.EntityAuditMetadataDTO;
 import com.example.bookexchange.common.mapper.TemporalMapper;
 import com.example.bookexchange.exchange.model.Exchange;
 import com.example.bookexchange.common.audit.model.SoftDeletableEntity;
+import com.example.bookexchange.user.dto.SupportedLocalesDTO;
 import com.example.bookexchange.user.model.User;
 import org.mapstruct.Builder;
 import org.mapstruct.Mapper;
@@ -30,4 +31,8 @@ public interface AdminMapper {
 
     @Mapping(target = "meta", source = ".")
     ExchangeAdminDTO exchangeToExchangeAdminDto(Exchange exchange);
+
+    default SupportedLocalesDTO map(String locale) {
+        return locale == null ? null : SupportedLocalesDTO.fromValue(locale);
+    }
 }

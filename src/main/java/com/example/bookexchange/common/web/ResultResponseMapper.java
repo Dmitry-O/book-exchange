@@ -14,6 +14,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.TransactionSystemException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -92,6 +93,24 @@ public class ResultResponseMapper {
                 messageService.getMessage(MessageKey.SYSTEM_UNEXPECTED_ERROR),
                 request,
                 MessageKey.SYSTEM_UNEXPECTED_ERROR.toString()
+        );
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<?> handleAccessDenied(HttpServletRequest request, AccessDeniedException ex) {
+        auditService.log(AuditEvent.builder()
+                .action("ACCESS_DENIED_HANDLING")
+                .result(AuditResult.FAILURE)
+                .reason("SYSTEM_ACCESS_FORBIDDEN")
+                .detail("exception", ex)
+                .build()
+        );
+
+        return errorHelper.formatErrorResponse(
+                HttpStatus.FORBIDDEN,
+                messageService.getMessage(MessageKey.SYSTEM_ACCESS_FORBIDDEN),
+                request,
+                MessageKey.SYSTEM_ACCESS_FORBIDDEN.toString()
         );
     }
 

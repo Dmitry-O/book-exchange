@@ -1,13 +1,11 @@
 package com.example.bookexchange;
 
+import com.example.bookexchange.support.IntegrationTestSupport;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest
-class BookExchangeApplicationTests {
+class BookExchangeApplicationTests extends IntegrationTestSupport {
 
     @Test
     void contextLoads() {
     }
-
 }

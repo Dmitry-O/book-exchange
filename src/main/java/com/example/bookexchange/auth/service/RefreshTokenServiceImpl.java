@@ -14,7 +14,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
-import java.util.HashSet;
 import java.util.UUID;
 
 import static java.time.temporal.ChronoUnit.DAYS;
@@ -79,7 +78,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
 
     @Override
     public Result<User> deleteUserTokens(User user) {
-        refreshTokenRepository.deleteAll(new HashSet<>(user.getRefreshTokens()));
+        refreshTokenRepository.deleteByUserId(user.getId());
 
         return ResultFactory.ok(user);
     }
