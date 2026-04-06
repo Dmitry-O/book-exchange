@@ -21,7 +21,7 @@ public class AuthLoginRequestDTO {
     @Email
     private String email;
 
-    @Schema(example = "password-12345")
+    @Schema(example = "Password-123!")
     @JsonProperty("password")
     @NotBlank
     @NotNull

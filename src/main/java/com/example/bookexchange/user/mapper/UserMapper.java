@@ -35,7 +35,6 @@ public interface UserMapper {
     UserDTO userToUserDto(User user);
 
     @BeanMapping(ignoreByDefault = true, nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
-    @Mapping(target = "email", source = "dto.email")
     @Mapping(target = "nickname", source = "dto.nickname")
     @Mapping(target = "photoBase64", source = "dto.photoBase64")
     @Mapping(target = "locale", source = "dto.locale", qualifiedByName = "normalizeLocale")

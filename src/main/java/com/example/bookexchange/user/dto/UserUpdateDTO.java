@@ -4,7 +4,6 @@ import com.example.bookexchange.common.validation.Base64Image;
 import com.example.bookexchange.common.validation.SupportedLocale;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -17,11 +16,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class UserUpdateDTO {
-
-    @Schema(example = "example@info.com")
-    @JsonProperty("email")
-    @Email
-    private String email;
 
     @Schema(example = "user_12345")
     @JsonProperty("nickname")

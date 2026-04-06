@@ -16,7 +16,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class UserResetForgottenPasswordDTO {
 
-    @Schema(example = "new-password-12345")
+    @Schema(example = "NewPassword-123!")
     @NotNull
     @NotBlank
     @StrongPassword
