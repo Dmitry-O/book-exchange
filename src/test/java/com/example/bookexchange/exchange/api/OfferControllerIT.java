@@ -58,7 +58,7 @@ class OfferControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void getUserOffersReturnsOnlyPendingOffers() throws Exception {
+    void shouldReturnPendingOffers_whenUserGetsOffers() throws Exception {
         ExchangeFixture pendingFixture = createPendingOffer(500);
         User secondSender = userUtil.createUser(502);
         Long secondSenderBookId = bookUtil.createBook(secondSender.getId(), 502);
@@ -91,7 +91,7 @@ class OfferControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void getUserOfferDetails() throws Exception {
+    void shouldReturnOfferDetails_whenReceiverGetsOfferDetails() throws Exception {
         ExchangeFixture fixture = createPendingOffer(503);
 
         MvcResult mvcResult = mockMvc.perform(get(ExchangePaths.OFFER_PATH_EXCHANGE_ID, fixture.exchangeId())
@@ -110,7 +110,7 @@ class OfferControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void getUserOfferDetailsNotFoundForSender() throws Exception {
+    void shouldReturnNotFound_whenSenderGetsReceiverOfferDetails() throws Exception {
         ExchangeFixture fixture = createPendingOffer(504);
 
         MvcResult mvcResult = mockMvc.perform(get(ExchangePaths.OFFER_PATH_EXCHANGE_ID, fixture.exchangeId())
@@ -128,7 +128,7 @@ class OfferControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void approveUserOffer() throws Exception {
+    void shouldApproveOffer_whenReceiverApprovesPendingOffer() throws Exception {
         User receiver = userUtil.createUser(505);
         User firstSender = userUtil.createUser(506);
         User secondSender = userUtil.createUser(507);
@@ -176,7 +176,7 @@ class OfferControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void approveUserOfferBadRequestWhenExchangeIsAlreadyApproved() throws Exception {
+    void shouldReturnBadRequest_whenReceiverApprovesAlreadyApprovedOffer() throws Exception {
         ExchangeFixture fixture = createPendingOffer(508);
         Exchange exchange = exchangeRepository.findById(fixture.exchangeId()).orElseThrow();
         exchange.setStatus(ExchangeStatus.APPROVED);
@@ -201,7 +201,7 @@ class OfferControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void approveUserOfferConflictWhenVersionIsStale() throws Exception {
+    void shouldReturnConflict_whenReceiverApprovesOfferWithStaleVersion() throws Exception {
         ExchangeFixture fixture = createPendingOffer(509);
 
         MvcResult mvcResult = mockMvc.perform(patch(ExchangePaths.OFFER_PATH_APPROVE_OFFER, fixture.exchangeId())
@@ -220,7 +220,7 @@ class OfferControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void declineUserOffer() throws Exception {
+    void shouldDeclineOffer_whenReceiverDeclinesPendingOffer() throws Exception {
         ExchangeFixture fixture = createPendingOffer(510);
         Exchange exchange = exchangeRepository.findById(fixture.exchangeId()).orElseThrow();
 
@@ -245,7 +245,7 @@ class OfferControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void declineUserOfferBadRequestWhenExchangeIsAlreadyApproved() throws Exception {
+    void shouldReturnBadRequest_whenReceiverDeclinesAlreadyApprovedOffer() throws Exception {
         ExchangeFixture fixture = createPendingOffer(511);
         Exchange exchange = exchangeRepository.findById(fixture.exchangeId()).orElseThrow();
         exchange.setStatus(ExchangeStatus.APPROVED);

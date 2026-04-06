@@ -42,7 +42,7 @@ class SecurityIT extends IntegrationTestSupport {
     }
 
     @Test
-    void protectedEndpointRequiresAuthentication() throws Exception {
+    void shouldRequireAuthentication_whenProtectedEndpointIsCalledWithoutToken() throws Exception {
         MvcResult mvcResult = mockMvc.perform(get(UserPaths.USER_PATH))
                 .andExpect(status().isUnauthorized())
                 .andReturn();
@@ -51,7 +51,7 @@ class SecurityIT extends IntegrationTestSupport {
     }
 
     @Test
-    void protectedEndpointRejectsInvalidToken() throws Exception {
+    void shouldRejectInvalidToken_whenProtectedEndpointIsCalled() throws Exception {
         MvcResult mvcResult = mockMvc.perform(get(UserPaths.USER_PATH)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer invalid-token"))
                 .andExpect(status().isUnauthorized())
@@ -61,7 +61,7 @@ class SecurityIT extends IntegrationTestSupport {
     }
 
     @Test
-    void publicSearchEndpointIsAccessibleWithoutAuthentication() throws Exception {
+    void shouldAllowAnonymousAccess_whenPublicSearchEndpointIsCalled() throws Exception {
         MvcResult mvcResult = mockMvc.perform(get(BookPaths.BOOK_PATH_SEARCH)
                         .queryParam("pageIndex", PageTestDefaults.PAGE_INDEX.toString())
                         .queryParam("pageSize", PageTestDefaults.PAGE_SIZE.toString()))
@@ -72,7 +72,7 @@ class SecurityIT extends IntegrationTestSupport {
     }
 
     @Test
-    void adminEndpointIsForbiddenForRegularUser() throws Exception {
+    void shouldReturnForbidden_whenRegularUserCallsAdminEndpoint() throws Exception {
         User user = userUtil.createUser(300);
 
         MvcResult mvcResult = mockMvc.perform(get(AdminPaths.ADMIN_PATH_USERS)
@@ -91,7 +91,7 @@ class SecurityIT extends IntegrationTestSupport {
     }
 
     @Test
-    void adminEndpointIsAccessibleForAdmin() throws Exception {
+    void shouldAllowAccess_whenAdminCallsAdminEndpoint() throws Exception {
         User adminUser = userUtil.createUser(301);
         adminUser.addRole(UserRole.ADMIN);
         userRepository.save(adminUser);

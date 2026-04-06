@@ -65,7 +65,7 @@ class AuthControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void registerUser() throws Exception {
+    void shouldRegisterUser_whenPayloadIsValid() throws Exception {
         UserCreateDTO userCreateDTO = userUtil.buildUserCreateDTO(FixtureNumbers.auth(1));
 
         MvcResult mvcResult = mockMvc.perform(post(AuthPaths.AUTH_PATH_REGISTER)
@@ -90,7 +90,7 @@ class AuthControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void registerUserBadRequest() throws Exception {
+    void shouldReturnBadRequest_whenRegisterPayloadIsInvalid() throws Exception {
         UserCreateDTO invalidDto = UserCreateDTO.builder().build();
 
         MvcResult mvcResult = mockMvc.perform(post(AuthPaths.AUTH_PATH_REGISTER)
@@ -104,7 +104,7 @@ class AuthControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void registerUserConflict() throws Exception {
+    void shouldReturnConflict_whenRegisterEmailAlreadyExists() throws Exception {
         User existingUser = userUtil.createUser(FixtureNumbers.auth(2));
         UserCreateDTO duplicateDto = userUtil.buildUserCreateDTO(FixtureNumbers.auth(2));
 
@@ -120,7 +120,7 @@ class AuthControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void registerUserForbiddenWhenAccountAlreadyExistsButIsNotVerified() throws Exception {
+    void shouldReturnForbidden_whenRegisterEmailBelongsToUnverifiedAccount() throws Exception {
         int slot = FixtureNumbers.auth(3);
         UserCreateDTO userCreateDTO = userUtil.buildUserCreateDTO(slot);
         userUtil.createUser(slot, false);
@@ -141,7 +141,7 @@ class AuthControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void loginUser() throws Exception {
+    void shouldLoginUser_whenCredentialsAreValid() throws Exception {
         User user = userUtil.createUser(FixtureNumbers.auth(4));
         UserCreateDTO userCreateDTO = userUtil.buildUserCreateDTO(FixtureNumbers.auth(4));
 
@@ -168,7 +168,7 @@ class AuthControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void loginUserForbiddenWhenEmailIsNotVerified() throws Exception {
+    void shouldReturnForbidden_whenLoginUserEmailIsNotVerified() throws Exception {
         UserCreateDTO userCreateDTO = userUtil.buildUserCreateDTO(FixtureNumbers.auth(5));
         userUtil.createUser(FixtureNumbers.auth(5), false);
 
@@ -193,7 +193,7 @@ class AuthControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void loginUserNotFoundWhenEmailDoesNotExist() throws Exception {
+    void shouldReturnNotFound_whenLoginEmailDoesNotExist() throws Exception {
         MvcResult mvcResult = mockMvc.perform(post(AuthPaths.AUTH_PATH_LOGIN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .accept(MediaType.APPLICATION_JSON)
@@ -210,7 +210,7 @@ class AuthControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void loginUserBadRequestWhenPasswordIsWrong() throws Exception {
+    void shouldReturnBadRequest_whenLoginPasswordIsWrong() throws Exception {
         int slot = FixtureNumbers.auth(6);
         UserCreateDTO userCreateDTO = userUtil.buildUserCreateDTO(slot);
         userUtil.createUser(slot);
@@ -231,7 +231,7 @@ class AuthControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void loginUserForbiddenWhenUserIsTemporarilyBanned() throws Exception {
+    void shouldReturnForbidden_whenLoginUserIsTemporarilyBanned() throws Exception {
         int slot = FixtureNumbers.auth(7);
         UserCreateDTO userCreateDTO = userUtil.buildUserCreateDTO(slot);
         User user = userUtil.createUser(slot);
@@ -255,7 +255,7 @@ class AuthControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void loginUserForbiddenWhenUserIsPermanentlyBanned() throws Exception {
+    void shouldReturnForbidden_whenLoginUserIsPermanentlyBanned() throws Exception {
         int slot = FixtureNumbers.auth(8);
         UserCreateDTO userCreateDTO = userUtil.buildUserCreateDTO(slot);
         User user = userUtil.createUser(slot);
@@ -279,7 +279,7 @@ class AuthControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void refreshAccessToken() throws Exception {
+    void shouldRefreshAccessToken_whenRefreshTokenIsValid() throws Exception {
         UserCreateDTO userCreateDTO = userUtil.buildUserCreateDTO(FixtureNumbers.auth(9));
         userUtil.createUser(FixtureNumbers.auth(9));
 
@@ -312,7 +312,7 @@ class AuthControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void refreshAccessTokenNotFoundWhenTokenDoesNotExist() throws Exception {
+    void shouldReturnNotFound_whenRefreshTokenDoesNotExist() throws Exception {
         AuthRefreshTokenDTO dto = AuthRefreshTokenDTO.builder()
                 .refreshToken("missing-refresh-token")
                 .build();
@@ -333,7 +333,7 @@ class AuthControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void refreshAccessTokenBadRequestWhenTokenExpired() throws Exception {
+    void shouldReturnBadRequest_whenRefreshTokenIsExpired() throws Exception {
         int slot = FixtureNumbers.auth(10);
         UserCreateDTO userCreateDTO = userUtil.buildUserCreateDTO(slot);
         userUtil.createUser(slot);
@@ -361,7 +361,7 @@ class AuthControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void confirmEmail() throws Exception {
+    void shouldConfirmEmail_whenConfirmationTokenIsValid() throws Exception {
         UserCreateDTO userCreateDTO = userUtil.buildUserCreateDTO(FixtureNumbers.auth(11));
 
         mockMvc.perform(post(AuthPaths.AUTH_PATH_REGISTER)
@@ -393,7 +393,7 @@ class AuthControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void confirmEmailNotFoundWhenTokenDoesNotExist() throws Exception {
+    void shouldReturnNotFound_whenConfirmationTokenDoesNotExist() throws Exception {
         MvcResult mvcResult = mockMvc.perform(get(AuthPaths.AUTH_PATH_CONFIRM_REGISTRATION)
                         .queryParam("token", "missing-confirm-token")
                         .accept(MediaType.APPLICATION_JSON))
@@ -409,7 +409,7 @@ class AuthControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void confirmEmailBadRequestWhenTokenExpired() throws Exception {
+    void shouldReturnBadRequest_whenConfirmationTokenIsExpired() throws Exception {
         int slot = FixtureNumbers.auth(12);
         String token = registerAndGetVerificationToken(slot, TokenType.CONFIRM_EMAIL);
         expireVerificationToken(token);
@@ -430,7 +430,7 @@ class AuthControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void confirmEmailBadRequestWhenTokenTypeIsWrong() throws Exception {
+    void shouldReturnBadRequest_whenConfirmationTokenTypeIsWrong() throws Exception {
         int slot = FixtureNumbers.auth(13);
         User user = userUtil.createUser(slot);
 
@@ -461,7 +461,7 @@ class AuthControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void forgotPassword() throws Exception {
+    void shouldSendForgotPasswordEmail_whenForgotPasswordPayloadIsValid() throws Exception {
         User user = userUtil.createUser(FixtureNumbers.auth(14));
         UserForgotPasswordDTO dto = UserForgotPasswordDTO.builder()
                 .email(user.getEmail())
@@ -481,7 +481,7 @@ class AuthControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void forgotPasswordNotFoundWhenEmailDoesNotExist() throws Exception {
+    void shouldReturnNotFound_whenForgotPasswordEmailDoesNotExist() throws Exception {
         UserForgotPasswordDTO dto = UserForgotPasswordDTO.builder()
                 .email("missing-forgot-password@test.com")
                 .build();
@@ -502,7 +502,7 @@ class AuthControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void forgotPasswordForbiddenWhenAccountIsNotVerified() throws Exception {
+    void shouldReturnForbidden_whenForgotPasswordAccountIsNotVerified() throws Exception {
         int slot = FixtureNumbers.auth(15);
         User user = userUtil.createUser(slot, false);
         UserForgotPasswordDTO dto = UserForgotPasswordDTO.builder()
@@ -525,7 +525,7 @@ class AuthControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void resetForgottenPassword() throws Exception {
+    void shouldResetForgottenPassword_whenResetTokenIsValid() throws Exception {
         User user = userUtil.createUser(FixtureNumbers.auth(16));
 
         mockMvc.perform(patch(AuthPaths.AUTH_PATH_FORGOT_PASSWORD)
@@ -564,7 +564,7 @@ class AuthControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void resetForgottenPasswordNotFoundWhenTokenDoesNotExist() throws Exception {
+    void shouldReturnNotFound_whenResetTokenDoesNotExist() throws Exception {
         UserResetForgottenPasswordDTO dto = UserResetForgottenPasswordDTO.builder()
                 .newPassword("NewPassword1!")
                 .build();
@@ -586,7 +586,7 @@ class AuthControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void resetForgottenPasswordBadRequestWhenTokenExpired() throws Exception {
+    void shouldReturnBadRequest_whenResetTokenIsExpired() throws Exception {
         int slot = FixtureNumbers.auth(17);
         User user = userUtil.createUser(slot);
 
@@ -625,7 +625,7 @@ class AuthControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void resetForgottenPasswordBadRequestWhenTokenTypeIsWrong() throws Exception {
+    void shouldReturnBadRequest_whenResetTokenTypeIsWrong() throws Exception {
         int slot = FixtureNumbers.auth(18);
         String token = registerAndGetVerificationToken(slot, TokenType.CONFIRM_EMAIL);
         UserResetForgottenPasswordDTO dto = UserResetForgottenPasswordDTO.builder()
@@ -649,7 +649,7 @@ class AuthControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void resendEmailConfirmation() throws Exception {
+    void shouldResendEmailConfirmation_whenAccountIsUnverified() throws Exception {
         UserCreateDTO userCreateDTO = userUtil.buildUserCreateDTO(FixtureNumbers.auth(19));
 
         mockMvc.perform(post(AuthPaths.AUTH_PATH_REGISTER)
@@ -686,7 +686,7 @@ class AuthControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void resendEmailConfirmationBadRequestWhenAccountIsAlreadyVerified() throws Exception {
+    void shouldReturnBadRequest_whenResendEmailConfirmationAccountIsAlreadyVerified() throws Exception {
         int slot = FixtureNumbers.auth(20);
         User user = userUtil.createUser(slot);
         UserResendEmailConfirmationDTO dto = UserResendEmailConfirmationDTO.builder()
@@ -709,7 +709,7 @@ class AuthControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void resendEmailConfirmationNotFoundWhenEmailDoesNotExist() throws Exception {
+    void shouldReturnNotFound_whenResendEmailConfirmationEmailDoesNotExist() throws Exception {
         UserResendEmailConfirmationDTO dto = UserResendEmailConfirmationDTO.builder()
                 .email("missing-resend@test.com")
                 .build();
@@ -730,7 +730,7 @@ class AuthControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void initiateDeleteAccount() throws Exception {
+    void shouldInitiateDeleteAccount_whenEmailExists() throws Exception {
         User user = userUtil.createUser(FixtureNumbers.auth(21));
         UserInitiateDeleteAccountDTO dto = UserInitiateDeleteAccountDTO.builder()
                 .email(user.getEmail())
@@ -748,7 +748,7 @@ class AuthControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void initiateDeleteAccountNotFoundWhenEmailDoesNotExist() throws Exception {
+    void shouldReturnNotFound_whenInitiateDeleteAccountEmailDoesNotExist() throws Exception {
         UserInitiateDeleteAccountDTO dto = UserInitiateDeleteAccountDTO.builder()
                 .email("missing-delete-account@test.com")
                 .build();
@@ -769,7 +769,7 @@ class AuthControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void deleteAccount() throws Exception {
+    void shouldDeleteAccount_whenDeleteTokenIsValid() throws Exception {
         User user = userUtil.createUser(FixtureNumbers.auth(22));
 
         mockMvc.perform(patch(AuthPaths.AUTH_PATH_INITIATE_DELETE_ACCOUNT)
@@ -803,7 +803,7 @@ class AuthControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void deleteAccountNotFoundWhenTokenDoesNotExist() throws Exception {
+    void shouldReturnNotFound_whenDeleteTokenDoesNotExist() throws Exception {
         MvcResult mvcResult = mockMvc.perform(patch(AuthPaths.AUTH_PATH_DELETE_ACCOUNT)
                         .queryParam("token", "missing-delete-token")
                         .accept(MediaType.APPLICATION_JSON))
@@ -819,7 +819,7 @@ class AuthControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void deleteAccountBadRequestWhenTokenExpired() throws Exception {
+    void shouldReturnBadRequest_whenDeleteTokenIsExpired() throws Exception {
         int slot = FixtureNumbers.auth(23);
         User user = userUtil.createUser(slot);
 

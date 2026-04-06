@@ -53,7 +53,7 @@ class HistoryControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void getExchangeHistoryReturnsOnlyCompletedExchanges() throws Exception {
+    void shouldReturnCompletedExchanges_whenUserGetsExchangeHistory() throws Exception {
         User sender = userUtil.createUser(600);
         ExchangeFixture approvedFixture = createExchangeForSender(sender, 601);
         ExchangeFixture declinedFixture = createExchangeForSender(sender, 603);
@@ -91,7 +91,7 @@ class HistoryControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void getExchangeHistoryReturnsEmptyPageWhenThereAreNoCompletedExchanges() throws Exception {
+    void shouldReturnEmptyPage_whenUserHasNoCompletedExchangesInHistory() throws Exception {
         User user = userUtil.createUser(607);
 
         MvcResult mvcResult = mockMvc.perform(get(ExchangePaths.HISTORY_PATH)
@@ -110,7 +110,7 @@ class HistoryControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void getExchangeHistoryDetailsForSenderMarksExchangeAsRead() throws Exception {
+    void shouldMarkExchangeAsRead_whenSenderGetsExchangeHistoryDetails() throws Exception {
         ExchangeFixture fixture = createCompletedExchange(608, ExchangeStatus.APPROVED);
 
         MvcResult mvcResult = mockMvc.perform(get(ExchangePaths.HISTORY_PATH_EXCHANGE_ID, fixture.exchangeId())
@@ -135,7 +135,7 @@ class HistoryControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void getExchangeHistoryDetailsForReceiverMarksExchangeAsRead() throws Exception {
+    void shouldMarkExchangeAsRead_whenReceiverGetsExchangeHistoryDetails() throws Exception {
         ExchangeFixture fixture = createCompletedExchange(610, ExchangeStatus.APPROVED);
 
         MvcResult mvcResult = mockMvc.perform(get(ExchangePaths.HISTORY_PATH_EXCHANGE_ID, fixture.exchangeId())
@@ -158,7 +158,7 @@ class HistoryControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void getExchangeHistoryDetailsNotFoundForUnrelatedUser() throws Exception {
+    void shouldReturnNotFound_whenUnrelatedUserGetsExchangeHistoryDetails() throws Exception {
         ExchangeFixture fixture = createCompletedExchange(612, ExchangeStatus.APPROVED);
         User unrelatedUser = userUtil.createUser(615);
 
