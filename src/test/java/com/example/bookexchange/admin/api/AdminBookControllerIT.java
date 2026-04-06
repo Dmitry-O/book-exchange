@@ -54,7 +54,7 @@ class AdminBookControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void adminGetBooksSearchReturnsActiveBooks() throws Exception {
+    void shouldReturnActiveBooks_whenAdminSearchesBooks() throws Exception {
         User admin = userUtil.createAdmin(FixtureNumbers.adminBook(1));
         User owner = userUtil.createUser(FixtureNumbers.adminBook(2));
         Long deletedBookId = bookUtil.createBook(owner.getId(), FixtureNumbers.adminBook(3));
@@ -87,7 +87,7 @@ class AdminBookControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void adminGetDeletedBookById() throws Exception {
+    void shouldReturnDeletedBook_whenAdminGetsDeletedBookById() throws Exception {
         User admin = userUtil.createAdmin(FixtureNumbers.adminBook(5));
         User owner = userUtil.createUser(FixtureNumbers.adminBook(6));
         Long deletedBookId = bookUtil.createBook(owner.getId(), FixtureNumbers.adminBook(7));
@@ -113,7 +113,7 @@ class AdminBookControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void adminGetBookByIdNotFound() throws Exception {
+    void shouldReturnNotFound_whenAdminGetsMissingBookById() throws Exception {
         User admin = userUtil.createAdmin(FixtureNumbers.adminBook(20));
 
         MvcResult mvcResult = mockMvc.perform(get(AdminPaths.ADMIN_PATH_BOOKS_ID, Long.MAX_VALUE)
@@ -131,7 +131,7 @@ class AdminBookControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void adminUpdateBookById() throws Exception {
+    void shouldUpdateBook_whenAdminUpdatesBookById() throws Exception {
         User admin = userUtil.createAdmin(FixtureNumbers.adminBook(8));
         User owner = userUtil.createUser(FixtureNumbers.adminBook(9));
         Long bookId = bookUtil.createBook(owner.getId(), FixtureNumbers.adminBook(10));
@@ -172,7 +172,7 @@ class AdminBookControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void adminDeleteBookById() throws Exception {
+    void shouldSoftDeleteBook_whenAdminDeletesBookById() throws Exception {
         User admin = userUtil.createAdmin(FixtureNumbers.adminBook(11));
         User owner = userUtil.createUser(FixtureNumbers.adminBook(12));
         Long bookId = bookUtil.createBook(owner.getId(), FixtureNumbers.adminBook(13));
@@ -197,7 +197,7 @@ class AdminBookControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void adminRestoreBookById() throws Exception {
+    void shouldRestoreBook_whenAdminRestoresBookById() throws Exception {
         User admin = userUtil.createAdmin(FixtureNumbers.adminBook(14));
         User owner = userUtil.createUser(FixtureNumbers.adminBook(15));
         Long bookId = bookUtil.createBook(owner.getId(), FixtureNumbers.adminBook(16));
@@ -228,7 +228,7 @@ class AdminBookControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void adminUpdateBookByIdConflictWhenVersionIsStale() throws Exception {
+    void shouldReturnConflict_whenAdminUpdatesBookWithStaleVersion() throws Exception {
         User admin = userUtil.createAdmin(FixtureNumbers.adminBook(17));
         User owner = userUtil.createUser(FixtureNumbers.adminBook(18));
         Long bookId = bookUtil.createBook(owner.getId(), FixtureNumbers.adminBook(19));

@@ -94,7 +94,7 @@ class BookControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void addUserBook() throws Exception {
+    void shouldAddUserBook_whenPayloadIsValid() throws Exception {
         BookCreateDTO bookCreateDTO = buildBookCreateDTO(10);
 
         MvcResult mvcResult = mockMvc.perform(post(BookPaths.BOOK_PATH_USER)
@@ -129,7 +129,7 @@ class BookControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void addUserBookBadRequest() throws Exception {
+    void shouldReturnBadRequest_whenAddUserBookPayloadIsInvalid() throws Exception {
         MvcResult mvcResult = mockMvc.perform(post(BookPaths.BOOK_PATH_USER)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -142,7 +142,7 @@ class BookControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void getUserBooks() throws Exception {
+    void shouldReturnUserBooks_whenUserGetsOwnBooks() throws Exception {
         Long secondBookId = bookUtil.createBook(user.getId(), 2);
         Long exchangedBookId = bookUtil.createBook(user.getId(), 3);
 
@@ -174,7 +174,7 @@ class BookControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void getUserBookById() throws Exception {
+    void shouldReturnUserBook_whenUserGetsBookById() throws Exception {
         Book persistedBook = bookRepository.findById(bookId).orElseThrow();
 
         MvcResult mvcResult = mockMvc.perform(get(BookPaths.BOOK_PATH_USER_BOOK_ID, bookId)
@@ -201,7 +201,7 @@ class BookControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void getUserBookByIdNotFound() throws Exception {
+    void shouldReturnNotFound_whenUserGetsMissingBookById() throws Exception {
         User anotherUser = userUtil.createUser(20);
         Long anotherUserBookId = bookUtil.createBook(anotherUser.getId(), 20);
 
@@ -220,7 +220,7 @@ class BookControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void getExchangedUserBooks() throws Exception {
+    void shouldReturnExchangedBooks_whenUserGetsExchangeHistoryBooks() throws Exception {
         User receiverUser = userUtil.createUser(30);
         Long senderBookId = bookUtil.createBook(user.getId(), 30);
         Long receiverBookId = bookUtil.createBook(receiverUser.getId(), 31);
@@ -253,7 +253,7 @@ class BookControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void getExchangedUserBooksNotFound() throws Exception {
+    void shouldReturnEmptyPage_whenUserHasNoExchangedBooks() throws Exception {
         MvcResult mvcResult = mockMvc.perform(get(BookPaths.BOOK_PATH_HISTORY)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
                         .queryParam("pageIndex", PAGE_INDEX.toString())
@@ -269,7 +269,7 @@ class BookControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void getBooks() throws Exception {
+    void shouldReturnBooks_whenPublicSearchMatchesBooks() throws Exception {
         MvcResult mvcResult = mockMvc.perform(get(BookPaths.BOOK_PATH_SEARCH)
                         .queryParam("pageIndex", PAGE_INDEX.toString())
                         .queryParam("pageSize", PAGE_SIZE.toString())
@@ -294,7 +294,7 @@ class BookControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void getBooksBadRequest() throws Exception {
+    void shouldReturnBadRequest_whenPublicSearchPayloadIsInvalid() throws Exception {
         MvcResult mvcResult = mockMvc.perform(get(BookPaths.BOOK_PATH_SEARCH)
                         .queryParam("pageIndex", PAGE_INDEX.toString())
                         .queryParam("pageSize", PAGE_SIZE.toString())
@@ -306,7 +306,7 @@ class BookControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void deleteBookById() throws Exception {
+    void shouldDeleteBook_whenUserDeletesBookById() throws Exception {
         Long bookToDeleteId = bookUtil.createBook(user.getId(), 40);
 
         MvcResult mvcResult = mockMvc.perform(delete(BookPaths.BOOK_PATH_USER_BOOK_ID, bookToDeleteId)
@@ -327,7 +327,7 @@ class BookControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void deleteBookByIdNotFound() throws Exception {
+    void shouldReturnNotFound_whenUserDeletesMissingBookById() throws Exception {
         User anotherUser = userUtil.createUser(50);
         Long anotherUserBookId = bookUtil.createBook(anotherUser.getId(), 50);
 
@@ -346,7 +346,7 @@ class BookControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void deleteBookByIdConflict() throws Exception {
+    void shouldReturnConflict_whenUserDeletesBookWithStaleVersion() throws Exception {
         Long bookToDeleteId = bookUtil.createBook(user.getId(), 60);
 
         MvcResult mvcResult = mockMvc.perform(delete(BookPaths.BOOK_PATH_USER_BOOK_ID, bookToDeleteId)
@@ -367,7 +367,7 @@ class BookControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void updateUserBookById() throws Exception {
+    void shouldUpdateBook_whenUserUpdatesBookById() throws Exception {
         Long bookToUpdateId = bookUtil.createBook(user.getId(), 70);
         BookUpdateDTO bookUpdateDTO = buildBookUpdateDTO(70);
 
@@ -404,7 +404,7 @@ class BookControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void updateUserBookByIdNotFound() throws Exception {
+    void shouldReturnNotFound_whenUserUpdatesMissingBookById() throws Exception {
         User anotherUser = userUtil.createUser(80);
         Long anotherUserBookId = bookUtil.createBook(anotherUser.getId(), 80);
 
@@ -426,7 +426,7 @@ class BookControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void updateUserBookByIdBadRequest() throws Exception {
+    void shouldReturnBadRequest_whenUserUpdateBookPayloadIsInvalid() throws Exception {
         Long bookToUpdateId = bookUtil.createBook(user.getId(), 90);
 
         BookUpdateDTO invalidBookUpdateDTO = BookUpdateDTO.builder()
@@ -449,7 +449,7 @@ class BookControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void updateUserBookByIdConflict() throws Exception {
+    void shouldReturnConflict_whenUserUpdatesBookWithStaleVersion() throws Exception {
         Long bookToUpdateId = bookUtil.createBook(user.getId(), 100);
         BookUpdateDTO bookUpdateDTO = buildBookUpdateDTO(100);
 

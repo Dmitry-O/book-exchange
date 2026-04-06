@@ -74,7 +74,7 @@ class AdminUserControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void superAdminGiveAdminRights() throws Exception {
+    void shouldGiveAdminRights_whenSuperAdminPromotesUser() throws Exception {
         User superAdmin = userUtil.createSuperAdmin(FixtureNumbers.adminUser(1));
         User targetUser = userUtil.createUser(FixtureNumbers.adminUser(2));
 
@@ -97,7 +97,7 @@ class AdminUserControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void superAdminGiveAdminRightsForbiddenForAdmin() throws Exception {
+    void shouldReturnForbidden_whenRegularAdminTriesToPromoteUser() throws Exception {
         User admin = userUtil.createAdmin(FixtureNumbers.adminUser(3));
         User targetUser = userUtil.createUser(FixtureNumbers.adminUser(4));
 
@@ -116,7 +116,7 @@ class AdminUserControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void superAdminGiveAdminRightsConflictWhenUserIsAlreadyAdmin() throws Exception {
+    void shouldReturnConflict_whenSuperAdminPromotesExistingAdmin() throws Exception {
         User superAdmin = userUtil.createSuperAdmin(FixtureNumbers.adminUser(21));
         User targetAdmin = userUtil.createAdmin(FixtureNumbers.adminUser(22));
 
@@ -135,7 +135,7 @@ class AdminUserControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void superAdminRevokeAdminRights() throws Exception {
+    void shouldRevokeAdminRights_whenSuperAdminDemotesAdmin() throws Exception {
         User superAdmin = userUtil.createSuperAdmin(FixtureNumbers.adminUser(5));
         User targetAdmin = userUtil.createAdmin(FixtureNumbers.adminUser(6));
 
@@ -157,7 +157,7 @@ class AdminUserControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void superAdminRevokeAdminRightsBadRequestWhenUserIsNotAdmin() throws Exception {
+    void shouldReturnBadRequest_whenSuperAdminDemotesNonAdmin() throws Exception {
         User superAdmin = userUtil.createSuperAdmin(FixtureNumbers.adminUser(23));
         User targetUser = userUtil.createUser(FixtureNumbers.adminUser(24));
 
@@ -176,7 +176,7 @@ class AdminUserControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void adminGetUsers() throws Exception {
+    void shouldReturnUsers_whenAdminGetsUsers() throws Exception {
         User superAdmin = userUtil.createSuperAdmin(FixtureNumbers.adminUser(7));
         User targetAdmin = userUtil.createAdmin(FixtureNumbers.adminUser(8));
         userUtil.createUser(FixtureNumbers.adminUser(9));
@@ -201,7 +201,7 @@ class AdminUserControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void adminGetUserById() throws Exception {
+    void shouldReturnUser_whenAdminGetsUserById() throws Exception {
         User admin = userUtil.createAdmin(FixtureNumbers.adminUser(10));
         User targetUser = userUtil.createUser(FixtureNumbers.adminUser(11));
 
@@ -221,7 +221,7 @@ class AdminUserControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void adminGetUserByIdNotFound() throws Exception {
+    void shouldReturnNotFound_whenAdminGetsMissingUserById() throws Exception {
         User admin = userUtil.createAdmin(FixtureNumbers.adminUser(25));
 
         MvcResult mvcResult = mockMvc.perform(get(AdminPaths.ADMIN_PATH_USERS_ID, Long.MAX_VALUE)
@@ -239,7 +239,7 @@ class AdminUserControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void adminBanUserTemporarily() throws Exception {
+    void shouldBanUserTemporarily_whenAdminSubmitsTemporaryBan() throws Exception {
         User admin = userUtil.createAdmin(FixtureNumbers.adminUser(12));
         User targetUser = userUtil.createUser(FixtureNumbers.adminUser(13));
         String refreshToken = refreshTokenService.createToken(targetUser);
@@ -272,7 +272,7 @@ class AdminUserControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void adminBanUserBadRequestWhenAdminTargetsThemself() throws Exception {
+    void shouldReturnBadRequest_whenAdminTriesToBanThemself() throws Exception {
         User admin = userUtil.createAdmin(FixtureNumbers.adminUser(14));
         BanUserDTO dto = BanUserDTO.builder()
                 .bannedPermanently(true)
@@ -297,7 +297,7 @@ class AdminUserControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void adminBanUserBadRequestWhenPayloadFailsValidation() throws Exception {
+    void shouldReturnBadRequest_whenAdminBanPayloadFailsValidation() throws Exception {
         User admin = userUtil.createAdmin(FixtureNumbers.adminUser(26));
         User targetUser = userUtil.createUser(FixtureNumbers.adminUser(27));
         BanUserDTO dto = BanUserDTO.builder()
@@ -320,7 +320,7 @@ class AdminUserControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void adminUnbanUser() throws Exception {
+    void shouldUnbanUser_whenAdminRemovesBan() throws Exception {
         User admin = userUtil.createAdmin(FixtureNumbers.adminUser(15));
         User targetUser = userUtil.createUser(FixtureNumbers.adminUser(16));
         targetUser.setBannedUntil(OffsetDateTime.parse("2026-05-01T12:00:00Z").toInstant());
@@ -352,7 +352,7 @@ class AdminUserControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void adminDeleteUser() throws Exception {
+    void shouldDeleteUser_whenAdminDeletesUser() throws Exception {
         User admin = userUtil.createAdmin(FixtureNumbers.adminUser(17));
         User targetUser = userUtil.createUser(FixtureNumbers.adminUser(18));
         Long targetBookId = bookUtil.createBook(targetUser.getId(), FixtureNumbers.adminUser(18));
@@ -385,7 +385,7 @@ class AdminUserControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void adminDeleteUserConflictWhenVersionIsStale() throws Exception {
+    void shouldReturnConflict_whenAdminDeletesUserWithStaleVersion() throws Exception {
         User admin = userUtil.createAdmin(FixtureNumbers.adminUser(19));
         User targetUser = userUtil.createUser(FixtureNumbers.adminUser(20));
 

@@ -49,7 +49,7 @@ class AdminReportControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void adminGetReportsByStatus() throws Exception {
+    void shouldReturnFilteredReports_whenAdminGetsReportsByStatus() throws Exception {
         User admin = userUtil.createAdmin(FixtureNumbers.adminReport(1));
         Report openReport = createUserReport(FixtureNumbers.adminReport(2), ReportStatus.OPEN);
         createUserReport(FixtureNumbers.adminReport(10), ReportStatus.RESOLVED);
@@ -74,7 +74,7 @@ class AdminReportControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void adminGetReportById() throws Exception {
+    void shouldReturnReport_whenAdminGetsReportById() throws Exception {
         User admin = userUtil.createAdmin(FixtureNumbers.adminReport(20));
         Report report = createUserReport(FixtureNumbers.adminReport(21), ReportStatus.OPEN);
 
@@ -94,7 +94,7 @@ class AdminReportControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void adminGetReportByIdNotFound() throws Exception {
+    void shouldReturnNotFound_whenAdminGetsMissingReportById() throws Exception {
         User admin = userUtil.createAdmin(FixtureNumbers.adminReport(22));
 
         MvcResult mvcResult = mockMvc.perform(get(AdminPaths.ADMIN_PATH_REPORTS_ID, Long.MAX_VALUE)
@@ -112,7 +112,7 @@ class AdminReportControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void adminResolveReport() throws Exception {
+    void shouldResolveReport_whenAdminResolvesReport() throws Exception {
         User admin = userUtil.createAdmin(FixtureNumbers.adminReport(30));
         Report report = createUserReport(FixtureNumbers.adminReport(31), ReportStatus.OPEN);
 
@@ -135,7 +135,7 @@ class AdminReportControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void adminRejectReport() throws Exception {
+    void shouldRejectReport_whenAdminRejectsReport() throws Exception {
         User admin = userUtil.createAdmin(FixtureNumbers.adminReport(40));
         Report report = createUserReport(FixtureNumbers.adminReport(41), ReportStatus.OPEN);
 
@@ -158,7 +158,7 @@ class AdminReportControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void adminResolveReportConflictWhenVersionIsStale() throws Exception {
+    void shouldReturnConflict_whenAdminResolvesReportWithStaleVersion() throws Exception {
         User admin = userUtil.createAdmin(FixtureNumbers.adminReport(50));
         Report report = createUserReport(FixtureNumbers.adminReport(51), ReportStatus.OPEN);
 
@@ -178,7 +178,7 @@ class AdminReportControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void adminRejectReportConflictWhenVersionIsStale() throws Exception {
+    void shouldReturnConflict_whenAdminRejectsReportWithStaleVersion() throws Exception {
         User admin = userUtil.createAdmin(FixtureNumbers.adminReport(52));
         Report report = createUserReport(FixtureNumbers.adminReport(53), ReportStatus.OPEN);
 

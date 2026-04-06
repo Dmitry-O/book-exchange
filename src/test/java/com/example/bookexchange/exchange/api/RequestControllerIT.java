@@ -60,7 +60,7 @@ class RequestControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void createRequest() throws Exception {
+    void shouldCreateRequest_whenPayloadIsValid() throws Exception {
         ExchangeFixture fixture = createExchangeFixture(400);
         RequestCreateDTO dto = buildRequestCreateDTO(fixture);
 
@@ -88,7 +88,7 @@ class RequestControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void createRequestBadRequest() throws Exception {
+    void shouldReturnBadRequest_whenCreateRequestPayloadIsInvalid() throws Exception {
         User sender = userUtil.createUser(401);
 
         MvcResult mvcResult = mockMvc.perform(post(ExchangePaths.REQUEST_PATH)
@@ -103,7 +103,7 @@ class RequestControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void createRequestBadRequestWhenTryingToExchangeWithYourself() throws Exception {
+    void shouldReturnBadRequest_whenUserCreatesRequestWithThemself() throws Exception {
         User user = userUtil.createUser(402);
         Long senderBookId = bookUtil.createBook(user.getId(), 402);
         Long receiverBookId = bookUtil.createBook(user.getId(), 403);
@@ -130,7 +130,7 @@ class RequestControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void createRequestNotFoundWhenReceiverBookDoesNotExist() throws Exception {
+    void shouldReturnNotFound_whenCreateRequestReceiverBookDoesNotExist() throws Exception {
         ExchangeFixture fixture = createExchangeFixture(404);
         RequestCreateDTO dto = RequestCreateDTO.builder()
                 .receiverUserId(fixture.receiver().getId())
@@ -150,7 +150,7 @@ class RequestControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void createRequestConflictWhenGiftBookAlreadyHasPendingRequest() throws Exception {
+    void shouldReturnConflict_whenGiftBookAlreadyHasPendingRequest() throws Exception {
         ExchangeFixture fixture = createExchangeFixture(405);
         Book receiverBook = bookRepository.findById(fixture.receiverBookId()).orElseThrow();
         receiverBook.setIsGift(true);
@@ -182,7 +182,7 @@ class RequestControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void getUserRequestDetails() throws Exception {
+    void shouldReturnRequestDetails_whenSenderGetsRequestDetails() throws Exception {
         ExchangeFixture fixture = createPendingExchange(406);
 
         MvcResult mvcResult = mockMvc.perform(get(ExchangePaths.REQUEST_PATH_EXCHANGE_ID, fixture.exchangeId())
@@ -201,7 +201,7 @@ class RequestControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void getUserRequestDetailsNotFoundForReceiver() throws Exception {
+    void shouldReturnNotFound_whenReceiverGetsSenderRequestDetails() throws Exception {
         ExchangeFixture fixture = createPendingExchange(407);
 
         MvcResult mvcResult = mockMvc.perform(get(ExchangePaths.REQUEST_PATH_EXCHANGE_ID, fixture.exchangeId())
@@ -219,7 +219,7 @@ class RequestControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void getUserRequestsReturnsOnlyPendingRequests() throws Exception {
+    void shouldReturnPendingRequests_whenSenderGetsRequests() throws Exception {
         ExchangeFixture pendingFixture = createPendingExchange(408);
         User secondReceiver = userUtil.createUser(410);
         Long secondSenderBookId = bookUtil.createBook(pendingFixture.sender().getId(), 411);
@@ -253,7 +253,7 @@ class RequestControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void declineUserRequest() throws Exception {
+    void shouldDeclineRequest_whenSenderDeclinesPendingRequest() throws Exception {
         ExchangeFixture fixture = createPendingExchange(412);
         Exchange exchange = exchangeRepository.findById(fixture.exchangeId()).orElseThrow();
 
@@ -278,7 +278,7 @@ class RequestControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void declineUserRequestNotFoundForReceiver() throws Exception {
+    void shouldReturnNotFound_whenReceiverDeclinesSenderRequest() throws Exception {
         ExchangeFixture fixture = createPendingExchange(413);
         Exchange exchange = exchangeRepository.findById(fixture.exchangeId()).orElseThrow();
 
@@ -298,7 +298,7 @@ class RequestControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void declineUserRequestBadRequestWhenExchangeIsAlreadyApproved() throws Exception {
+    void shouldReturnBadRequest_whenSenderDeclinesAlreadyApprovedRequest() throws Exception {
         ExchangeFixture fixture = createPendingExchange(414);
         Exchange exchange = exchangeRepository.findById(fixture.exchangeId()).orElseThrow();
         exchange.setStatus(ExchangeStatus.APPROVED);
@@ -323,7 +323,7 @@ class RequestControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void declineUserRequestConflictWhenVersionIsStale() throws Exception {
+    void shouldReturnConflict_whenSenderDeclinesRequestWithStaleVersion() throws Exception {
         ExchangeFixture fixture = createPendingExchange(415);
 
         MvcResult mvcResult = mockMvc.perform(patch(ExchangePaths.REQUEST_PATH_DECLINE_REQUEST, fixture.exchangeId())

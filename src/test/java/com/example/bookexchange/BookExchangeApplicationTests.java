@@ -6,6 +6,6 @@ import org.junit.jupiter.api.Test;
 class BookExchangeApplicationTests extends IntegrationTestSupport {
 
     @Test
-    void contextLoads() {
+    void shouldLoadApplicationContext() {
     }
 }

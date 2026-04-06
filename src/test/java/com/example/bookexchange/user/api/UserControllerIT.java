@@ -66,7 +66,7 @@ class UserControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void getUser() throws Exception {
+    void shouldReturnCurrentUser_whenUserGetsOwnProfile() throws Exception {
         UserFixture fixture = createUserFixture(200);
 
         MvcResult mvcResult = mockMvc.perform(get(UserPaths.USER_PATH)
@@ -88,10 +88,9 @@ class UserControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void updateUser() throws Exception {
+    void shouldUpdateUser_whenPayloadIsValid() throws Exception {
         UserFixture fixture = createUserFixture(201);
         UserUpdateDTO dto = UserUpdateDTO.builder()
-                .email(fixture.user().getEmail())
                 .nickname("updated_user_201")
                 .photoBase64(validBase64("updated-user-photo"))
                 .locale("de")
@@ -123,10 +122,9 @@ class UserControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void updateUserBadRequest() throws Exception {
+    void shouldReturnBadRequest_whenUpdateUserPayloadIsInvalid() throws Exception {
         UserFixture fixture = createUserFixture(202);
         UserUpdateDTO dto = UserUpdateDTO.builder()
-                .email(fixture.user().getEmail())
                 .nickname("ab")
                 .photoBase64(validBase64("user-photo"))
                 .locale("en")
@@ -145,11 +143,10 @@ class UserControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void updateUserConflict() throws Exception {
+    void shouldReturnConflict_whenUpdateUserNicknameAlreadyExists() throws Exception {
         User existingUser = userUtil.createUser(203);
         UserFixture fixture = createUserFixture(204);
         UserUpdateDTO dto = UserUpdateDTO.builder()
-                .email(fixture.user().getEmail())
                 .nickname(existingUser.getNickname())
                 .photoBase64(validBase64("user-photo"))
                 .locale("en")
@@ -168,10 +165,9 @@ class UserControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void updateUserConflictWhenVersionIsStale() throws Exception {
+    void shouldReturnConflict_whenUpdateUserVersionIsStale() throws Exception {
         UserFixture fixture = createUserFixture(205);
         UserUpdateDTO dto = UserUpdateDTO.builder()
-                .email(fixture.user().getEmail())
                 .nickname("updated_user_205")
                 .photoBase64(validBase64("user-photo"))
                 .locale("en")
@@ -190,7 +186,28 @@ class UserControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void resetPassword() throws Exception {
+    void shouldReturnBadRequest_whenUpdateUserIfMatchHeaderIsInvalid() throws Exception {
+        UserFixture fixture = createUserFixture(2051);
+        UserUpdateDTO dto = UserUpdateDTO.builder()
+                .nickname("updated_user_invalid_etag")
+                .photoBase64(validBase64("user-photo"))
+                .locale("en")
+                .build();
+
+        MvcResult mvcResult = mockMvc.perform(patch(UserPaths.USER_PATH)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(fixture.user()))
+                        .header(HttpHeaders.IF_MATCH, "\"invalid\"")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest())
+                .andReturn();
+
+        assertValidationErrorResponse(responseBody(mvcResult), UserPaths.USER_PATH);
+    }
+
+    @Test
+    void shouldResetPassword_whenCurrentPasswordIsCorrect() throws Exception {
         UserFixture fixture = createUserFixture(206);
         UserResetPasswordDTO dto = UserResetPasswordDTO.builder()
                 .currentPassword(fixture.credentials().getPassword())
@@ -218,7 +235,7 @@ class UserControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void resetPasswordBadRequestWhenCurrentPasswordIsWrong() throws Exception {
+    void shouldReturnBadRequest_whenResetPasswordCurrentPasswordIsWrong() throws Exception {
         UserFixture fixture = createUserFixture(207);
         UserResetPasswordDTO dto = UserResetPasswordDTO.builder()
                 .currentPassword("WrongPassword1!")
@@ -243,7 +260,7 @@ class UserControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void logout() throws Exception {
+    void shouldLogoutUser_whenRefreshTokenIsValid() throws Exception {
         UserFixture fixture = createUserFixture(208);
         String refreshToken = loginAndGetRefreshToken(fixture);
         RefreshTokenDTO dto = new RefreshTokenDTO();
@@ -265,7 +282,7 @@ class UserControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void deleteUser() throws Exception {
+    void shouldDeleteUser_whenVersionIsCurrent() throws Exception {
         UserFixture fixture = createUserFixture(209);
         Long bookId = bookUtil.createBook(fixture.user().getId(), 209);
 
@@ -291,7 +308,7 @@ class UserControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void deleteUserConflictWhenVersionIsStale() throws Exception {
+    void shouldReturnConflict_whenDeleteUserVersionIsStale() throws Exception {
         UserFixture fixture = createUserFixture(210);
 
         MvcResult mvcResult = mockMvc.perform(delete(UserPaths.USER_PATH)

@@ -58,7 +58,7 @@ class AdminExchangeControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void adminGetExchangesByStatus() throws Exception {
+    void shouldReturnFilteredExchanges_whenAdminGetsExchangesByStatus() throws Exception {
         User admin = userUtil.createAdmin(FixtureNumbers.adminExchange(1));
         Exchange pendingExchange = createExchangeWithStatus(FixtureNumbers.adminExchange(2), ExchangeStatus.PENDING);
         createExchangeWithStatus(FixtureNumbers.adminExchange(10), ExchangeStatus.APPROVED);
@@ -82,7 +82,7 @@ class AdminExchangeControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void adminGetExchangeById() throws Exception {
+    void shouldReturnExchange_whenAdminGetsExchangeById() throws Exception {
         User admin = userUtil.createAdmin(FixtureNumbers.adminExchange(20));
         Exchange approvedExchange = createExchangeWithStatus(FixtureNumbers.adminExchange(21), ExchangeStatus.APPROVED);
 
@@ -103,7 +103,7 @@ class AdminExchangeControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void adminGetExchangeByIdNotFound() throws Exception {
+    void shouldReturnNotFound_whenAdminGetsMissingExchangeById() throws Exception {
         User admin = userUtil.createAdmin(FixtureNumbers.adminExchange(30));
 
         MvcResult mvcResult = mockMvc.perform(get(AdminPaths.ADMIN_PATH_EXCHANGES_ID, Long.MAX_VALUE)

@@ -49,7 +49,7 @@ class ReportControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void createUserReport() throws Exception {
+    void shouldCreateUserReport_whenPayloadIsValid() throws Exception {
         User reporter = userUtil.createUser(700);
         User targetUser = userUtil.createUser(701);
         ReportCreateDTO dto = ReportCreateDTO.builder()
@@ -80,7 +80,7 @@ class ReportControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void createBookReport() throws Exception {
+    void shouldCreateBookReport_whenPayloadIsValid() throws Exception {
         User reporter = userUtil.createUser(702);
         User bookOwner = userUtil.createUser(703);
         Long targetBookId = bookUtil.createBook(bookOwner.getId(), 703);
@@ -108,7 +108,7 @@ class ReportControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void createReportBadRequest() throws Exception {
+    void shouldReturnBadRequest_whenCreateReportPayloadIsInvalid() throws Exception {
         User reporter = userUtil.createUser(704);
         User targetUser = userUtil.createUser(705);
         ReportCreateDTO dto = ReportCreateDTO.builder()
@@ -129,7 +129,7 @@ class ReportControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void createReportBadRequestWhenTryingToReportYourself() throws Exception {
+    void shouldReturnBadRequest_whenUserReportsThemself() throws Exception {
         User reporter = userUtil.createUser(706);
         ReportCreateDTO dto = ReportCreateDTO.builder()
                 .targetType(TargetType.USER)
@@ -154,7 +154,7 @@ class ReportControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void createReportBadRequestWhenTryingToReportYourOwnBook() throws Exception {
+    void shouldReturnBadRequest_whenUserReportsOwnBook() throws Exception {
         User reporter = userUtil.createUser(707);
         Long ownBookId = bookUtil.createBook(reporter.getId(), 707);
         ReportCreateDTO dto = ReportCreateDTO.builder()
@@ -180,7 +180,7 @@ class ReportControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void createReportNotFoundWhenTargetUserDoesNotExist() throws Exception {
+    void shouldReturnNotFound_whenCreateUserReportTargetDoesNotExist() throws Exception {
         User reporter = userUtil.createUser(708);
         ReportCreateDTO dto = ReportCreateDTO.builder()
                 .targetType(TargetType.USER)
