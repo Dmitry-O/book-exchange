@@ -16,13 +16,13 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class UserResetPasswordDTO {
 
-    @Schema(example = "current-password-12345")
+    @Schema(example = "Password-123!")
     @NotNull
     @NotBlank
     @JsonProperty("currentPassword")
     private String currentPassword;
 
-    @Schema(example = "new-password-12345")
+    @Schema(example = "NewPassword-123!")
     @NotNull
     @NotBlank
     @StrongPassword

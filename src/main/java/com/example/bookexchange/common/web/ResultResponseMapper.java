@@ -139,6 +139,27 @@ public class ResultResponseMapper {
         );
     }
 
+    @ExceptionHandler(InvalidIfMatchHeaderException.class)
+    public ResponseEntity<?> handleInvalidIfMatch(
+            HttpServletRequest request,
+            InvalidIfMatchHeaderException ex
+    ) {
+        auditService.log(AuditEvent.builder()
+                .action("IF_MATCH_HEADER_VALIDATION")
+                .result(AuditResult.FAILURE)
+                .reason("SYSTEM_INVALID_DATA")
+                .detail("exception", ex)
+                .build()
+        );
+
+        return errorHelper.formatErrorResponse(
+                HttpStatus.BAD_REQUEST,
+                messageService.getMessage(MessageKey.SYSTEM_INVALID_DATA),
+                request,
+                "VALIDATION_ERROR"
+        );
+    }
+
     @ExceptionHandler
     ResponseEntity<?> handleJPAViolations(TransactionSystemException ex, HttpServletRequest request) {
         auditService.log(AuditEvent.builder()

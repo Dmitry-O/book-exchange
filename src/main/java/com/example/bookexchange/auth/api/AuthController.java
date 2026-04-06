@@ -44,7 +44,7 @@ public class AuthController {
                                         {
                                           "success": true,
                                           "data": null,
-                                          "message": "Your account has been successfully registered. Please confirm your email address now.",
+                                          "message": null,
                                           "error": null
                                         }
                                 """
@@ -81,7 +81,7 @@ public class AuthController {
                                             "accessToken": "eyJhbGciOiJIUzUx...",
                                             "refreshToken": "3bc88331-60c0-467e-b4fa-e8958421ab68"
                                           },
-                                          "message": "Your account has been successfully registered. Please confirm your email address now.",
+                                          "message": null,
                                           "error": null
                                         }
                                 """
@@ -210,7 +210,7 @@ public class AuthController {
                                         {
                                           "success": true,
                                           "data": null,
-                                          "message": "We have sent you instructions on how to reset your password to your email address",
+                                          "message": "Your password has been changed",
                                           "error": null
                                         }
                                 """

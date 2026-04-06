@@ -65,7 +65,8 @@ public class UserServiceImpl implements UserService {
                         return versionValidation.map(userMapper::userToUserDto);
                     }
 
-                    if (!user.getNickname().equals(dto.getNickname()) &&
+                    if (dto.getNickname() != null &&
+                            !user.getNickname().equals(dto.getNickname()) &&
                             userRepository.findByNickname(dto.getNickname()).isPresent()
                     ) {
                         return ResultFactory.error(MessageKey.AUTH_NICKNAME_ALREADY_EXISTS, HttpStatus.CONFLICT);
