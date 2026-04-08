@@ -11,6 +11,10 @@ public class ExchangeDTO {
     @JsonProperty("id")
     private Long id;
 
+    @Schema(example = "3")
+    @JsonProperty("version")
+    private Long version;
+
     @Schema(example = "Book photo")
     @JsonProperty("senderBookPhotoBase64")
     private String senderBookPhotoBase64;

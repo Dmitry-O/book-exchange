@@ -22,13 +22,17 @@ public class ReportAdminDTO {
     @JsonProperty("id")
     private Long id;
 
+    @Schema(example = "3")
+    @JsonProperty("version")
+    private Long version;
+
     @Schema(example = "USER")
     @JsonProperty("targetType")
     private TargetType targetType;
 
-    @Schema(example = "http://current_host/api/v1/admin/users/1")
-    @JsonProperty("targetUrl")
-    private String targetUrl;
+    @Schema(example = "1")
+    @JsonProperty("targetId")
+    private Long targetId;
 
     @Schema(example = "SPAM")
     @JsonProperty("reason")

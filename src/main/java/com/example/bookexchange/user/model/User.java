@@ -6,9 +6,9 @@ import com.example.bookexchange.book.model.Book;
 import com.example.bookexchange.common.audit.model.SoftDeletableEntity;
 import com.example.bookexchange.exchange.model.Exchange;
 import com.example.bookexchange.report.model.Report;
-import com.example.bookexchange.security.auth.CurrentUserArgumentResolver;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
+import org.hibernate.annotations.BatchSize;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -70,7 +70,8 @@ public class User extends SoftDeletableEntity {
     @JsonIgnore
     private Set<RefreshToken> refreshTokens = new HashSet<>();
 
-    @ElementCollection(fetch = FetchType.EAGER)
+    @BatchSize(size = 50)
+    @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(
         name = "user_roles",
         joinColumns = @JoinColumn(name = "user_id")

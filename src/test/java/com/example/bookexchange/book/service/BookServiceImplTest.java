@@ -26,8 +26,10 @@ import java.util.Optional;
 
 import static com.example.bookexchange.common.i18n.MessageKey.BOOK_CREATED;
 import static com.example.bookexchange.common.i18n.MessageKey.BOOK_DELETED;
+import static com.example.bookexchange.common.i18n.MessageKey.BOOK_PUBLIC_NOT_FOUND;
 import static com.example.bookexchange.common.i18n.MessageKey.BOOK_UPDATED;
 import static com.example.bookexchange.common.result.ResultFactory.ok;
+import static com.example.bookexchange.support.unit.ResultAssertions.assertFailure;
 import static com.example.bookexchange.support.unit.ResultAssertions.assertSuccess;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -92,6 +94,29 @@ class BookServiceImplTest {
         assertSuccess(result, HttpStatus.OK, BOOK_UPDATED);
         verify(bookMapper).updateBookDtoToBook(dto, book);
         verify(bookRepository).save(book);
+    }
+
+    @Test
+    void shouldReturnPublicBook_whenFindBookByIdIsCalledForActiveBook() {
+        User user = UnitTestDataFactory.user(UnitFixtureIds.BOOK_OWNER_ID, "owner@example.com", "book_owner");
+        Book book = UnitTestDataFactory.book(UnitFixtureIds.SENDER_BOOK_ID, "Public book", user);
+        BookDTO bookDto = org.mockito.Mockito.mock(BookDTO.class);
+
+        when(bookRepository.findPublicBookById(book.getId())).thenReturn(Optional.of(book));
+        when(bookMapper.bookToBookDto(book)).thenReturn(bookDto);
+
+        Result<BookDTO> result = bookService.findBookById(book.getId());
+
+        assertSuccess(result, HttpStatus.OK);
+    }
+
+    @Test
+    void shouldReturnNotFound_whenFindBookByIdDoesNotMatchPublicFilters() {
+        when(bookRepository.findPublicBookById(UnitFixtureIds.SENDER_BOOK_ID)).thenReturn(Optional.empty());
+
+        Result<BookDTO> result = bookService.findBookById(UnitFixtureIds.SENDER_BOOK_ID);
+
+        assertFailure(result, BOOK_PUBLIC_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
 
     @Test

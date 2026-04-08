@@ -1,7 +1,9 @@
 package com.example.bookexchange.exchange.service;
 
 import com.example.bookexchange.common.audit.service.AuditService;
+import com.example.bookexchange.common.i18n.MessageKey;
 import com.example.bookexchange.common.result.Result;
+import com.example.bookexchange.book.model.Book;
 import com.example.bookexchange.exchange.dto.ExchangeDetailsDTO;
 import com.example.bookexchange.exchange.mapper.ExchangeMapper;
 import com.example.bookexchange.exchange.model.Exchange;
@@ -56,8 +58,8 @@ class OfferServiceImplTest {
     void shouldApproveExchangeAndDeclineCompetingExchanges_whenReceiverApprovesOffer() {
         User sender = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, "sender@example.com", "sender_one");
         User receiver = UnitTestDataFactory.user(UnitFixtureIds.RECEIVER_USER_ID, "receiver@example.com", "receiver_one");
-        var senderBook = UnitTestDataFactory.book(UnitFixtureIds.SENDER_BOOK_ID, "Sender book", sender);
-        var receiverBook = UnitTestDataFactory.book(UnitFixtureIds.RECEIVER_BOOK_ID, "Receiver book", receiver);
+        Book senderBook = UnitTestDataFactory.book(UnitFixtureIds.SENDER_BOOK_ID, "Sender book", sender);
+        Book receiverBook = UnitTestDataFactory.book(UnitFixtureIds.RECEIVER_BOOK_ID, "Receiver book", receiver);
         Exchange approvedExchange = UnitTestDataFactory.exchange(
                 UnitFixtureIds.EXCHANGE_ID,
                 sender,
@@ -83,7 +85,7 @@ class OfferServiceImplTest {
                 "APPROVE_USER_OFFER",
                 receiver.getId(),
                 receiver.getEmail(),
-                com.example.bookexchange.common.i18n.MessageKey.EXCHANGE_CANT_BE_APPROVED,
+                MessageKey.EXCHANGE_CANT_BE_APPROVED,
                 "EXCHANGE_CANT_BE_APPROVED"
         )).thenReturn(ok(approvedExchange));
         when(exchangeRepository.save(approvedExchange)).thenReturn(approvedExchange);
@@ -91,15 +93,19 @@ class OfferServiceImplTest {
                 .thenReturn(List.of(competingBySenderBook));
         when(exchangeRepository.findByIdNotAndReceiverBookIdAndStatus(approvedExchange.getId(), receiverBook.getId(), ExchangeStatus.PENDING))
                 .thenReturn(List.of());
-        when(exchangeMapper.exchangeToExchangeDetailsDto(approvedExchange, sender.getNickname())).thenReturn(detailsDto);
+        when(exchangeMapper.exchangeToExchangeDetailsDto(approvedExchange, sender.getId(), sender.getNickname())).thenReturn(detailsDto);
 
         Result<ExchangeDetailsDTO> result = offerService.approveUserOffer(receiver.getId(), approvedExchange.getId(), approvedExchange.getVersion());
 
         assertSuccess(result, HttpStatus.OK, EXCHANGE_APPROVED);
         assertThat(approvedExchange.getStatus()).isEqualTo(ExchangeStatus.APPROVED);
+        assertThat(approvedExchange.getIsReadBySender()).isFalse();
+        assertThat(approvedExchange.getIsReadByReceiver()).isTrue();
         assertThat(senderBook.getIsExchanged()).isTrue();
         assertThat(receiverBook.getIsExchanged()).isTrue();
         assertThat(competingBySenderBook.getStatus()).isEqualTo(ExchangeStatus.DECLINED);
+        assertThat(competingBySenderBook.getIsReadBySender()).isFalse();
+        assertThat(competingBySenderBook.getIsReadByReceiver()).isFalse();
 
         ArgumentCaptor<Exchange> savedExchangeCaptor = ArgumentCaptor.forClass(Exchange.class);
         verify(exchangeRepository, times(2)).save(savedExchangeCaptor.capture());
@@ -111,8 +117,8 @@ class OfferServiceImplTest {
     void shouldSetDeclinerAndDeclinedStatus_whenReceiverDeclinesOffer() {
         User sender = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, "sender@example.com", "sender_one");
         User receiver = UnitTestDataFactory.user(UnitFixtureIds.RECEIVER_USER_ID, "receiver@example.com", "receiver_one");
-        var senderBook = UnitTestDataFactory.book(UnitFixtureIds.SENDER_BOOK_ID, "Sender book", sender);
-        var receiverBook = UnitTestDataFactory.book(UnitFixtureIds.RECEIVER_BOOK_ID, "Receiver book", receiver);
+        Book senderBook = UnitTestDataFactory.book(UnitFixtureIds.SENDER_BOOK_ID, "Sender book", sender);
+        Book receiverBook = UnitTestDataFactory.book(UnitFixtureIds.RECEIVER_BOOK_ID, "Receiver book", receiver);
         Exchange exchange = UnitTestDataFactory.exchange(
                 UnitFixtureIds.EXCHANGE_ID,
                 sender,
@@ -130,17 +136,46 @@ class OfferServiceImplTest {
                 "DECLINE_USER_OFFER",
                 receiver.getId(),
                 receiver.getEmail(),
-                com.example.bookexchange.common.i18n.MessageKey.EXCHANGE_CANT_BE_DECLINED,
+                MessageKey.EXCHANGE_CANT_BE_DECLINED,
                 "EXCHANGE_CANT_BE_DECLINED"
         )).thenReturn(ok(exchange));
         when(userRepository.findById(receiver.getId())).thenReturn(Optional.of(receiver));
         when(exchangeRepository.save(exchange)).thenReturn(exchange);
-        when(exchangeMapper.exchangeToExchangeDetailsDto(exchange, sender.getNickname())).thenReturn(detailsDto);
+        when(exchangeMapper.exchangeToExchangeDetailsDto(exchange, sender.getId(), sender.getNickname())).thenReturn(detailsDto);
 
         Result<ExchangeDetailsDTO> result = offerService.declineUserOffer(receiver.getId(), exchange.getId(), exchange.getVersion());
 
         assertSuccess(result, HttpStatus.OK, EXCHANGE_DECLINED);
         assertThat(exchange.getStatus()).isEqualTo(ExchangeStatus.DECLINED);
         assertThat(exchange.getDeclinerUser()).isSameAs(receiver);
+        assertThat(exchange.getIsReadBySender()).isFalse();
+        assertThat(exchange.getIsReadByReceiver()).isTrue();
+    }
+
+    @Test
+    void shouldMarkOfferAsRead_whenReceiverGetsOfferDetails() {
+        User sender = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, "sender@example.com", "sender_one");
+        User receiver = UnitTestDataFactory.user(UnitFixtureIds.RECEIVER_USER_ID, "receiver@example.com", "receiver_one");
+        Book senderBook = UnitTestDataFactory.book(UnitFixtureIds.SENDER_BOOK_ID, "Sender book", sender);
+        Book receiverBook = UnitTestDataFactory.book(UnitFixtureIds.RECEIVER_BOOK_ID, "Receiver book", receiver);
+        Exchange exchange = UnitTestDataFactory.exchange(
+                UnitFixtureIds.EXCHANGE_ID,
+                sender,
+                receiver,
+                senderBook,
+                receiverBook,
+                ExchangeStatus.PENDING
+        );
+        ExchangeDetailsDTO detailsDto = org.mockito.Mockito.mock(ExchangeDetailsDTO.class);
+
+        when(exchangeRepository.findByIdAndReceiverUserId(exchange.getId(), receiver.getId())).thenReturn(Optional.of(exchange));
+        when(exchangeRepository.saveAndFlush(exchange)).thenReturn(exchange);
+        when(exchangeMapper.exchangeToExchangeDetailsDto(exchange, sender.getId(), sender.getNickname())).thenReturn(detailsDto);
+
+        Result<ExchangeDetailsDTO> result = offerService.getReceiverOfferDetails(receiver.getId(), exchange.getId());
+
+        assertSuccess(result, HttpStatus.OK);
+        assertThat(exchange.getIsReadByReceiver()).isTrue();
+        assertThat(exchange.getIsReadBySender()).isFalse();
     }
 }

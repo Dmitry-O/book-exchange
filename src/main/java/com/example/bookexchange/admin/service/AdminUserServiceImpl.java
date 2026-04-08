@@ -9,6 +9,7 @@ import com.example.bookexchange.book.repository.BookRepository;
 import com.example.bookexchange.common.audit.model.AuditEvent;
 import com.example.bookexchange.common.audit.model.AuditResult;
 import com.example.bookexchange.common.audit.service.AuditService;
+import com.example.bookexchange.common.audit.service.SoftDeleteFilterHelper;
 import com.example.bookexchange.common.audit.service.VersionedEntityTransitionHelper;
 import com.example.bookexchange.common.dto.PageQueryDTO;
 import com.example.bookexchange.common.i18n.MessageKey;
@@ -44,6 +45,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     private final VerificationTokenRepository verificationTokenRepository;
     private final AdminMapper adminMapper;
     private final AuditService auditService;
+    private final SoftDeleteFilterHelper softDeleteFilterHelper;
     private final VersionedEntityTransitionHelper versionedEntityTransitionHelper;
 
     @Transactional(readOnly = true)
@@ -56,53 +58,57 @@ public class AdminUserServiceImpl implements AdminUserService {
             Boolean onlyBannedUsers,
             UserType userType
     ) {
-        return ResultFactory.fromRepository(
-                        userRepository,
-                        userId,
-                        MessageKey.ADMIN_USER_NOT_FOUND
-                )
-                .flatMap(user -> {
-                    Boolean isUserSuperAdmin = user.getRoles().contains(UserRole.SUPER_ADMIN);
+        return softDeleteFilterHelper.runWithoutDeletedFilter(() ->
+                ResultFactory.fromRepository(
+                                userRepository,
+                                userId,
+                                MessageKey.ADMIN_USER_NOT_FOUND
+                        )
+                        .flatMap(user -> {
+                            Boolean isUserSuperAdmin = user.getRoles().contains(UserRole.SUPER_ADMIN);
 
-                    Specification<User> specification = UserSpecificationBuilder.build(searchText, roles, onlyBannedUsers, isUserSuperAdmin, userType);
+                            Specification<User> specification = UserSpecificationBuilder.build(searchText, roles, onlyBannedUsers, isUserSuperAdmin, userType);
 
-                    Pageable pageable = PageRequest.of(
-                            queryDTO.getPageIndex(),
-                            queryDTO.getPageSize(),
-                            Sort.by(Sort.Direction.DESC, "createdAt")
-                    );
+                            Pageable pageable = PageRequest.of(
+                                    queryDTO.getPageIndex(),
+                                    queryDTO.getPageSize(),
+                                    Sort.by(Sort.Direction.DESC, "createdAt")
+                            );
 
-                    Page<UserAdminDTO> page = userRepository.findAll(specification, pageable).map(adminMapper::userToUserAdminDto);
+                            Page<UserAdminDTO> page = userRepository.findAll(specification, pageable).map(adminMapper::userToUserAdminDto);
 
-                    return ResultFactory.ok(page);
-                });
+                            return ResultFactory.ok(page);
+                        })
+        );
     }
 
     @Transactional(readOnly = true)
     @Override
     public Result<UserAdminDTO> findUserById(UserDetails adminUser, Long userId) {
-        return ResultFactory.fromRepository(
-                        userRepository,
-                        userId,
-                        MessageKey.ADMIN_USER_NOT_FOUND
-                )
-                .flatMap(user -> {
-                            auditService.log(AuditEvent.builder()
-                                    .action("ADMIN_USER_FIND")
-                                    .result(AuditResult.SUCCESS)
-                                    .actorEmail(adminUser.getUsername())
-                                    .detail("actorUserRoles", adminUser.getAuthorities())
-                                    .detail("userId", userId)
-                                    .detail("userEmail", user.getEmail())
-                                    .build()
-                            );
+        return softDeleteFilterHelper.runWithoutDeletedFilter(() ->
+                ResultFactory.fromRepository(
+                                userRepository,
+                                userId,
+                                MessageKey.ADMIN_USER_NOT_FOUND
+                        )
+                        .flatMap(user -> {
+                                    auditService.log(AuditEvent.builder()
+                                            .action("ADMIN_USER_FIND")
+                                            .result(AuditResult.SUCCESS)
+                                            .actorEmail(adminUser.getUsername())
+                                            .detail("actorUserRoles", adminUser.getAuthorities())
+                                            .detail("userId", userId)
+                                            .detail("userEmail", user.getEmail())
+                                            .build()
+                                    );
 
-                            return ResultFactory.okETag(
-                                    adminMapper.userToUserAdminDto(user),
-                                    ETagUtil.form(user)
-                            );
-                        }
-                );
+                                    return ResultFactory.okETag(
+                                            adminMapper.userToUserAdminDto(user),
+                                            ETagUtil.form(user)
+                                    );
+                                }
+                        )
+        );
     }
 
     @Transactional

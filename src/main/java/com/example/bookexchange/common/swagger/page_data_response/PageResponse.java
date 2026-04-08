@@ -20,7 +20,7 @@ public class PageResponse<T> {
     private int size;
 
     @Schema(example = "1")
-    private int totalElements;
+    private long totalElements;
 
     @Schema(example = "1")
     private int totalPages;

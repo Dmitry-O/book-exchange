@@ -76,7 +76,7 @@ class AuthControllerIT extends IntegrationTestSupport {
                 .andReturn();
 
         User savedUser = userRepository.findByEmail(userCreateDTO.getEmail()).orElseThrow();
-        var verificationToken = verificationTokenRepository
+        VerificationToken verificationToken = verificationTokenRepository
                 .findByUserAndType(savedUser, TokenType.CONFIRM_EMAIL)
                 .orElseThrow();
 

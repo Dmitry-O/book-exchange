@@ -6,11 +6,13 @@ import com.example.bookexchange.common.result.ResultFactory;
 import com.example.bookexchange.common.i18n.MessageKey;
 import com.example.bookexchange.exchange.dto.ExchangeHistoryDTO;
 import com.example.bookexchange.exchange.dto.ExchangeHistoryDetailsDTO;
+import com.example.bookexchange.exchange.dto.ExchangeUnreadUpdateDTO;
 import com.example.bookexchange.exchange.mapper.ExchangeMapper;
 import com.example.bookexchange.exchange.model.Exchange;
 import com.example.bookexchange.exchange.model.ExchangeStatus;
 import com.example.bookexchange.exchange.model.UserExchangeRole;
 import com.example.bookexchange.exchange.repository.ExchangeRepository;
+import com.example.bookexchange.exchange.util.ExchangeReadStateUtil;
 import com.example.bookexchange.exchange.util.ExchangeUtil;
 import lombok.AllArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -40,6 +42,25 @@ public class HistoryServiceImpl implements HistoryService {
         Page<ExchangeHistoryDTO> page = exchangeRepository
                 .findUserExchangeHistory(userId, ExchangeStatus.PENDING, pageable)
                 .map(exchange -> exchangeMapper.exchangeToExchangeHistoryDto(
+                        exchange,
+                        resolveUserExchangeRole(exchange, userId)
+                ));
+
+        return ResultFactory.ok(page);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public Result<Page<ExchangeUnreadUpdateDTO>> getUnreadExchangeUpdates(Long userId, PageQueryDTO queryDTO) {
+        Pageable pageable = PageRequest.of(
+                queryDTO.getPageIndex(),
+                queryDTO.getPageSize(),
+                Sort.by(Sort.Direction.DESC, "updatedAt")
+        );
+
+        Page<ExchangeUnreadUpdateDTO> page = exchangeRepository
+                .findUnreadUpdatesForUser(userId, pageable)
+                .map(exchange -> exchangeMapper.exchangeToExchangeUnreadUpdateDto(
                         exchange,
                         resolveUserExchangeRole(exchange, userId)
                 ));
@@ -77,9 +98,9 @@ public class HistoryServiceImpl implements HistoryService {
 
     private Exchange markAsReadBySender(Exchange exchange) {
         if (!exchange.getIsReadBySender()) {
-            exchange.setIsReadBySender(true);
+            ExchangeReadStateUtil.markReadBySender(exchange);
 
-            return exchangeRepository.save(exchange);
+            return exchangeRepository.saveAndFlush(exchange);
         }
 
         return exchange;
@@ -87,9 +108,9 @@ public class HistoryServiceImpl implements HistoryService {
 
     private Exchange markAsReadByReceiver(Exchange exchange) {
         if (!exchange.getIsReadByReceiver()) {
-            exchange.setIsReadByReceiver(true);
+            ExchangeReadStateUtil.markReadByReceiver(exchange);
 
-            return exchangeRepository.save(exchange);
+            return exchangeRepository.saveAndFlush(exchange);
         }
 
         return exchange;
@@ -99,12 +120,14 @@ public class HistoryServiceImpl implements HistoryService {
         return switch (userRole) {
             case SENDER -> exchangeMapper.exchangeToExchangeHistoryDetailsDto(
                     exchange,
+                    exchange.getReceiverUser().getId(),
                     exchange.getReceiverUser().getNickname(),
                     exchange.getReceiverBook().getContactDetails(),
                     userRole
             );
             case RECEIVER -> exchangeMapper.exchangeToExchangeHistoryDetailsDto(
                     exchange,
+                    exchange.getSenderUser().getId(),
                     exchange.getSenderUser().getNickname(),
                     exchange.getSenderBook().getContactDetails(),
                     userRole

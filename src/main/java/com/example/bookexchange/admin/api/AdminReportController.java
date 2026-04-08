@@ -121,7 +121,7 @@ public class AdminReportController {
                                           "data": {
                                             "id": 1,
                                             "targetType": "USER",
-                                            "targetUrl": "http://current_host/api/v1/admin/users/1",
+                                            "targetId": 1,
                                             "reason": "SPAM",
                                             "comment": "This user spams a lot with same books",
                                             "status": "RESOLVED",
@@ -202,7 +202,7 @@ public class AdminReportController {
                                           "data": {
                                             "id": 1,
                                             "targetType": "USER",
-                                            "targetUrl": "http://current_host/api/v1/admin/users/1",
+                                            "targetId": 1,
                                             "reason": "SPAM",
                                             "comment": "This user has terrible books",
                                             "status": "REJECTED",

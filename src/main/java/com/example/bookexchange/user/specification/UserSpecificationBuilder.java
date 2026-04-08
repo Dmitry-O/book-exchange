@@ -8,6 +8,7 @@ import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.time.Instant;
+import java.util.EnumSet;
 import java.util.Set;
 
 public class UserSpecificationBuilder {
@@ -16,12 +17,22 @@ public class UserSpecificationBuilder {
             Predicate predicate = cb.conjunction();
 
             if (!isUserSuperAdmin) {
+                predicate = cb.and(predicate, cb.isNotMember(UserRole.SUPER_ADMIN, root.get("roles")));
+            }
+
+            if (roles != null && !roles.isEmpty()) {
+                Set<UserRole> requestedRoles = EnumSet.copyOf(roles);
+
+                if (!isUserSuperAdmin) {
+                    requestedRoles.remove(UserRole.SUPER_ADMIN);
+                }
+
+                if (requestedRoles.isEmpty()) {
+                    return cb.disjunction();
+                }
+
                 Join<User, UserRole> rolesJoin = root.join("roles");
-                predicate = cb.and(predicate, rolesJoin.in(Set.of(UserRole.USER)));
-                query.distinct(true);
-            } else if (roles != null && !roles.isEmpty()) {
-                Join<User, UserRole> rolesJoin = root.join("roles");
-                predicate = cb.and(predicate, rolesJoin.in(roles));
+                predicate = cb.and(predicate, rolesJoin.in(requestedRoles));
                 query.distinct(true);
             }
 

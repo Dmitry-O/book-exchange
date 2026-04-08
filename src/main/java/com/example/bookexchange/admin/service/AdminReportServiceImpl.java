@@ -57,6 +57,7 @@ public class AdminReportServiceImpl implements AdminReportService {
         return ResultFactory.ok(reportPage.map(reportMapper::reportToReportDto));
     }
 
+    @Transactional(readOnly = true)
     @Override
     public Result<ReportAdminDTO> findReportById(UserDetails adminUser, Long reportId) {
         return ResultFactory.fromRepository(

@@ -31,7 +31,7 @@ class CustomUserDetailsServiceImplTest {
     void shouldReturnPrincipal_whenLoadUserByUserIdFindsActiveUser() {
         User user = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, "reader@example.com", "reader_one");
 
-        when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
+        when(userRepository.findByIdWithRoles(user.getId())).thenReturn(Optional.of(user));
 
         UserPrincipal principal = userDetailsService.loadUserByUserId(user.getId());
 
@@ -44,7 +44,7 @@ class CustomUserDetailsServiceImplTest {
         User user = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, "reader@example.com", "reader_one");
         user.setDeletedAt(Instant.now());
 
-        when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
+        when(userRepository.findByIdWithRoles(user.getId())).thenReturn(Optional.of(user));
 
         assertThatThrownBy(() -> userDetailsService.loadUserByUserId(user.getId()))
                 .isInstanceOf(UsernameNotFoundException.class)

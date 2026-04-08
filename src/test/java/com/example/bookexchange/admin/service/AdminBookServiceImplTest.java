@@ -7,18 +7,22 @@ import com.example.bookexchange.book.mapper.BookMapper;
 import com.example.bookexchange.book.model.Book;
 import com.example.bookexchange.book.repository.BookRepository;
 import com.example.bookexchange.common.audit.service.AuditService;
+import com.example.bookexchange.common.audit.service.SoftDeleteFilterHelper;
 import com.example.bookexchange.common.audit.service.VersionedEntityTransitionHelper;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.support.unit.UnitFixtureIds;
 import com.example.bookexchange.support.unit.UnitTestDataFactory;
+import com.example.bookexchange.user.model.User;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Optional;
+import java.util.function.Supplier;
 
 import static com.example.bookexchange.common.i18n.MessageKey.ADMIN_BOOK_DELETED;
 import static com.example.bookexchange.common.i18n.MessageKey.ADMIN_BOOK_RESTORED;
@@ -46,6 +50,9 @@ class AdminBookServiceImplTest {
     private AuditService auditService;
 
     @Mock
+    private SoftDeleteFilterHelper softDeleteFilterHelper;
+
+    @Mock
     private VersionedEntityTransitionHelper versionedEntityTransitionHelper;
 
     @InjectMocks
@@ -53,11 +60,11 @@ class AdminBookServiceImplTest {
 
     @Test
     void shouldApplyChanges_whenAdminUpdatesBookWithCurrentVersion() {
-        var user = UnitTestDataFactory.user(UnitFixtureIds.BOOK_OWNER_ID, "owner@example.com", "book_owner");
+        User user = UnitTestDataFactory.user(UnitFixtureIds.BOOK_OWNER_ID, "owner@example.com", "book_owner");
         Book book = UnitTestDataFactory.book(UnitFixtureIds.SENDER_BOOK_ID, "Old book", user);
         BookUpdateDTO dto = UnitTestDataFactory.bookUpdateDto();
         BookAdminDTO adminDto = org.mockito.Mockito.mock(BookAdminDTO.class);
-        var admin = UnitTestDataFactory.adminPrincipal("admin@example.com");
+        UserDetails admin = UnitTestDataFactory.adminPrincipal("admin@example.com");
 
         when(bookRepository.findById(book.getId())).thenReturn(Optional.of(book));
         when(versionedEntityTransitionHelper.requireVersion(any(Book.class), any(Long.class), any(String.class), any()))
@@ -74,10 +81,10 @@ class AdminBookServiceImplTest {
 
     @Test
     void shouldSetDeletedAt_whenAdminDeletesBookWithCurrentVersion() {
-        var user = UnitTestDataFactory.user(UnitFixtureIds.BOOK_OWNER_ID, "owner@example.com", "book_owner");
+        User user = UnitTestDataFactory.user(UnitFixtureIds.BOOK_OWNER_ID, "owner@example.com", "book_owner");
         Book book = UnitTestDataFactory.book(UnitFixtureIds.SENDER_BOOK_ID, "Old book", user);
         BookAdminDTO adminDto = org.mockito.Mockito.mock(BookAdminDTO.class);
-        var admin = UnitTestDataFactory.adminPrincipal("admin@example.com");
+        UserDetails admin = UnitTestDataFactory.adminPrincipal("admin@example.com");
 
         when(bookRepository.findById(book.getId())).thenReturn(Optional.of(book));
         when(versionedEntityTransitionHelper.requireVersion(any(Book.class), any(Long.class), any(String.class), any()))
@@ -92,13 +99,14 @@ class AdminBookServiceImplTest {
 
     @Test
     void shouldClearDeletedAt_whenAdminRestoresBookWithCurrentVersion() {
-        var user = UnitTestDataFactory.user(UnitFixtureIds.BOOK_OWNER_ID, "owner@example.com", "book_owner");
+        User user = UnitTestDataFactory.user(UnitFixtureIds.BOOK_OWNER_ID, "owner@example.com", "book_owner");
         Book book = UnitTestDataFactory.book(UnitFixtureIds.SENDER_BOOK_ID, "Old book", user);
         book.setDeletedAt(java.time.Instant.now());
         BookAdminDTO adminDto = org.mockito.Mockito.mock(BookAdminDTO.class);
-        var admin = UnitTestDataFactory.adminPrincipal("admin@example.com");
+        UserDetails admin = UnitTestDataFactory.adminPrincipal("admin@example.com");
 
         when(bookRepository.findById(book.getId())).thenReturn(Optional.of(book));
+        when(softDeleteFilterHelper.runWithoutDeletedFilter(any())).thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(0)).get());
         when(versionedEntityTransitionHelper.requireVersion(any(Book.class), any(Long.class), any(String.class), any()))
                 .thenReturn(ok(book));
         when(adminMapper.bookToBookAdminDto(book)).thenReturn(adminDto);

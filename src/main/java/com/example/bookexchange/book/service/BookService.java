@@ -21,6 +21,8 @@ public interface BookService {
 
     Result<Page<BookDTO>> findBooks(BookSearchDTO dto, PageQueryDTO queryDTO);
 
+    Result<BookDTO> findBookById(Long bookId);
+
     Result<Void> deleteUserBookById(Long userId, Long bookId, Long version);
 
     Result<BookDTO> updateUserBookById(Long userId, Long bookId, BookUpdateDTO dto, Long version);

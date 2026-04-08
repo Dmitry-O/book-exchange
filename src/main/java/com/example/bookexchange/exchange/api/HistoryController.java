@@ -4,6 +4,7 @@ import com.example.bookexchange.common.dto.PageQueryDTO;
 import com.example.bookexchange.security.auth.CurrentUser;
 import com.example.bookexchange.common.swagger.error_response.NotFoundErrorResponse;
 import com.example.bookexchange.common.swagger.error_response.UnauthorizedErrorResponse;
+import com.example.bookexchange.common.swagger.page_data_response.ExchangeUnreadUpdatePageData;
 import com.example.bookexchange.common.swagger.page_data_response.HistoryPageData;
 import com.example.bookexchange.common.web.ResultResponseMapper;
 import com.example.bookexchange.exchange.dto.ExchangeHistoryDetailsDTO;
@@ -27,6 +28,28 @@ public class HistoryController {
 
     private final HistoryService historyService;
     private final ResultResponseMapper responseMapper;
+
+    @UnauthorizedErrorResponse
+    @ApiResponse(
+            responseCode = "200",
+            description = "A list of unread exchange updates for the current user",
+            content = @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ExchangeUnreadUpdatePageData.class)
+            )
+    )
+    @GetMapping(ExchangePaths.UPDATES_PATH_UNREAD)
+    public ResponseEntity<?> getUnreadExchangeUpdates(
+            @Parameter(description = "User ID", example = "1")
+            @CurrentUser Long userId,
+
+            @ParameterObject
+            @Validated @ModelAttribute PageQueryDTO queryDTO,
+
+            HttpServletRequest request
+    ) {
+        return responseMapper.map(historyService.getUnreadExchangeUpdates(userId, queryDTO), request);
+    }
 
     @UnauthorizedErrorResponse
     @NotFoundErrorResponse

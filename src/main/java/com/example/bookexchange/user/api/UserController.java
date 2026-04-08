@@ -6,6 +6,7 @@ import com.example.bookexchange.common.swagger.error_response.BadRequestErrorRes
 import com.example.bookexchange.common.swagger.error_response.ConflictErrorResponse;
 import com.example.bookexchange.common.swagger.error_response.NotFoundErrorResponse;
 import com.example.bookexchange.common.swagger.error_response.UnauthorizedErrorResponse;
+import com.example.bookexchange.common.web.ApiResponse;
 import com.example.bookexchange.common.web.ResultResponseMapper;
 import com.example.bookexchange.user.service.UserService;
 import com.example.bookexchange.user.dto.UserDTO;
@@ -17,7 +18,6 @@ import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -36,7 +36,7 @@ public class UserController {
 
     @UnauthorizedErrorResponse
     @NotFoundErrorResponse
-    @ApiResponse(
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
             description = "User's profile has been returned",
             headers = @Header(
@@ -63,7 +63,7 @@ public class UserController {
     @ConflictErrorResponse
     @NotFoundErrorResponse
     @BadRequestErrorResponse
-    @ApiResponse(
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
             description = "User's profile has been updated",
             content = @Content(
@@ -115,12 +115,12 @@ public class UserController {
     @UnauthorizedErrorResponse
     @ConflictErrorResponse
     @NotFoundErrorResponse
-    @ApiResponse(
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
             description = "User account has been deleted",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = com.example.bookexchange.common.web.ApiResponse.class),
+                    schema = @Schema(implementation = ApiResponse.class),
                     examples = @ExampleObject(
                             value = """
                                         {
@@ -155,12 +155,12 @@ public class UserController {
     @ConflictErrorResponse
     @NotFoundErrorResponse
     @BadRequestErrorResponse
-    @ApiResponse(
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
             description = "User's password has been changed",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = com.example.bookexchange.common.web.ApiResponse.class),
+                    schema = @Schema(implementation = ApiResponse.class),
                     examples = @ExampleObject(
                             value = """
                                         {
@@ -196,12 +196,12 @@ public class UserController {
 
     @UnauthorizedErrorResponse
     @NotFoundErrorResponse
-    @ApiResponse(
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
             description = "User has been logged out",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = com.example.bookexchange.common.web.ApiResponse.class),
+                    schema = @Schema(implementation = ApiResponse.class),
                     examples = @ExampleObject(
                             value = """
                                         {

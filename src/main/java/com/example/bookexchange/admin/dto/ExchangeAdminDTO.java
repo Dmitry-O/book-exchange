@@ -13,6 +13,10 @@ public class ExchangeAdminDTO {
     @JsonProperty("id")
     private Long id;
 
+    @Schema(example = "3")
+    @JsonProperty("version")
+    private Long version;
+
     @JsonProperty("senderBook")
     private BookAdminDTO senderBook;
 

@@ -32,6 +32,7 @@ public enum MessageKey {
     BOOK_DELETED("book.deleted"),
     BOOK_UPDATED("book.updated"),
     BOOK_NOT_FOUND("book.not.found"),
+    BOOK_PUBLIC_NOT_FOUND("book.public.not.found"),
     BOOK_ALREADY_EXCHANGED("book.already.exchanged"),
     BOOK_ALREADY_IN_YOUR_LIST("book.already.in.your.list"),
     BOOK_EXCHANGE_ALREADY_EXISTS("book.exchange.already.exists"),
@@ -52,6 +53,7 @@ public enum MessageKey {
     EMAIL_DELETE_ACCOUNT("email.delete.account"),
 
     REPORT_SENT("report.sent"),
+    REPORT_ALREADY_EXISTS("report.already.exists"),
     REPORT_CANNOT_REPORT_YOURSELF("report.cannot.report.yourself"),
     REPORT_CANNOT_REPORT_YOUR_BOOK("report.cannot.report.your.book"),
 

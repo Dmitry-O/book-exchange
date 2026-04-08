@@ -20,6 +20,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Set;
 
@@ -31,6 +32,7 @@ public class AdminExchangeServiceImpl implements AdminExchangeService {
     private final AdminMapper adminMapper;
     private final AuditService auditService;
 
+    @Transactional(readOnly = true)
     @Override
     public Result<Page<ExchangeAdminDTO>> findExchanges(PageQueryDTO queryDTO, Set<ExchangeStatus> exchangeStatuses) {
         Pageable pageable = PageRequest.of(
@@ -52,6 +54,7 @@ public class AdminExchangeServiceImpl implements AdminExchangeService {
         );
     }
 
+    @Transactional(readOnly = true)
     @Override
     public Result<ExchangeAdminDTO> findExchangeById(UserDetails adminUser, Long exchangeId) {
         return ResultFactory.fromRepository(

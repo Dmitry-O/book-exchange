@@ -18,6 +18,18 @@ public class BookDTO {
     @JsonProperty("id")
     private Long id;
 
+    @Schema(example = "3")
+    @JsonProperty("version")
+    private Long version;
+
+    @Schema(example = "42")
+    @JsonProperty("ownerUserId")
+    private Long ownerUserId;
+
+    @Schema(example = "user_12345")
+    @JsonProperty("ownerNickname")
+    private String ownerNickname;
+
     @Schema(example = "Charley Smash")
     @JsonProperty("name")
     private String name;
@@ -45,6 +57,10 @@ public class BookDTO {
     @Schema(example = "London")
     @JsonProperty("city")
     private String city;
+
+    @Schema(example = "Juchostr. 12, 44320 Dortmund; 01512 0089 34 567")
+    @JsonProperty("contactDetails")
+    private String contactDetails;
 
     @Schema(example = "true")
     @JsonProperty("isGift")

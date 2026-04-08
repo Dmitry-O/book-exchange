@@ -29,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.OffsetDateTime;
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -198,6 +199,74 @@ class AdminUserControllerIT extends IntegrationTestSupport {
         assertThat(body.path("data").path("totalElements").asLong()).isEqualTo(1);
         assertThat(content.get(0).path("id").asLong()).isEqualTo(targetAdmin.getId());
         assertThat(content.get(0).path("roles").toString()).contains(UserRole.ADMIN.name());
+    }
+
+    @Test
+    void shouldReturnDeletedUsers_whenAdminFiltersByDeletedUserType() throws Exception {
+        User admin = userUtil.createAdmin(FixtureNumbers.adminUser(28));
+        User activeUser = userUtil.createUser(FixtureNumbers.adminUser(29));
+        User deletedUser = userUtil.createUser(FixtureNumbers.adminUser(30));
+        deletedUser.setDeletedAt(Instant.now());
+        userRepository.saveAndFlush(deletedUser);
+
+        MvcResult mvcResult = mockMvc.perform(get(AdminPaths.ADMIN_PATH_USERS)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(admin))
+                        .queryParam("pageIndex", PageTestDefaults.PAGE_INDEX.toString())
+                        .queryParam("pageSize", PageTestDefaults.PAGE_SIZE.toString())
+                        .queryParam("userType", "DELETED")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode content = responseBody(mvcResult).path("data").path("content");
+
+        assertThat(content.toString()).contains("\"id\":" + deletedUser.getId());
+        assertThat(content.toString()).doesNotContain("\"id\":" + activeUser.getId());
+    }
+
+    @Test
+    void shouldReturnActiveAndDeletedUsers_whenAdminGetsUsersWithoutUserTypeFilter() throws Exception {
+        User admin = userUtil.createAdmin(FixtureNumbers.adminUser(31));
+        User activeUser = userUtil.createUser(FixtureNumbers.adminUser(32));
+        User deletedUser = userUtil.createUser(FixtureNumbers.adminUser(33));
+        deletedUser.setDeletedAt(Instant.now());
+        userRepository.saveAndFlush(deletedUser);
+
+        MvcResult mvcResult = mockMvc.perform(get(AdminPaths.ADMIN_PATH_USERS)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(admin))
+                        .queryParam("pageIndex", PageTestDefaults.PAGE_INDEX.toString())
+                        .queryParam("pageSize", PageTestDefaults.PAGE_SIZE.toString())
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode content = responseBody(mvcResult).path("data").path("content");
+
+        assertThat(content.toString()).contains("\"id\":" + activeUser.getId());
+        assertThat(content.toString()).contains("\"id\":" + deletedUser.getId());
+    }
+
+    @Test
+    void shouldReturnOnlyAdmins_whenAdminFiltersUsersByRole() throws Exception {
+        User adminRequester = userUtil.createAdmin(FixtureNumbers.adminUser(34));
+        User targetAdmin = userUtil.createAdmin(FixtureNumbers.adminUser(35));
+        User regularUser = userUtil.createUser(FixtureNumbers.adminUser(36));
+        User superAdmin = userUtil.createSuperAdmin(FixtureNumbers.adminUser(37));
+
+        MvcResult mvcResult = mockMvc.perform(get(AdminPaths.ADMIN_PATH_USERS)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(adminRequester))
+                        .queryParam("pageIndex", PageTestDefaults.PAGE_INDEX.toString())
+                        .queryParam("pageSize", PageTestDefaults.PAGE_SIZE.toString())
+                        .queryParam("roles", UserRole.ADMIN.name())
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode content = responseBody(mvcResult).path("data").path("content");
+
+        assertThat(content.toString()).contains("\"id\":" + targetAdmin.getId());
+        assertThat(content.toString()).doesNotContain("\"id\":" + regularUser.getId());
+        assertThat(content.toString()).doesNotContain("\"id\":" + superAdmin.getId());
     }
 
     @Test

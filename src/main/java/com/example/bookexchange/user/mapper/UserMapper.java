@@ -24,6 +24,7 @@ public interface UserMapper {
 
     @BeanMapping(ignoreByDefault = true)
     @Mapping(target = "id", source = "id")
+    @Mapping(target = "version", source = "version")
     @Mapping(target = "email", source = "email")
     @Mapping(target = "nickname", source = "nickname")
     @Mapping(target = "photoBase64", source = "photoBase64")

@@ -14,6 +14,10 @@ public class ExchangeDetailsDTO {
     @JsonProperty("id")
     private Long id;
 
+    @Schema(example = "3")
+    @JsonProperty("version")
+    private Long version;
+
     @Schema(example = "PENDING")
     @JsonProperty("status")
     @NotNull
@@ -22,6 +26,10 @@ public class ExchangeDetailsDTO {
     @Schema(example = "user_12345")
     @JsonProperty("userNickname")
     private String userNickname;
+
+    @Schema(example = "42")
+    @JsonProperty("otherUserId")
+    private Long otherUserId;
 
     @JsonProperty("senderBook")
     private BookDTO senderBook;

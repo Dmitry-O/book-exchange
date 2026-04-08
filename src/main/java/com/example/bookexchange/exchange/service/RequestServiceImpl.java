@@ -17,6 +17,7 @@ import com.example.bookexchange.exchange.model.Exchange;
 import com.example.bookexchange.exchange.model.ExchangeContext;
 import com.example.bookexchange.exchange.model.ExchangeStatus;
 import com.example.bookexchange.exchange.repository.ExchangeRepository;
+import com.example.bookexchange.exchange.util.ExchangeReadStateUtil;
 import com.example.bookexchange.user.repository.UserRepository;
 import com.example.bookexchange.common.util.ETagUtil;
 import lombok.AllArgsConstructor;
@@ -59,28 +60,25 @@ public class RequestServiceImpl implements RequestService {
                 .flatMap(this::formExchangeDetailsResponse);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     @Override
     public Result<ExchangeDetailsDTO> getSenderRequestDetails(Long senderUserId, Long exchangeId) {
         return ResultFactory.fromOptional(
                         exchangeRepository.findByIdAndSenderUserId(exchangeId, senderUserId),
                         MessageKey.EXCHANGE_NOT_FOUND
                 )
-                .flatMap(exchange ->
-                        ResultFactory.fromRepository(
-                                userRepository,
-                                senderUserId,
-                                MessageKey.USER_ACCOUNT_NOT_FOUND
-                        )
-                        .flatMap(u ->
-                                ResultFactory.okETag(
-                                        exchangeMapper.exchangeToExchangeDetailsDto(
-                                                exchange,
-                                                exchange.getReceiverUser().getNickname()
-                                        ),
-                                        ETagUtil.form(exchange)
-                                )
-                        )
+                .flatMap(exchange -> {
+                            Exchange persistedExchange = markAsReadBySender(exchange);
+
+                            return ResultFactory.okETag(
+                                    exchangeMapper.exchangeToExchangeDetailsDto(
+                                            persistedExchange,
+                                            persistedExchange.getReceiverUser().getId(),
+                                            persistedExchange.getReceiverUser().getNickname()
+                                    ),
+                                    ETagUtil.form(persistedExchange)
+                            );
+                        }
                 );
     }
 
@@ -250,6 +248,7 @@ public class RequestServiceImpl implements RequestService {
         exchange.setReceiverBook(ctx.getReceiverBook());
         exchange.setSenderBook(ctx.getSenderBook());
         exchange.setStatus(ExchangeStatus.PENDING);
+        ExchangeReadStateUtil.markCreatedBySender(exchange);
 
         exchangeRepository.save(exchange);
 
@@ -281,6 +280,7 @@ public class RequestServiceImpl implements RequestService {
         ).flatMap(declinerUser -> {
             exchange.setStatus(ExchangeStatus.DECLINED);
             exchange.setDeclinerUser(declinerUser);
+            ExchangeReadStateUtil.markUpdatedBySender(exchange);
 
             exchangeRepository.save(exchange);
             logRequestSuccess("DECLINE_USER_REQUEST", senderUserId, exchange.getSenderUser().getEmail());
@@ -293,6 +293,7 @@ public class RequestServiceImpl implements RequestService {
         return ResultFactory.updated(
                 exchangeMapper.exchangeToExchangeDetailsDto(
                         exchange,
+                        exchange.getReceiverUser().getId(),
                         exchange.getReceiverUser().getNickname()
                 ),
                 messageKey,
@@ -314,10 +315,21 @@ public class RequestServiceImpl implements RequestService {
         return ResultFactory.created(
                 exchangeMapper.exchangeToExchangeDetailsDto(
                         ctx.getExchange(),
+                        ctx.getReceiverUser().getId(),
                         ctx.getReceiverUser().getNickname()
                 ),
                 MessageKey.EXCHANGE_CREATED,
                 ETagUtil.form(ctx.getExchange())
         );
+    }
+
+    private Exchange markAsReadBySender(Exchange exchange) {
+        if (!Boolean.TRUE.equals(exchange.getIsReadBySender())) {
+            ExchangeReadStateUtil.markReadBySender(exchange);
+
+            return exchangeRepository.saveAndFlush(exchange);
+        }
+
+        return exchange;
     }
 }
