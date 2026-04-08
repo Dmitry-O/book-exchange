@@ -16,6 +16,7 @@ import com.example.bookexchange.exchange.dto.ExchangeDTO;
 import com.example.bookexchange.exchange.dto.ExchangeDetailsDTO;
 import com.example.bookexchange.user.repository.UserRepository;
 import com.example.bookexchange.common.util.ETagUtil;
+import com.example.bookexchange.exchange.util.ExchangeReadStateUtil;
 import lombok.AllArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -53,7 +54,7 @@ public class OfferServiceImpl implements OfferService {
         return ResultFactory.ok(page);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     @Override
     public Result<ExchangeDetailsDTO> getReceiverOfferDetails(Long receiverUserId, Long exchangeId) {
         return ResultFactory.fromOptional(
@@ -63,14 +64,18 @@ public class OfferServiceImpl implements OfferService {
                 ),
                 MessageKey.EXCHANGE_NOT_FOUND
         )
-                .flatMap(exchange ->
-                        ResultFactory.okETag(
-                                exchangeMapper.exchangeToExchangeDetailsDto(
-                                        exchange,
-                                        exchange.getSenderUser().getNickname()
-                                ),
-                                ETagUtil.form(exchange)
-                        )
+                .flatMap(exchange -> {
+                            Exchange persistedExchange = markAsReadByReceiver(exchange);
+
+                            return ResultFactory.okETag(
+                                    exchangeMapper.exchangeToExchangeDetailsDto(
+                                            persistedExchange,
+                                            persistedExchange.getSenderUser().getId(),
+                                            persistedExchange.getSenderUser().getNickname()
+                                    ),
+                                    ETagUtil.form(persistedExchange)
+                            );
+                        }
                 );
     }
 
@@ -120,6 +125,7 @@ public class OfferServiceImpl implements OfferService {
     private Result<ExchangeDetailsDTO> approveOffer(Exchange exchange, Long receiverUserId) {
         markBooksAsExchanged(exchange);
         exchange.setStatus(ExchangeStatus.APPROVED);
+        ExchangeReadStateUtil.markUpdatedByReceiver(exchange);
         exchangeRepository.save(exchange);
 
         declineCompetingExchanges(exchange);
@@ -136,6 +142,7 @@ public class OfferServiceImpl implements OfferService {
         ).flatMap(declinerUser -> {
             exchange.setStatus(ExchangeStatus.DECLINED);
             exchange.setDeclinerUser(declinerUser);
+            ExchangeReadStateUtil.markUpdatedByReceiver(exchange);
 
             exchangeRepository.save(exchange);
             logOfferSuccess("DECLINE_USER_OFFER", receiverUserId, exchange.getReceiverUser().getEmail());
@@ -157,6 +164,7 @@ public class OfferServiceImpl implements OfferService {
     private void declineCompetingExchanges(Exchange approvedExchange) {
         findCompetingExchanges(approvedExchange).forEach(exchange -> {
             exchange.setStatus(ExchangeStatus.DECLINED);
+            ExchangeReadStateUtil.markUpdatedForBoth(exchange);
             exchangeRepository.save(exchange);
         });
     }
@@ -187,6 +195,7 @@ public class OfferServiceImpl implements OfferService {
         return ResultFactory.updated(
                 exchangeMapper.exchangeToExchangeDetailsDto(
                         exchange,
+                        exchange.getSenderUser().getId(),
                         exchange.getSenderUser().getNickname()
                 ),
                 messageKey,
@@ -202,5 +211,15 @@ public class OfferServiceImpl implements OfferService {
                 .actorEmail(actorEmail)
                 .build()
         );
+    }
+
+    private Exchange markAsReadByReceiver(Exchange exchange) {
+        if (!Boolean.TRUE.equals(exchange.getIsReadByReceiver())) {
+            ExchangeReadStateUtil.markReadByReceiver(exchange);
+
+            return exchangeRepository.saveAndFlush(exchange);
+        }
+
+        return exchange;
     }
 }

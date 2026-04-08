@@ -28,6 +28,9 @@ public interface BookMapper {
 
     @BeanMapping(ignoreByDefault = true)
     @Mapping(target = "id", source = "id")
+    @Mapping(target = "version", source = "version")
+    @Mapping(target = "ownerUserId", source = "user.id")
+    @Mapping(target = "ownerNickname", source = "user.nickname")
     @Mapping(target = "name", source = "name")
     @Mapping(target = "description", source = "description")
     @Mapping(target = "author", source = "author")
@@ -35,6 +38,7 @@ public interface BookMapper {
     @Mapping(target = "publicationYear", source = "publicationYear")
     @Mapping(target = "photoBase64", source = "photoBase64")
     @Mapping(target = "city", source = "city")
+    @Mapping(target = "contactDetails", source = "contactDetails")
     @Mapping(target = "isGift", source = "isGift")
     @Mapping(target = "isExchanged", source = "isExchanged")
     BookDTO bookToBookDto(Book book);

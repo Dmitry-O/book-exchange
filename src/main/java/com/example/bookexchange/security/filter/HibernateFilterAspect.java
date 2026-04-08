@@ -21,7 +21,11 @@ public class HibernateFilterAspect {
 
         boolean includeDeleted = RequestContextHolder.isIncludeDeleted();
 
-        if (!includeDeleted) {
+        if (includeDeleted) {
+            if (session.getEnabledFilter("deletedFilter") != null) {
+                session.disableFilter("deletedFilter");
+            }
+        } else {
             session.enableFilter("deletedFilter");
         }
     }

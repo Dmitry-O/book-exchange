@@ -14,9 +14,17 @@ public class ExchangeHistoryDetailsDTO {
     @JsonProperty("id")
     private Long id;
 
+    @Schema(example = "3")
+    @JsonProperty("version")
+    private Long version;
+
     @Schema(example = "user_12345")
     @JsonProperty("userNickname")
     private String userNickname;
+
+    @Schema(example = "42")
+    @JsonProperty("otherUserId")
+    private Long otherUserId;
 
     @Schema(example = "APPROVED")
     @JsonProperty("status")

@@ -164,6 +164,7 @@ class BookControllerIT extends IntegrationTestSupport {
         for (JsonNode bookNode : content) {
             returnedIds.add(bookNode.path("id").asLong());
             assertThat(bookNode.path("isExchanged").asBoolean()).isFalse();
+            assertHasVersion(bookNode);
         }
 
         assertThat(body.path("success").asBoolean()).isTrue();
@@ -195,9 +196,74 @@ class BookControllerIT extends IntegrationTestSupport {
         assertThat(data.path("category").asText()).isEqualTo(persistedBook.getCategory());
         assertThat(data.path("publicationYear").asInt()).isEqualTo(persistedBook.getPublicationYear());
         assertThat(data.path("city").asText()).isEqualTo(persistedBook.getCity());
+        assertThat(data.path("contactDetails").asText()).isEqualTo(persistedBook.getContactDetails());
+        assertVersion(data, persistedBook.getVersion());
         assertThat(data.path("isGift").asBoolean()).isEqualTo(persistedBook.getIsGift());
         assertThat(data.path("isExchanged").asBoolean()).isEqualTo(persistedBook.getIsExchanged());
         assertThat(eTagVersion(mvcResult)).isEqualTo(persistedBook.getVersion());
+    }
+
+    @Test
+    void shouldReturnPublicBook_whenAnonymousUserGetsBookById() throws Exception {
+        Book persistedBook = bookRepository.findById(bookId).orElseThrow();
+
+        MvcResult mvcResult = mockMvc.perform(get(BookPaths.BOOK_PATH_BOOK_ID, bookId)
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(header().exists(HttpHeaders.ETAG))
+                .andReturn();
+
+        JsonNode body = responseBody(mvcResult);
+        JsonNode data = body.path("data");
+
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(data.path("id").asLong()).isEqualTo(bookId);
+        assertVersion(data, persistedBook.getVersion());
+        assertThat(data.path("name").asText()).isEqualTo(persistedBook.getName());
+        assertThat(data.path("contactDetails").asText()).isEqualTo(persistedBook.getContactDetails());
+        assertThat(data.path("ownerUserId").asLong()).isEqualTo(user.getId());
+        assertThat(data.path("ownerNickname").asText()).isEqualTo(user.getNickname());
+        assertThat(eTagVersion(mvcResult)).isEqualTo(persistedBook.getVersion());
+    }
+
+    @Test
+    void shouldReturnNotFound_whenAnonymousUserGetsExchangedBookById() throws Exception {
+        Long exchangedBookId = bookUtil.createBook(user.getId(), 25);
+        Book exchangedBook = bookRepository.findById(exchangedBookId).orElseThrow();
+        exchangedBook.setIsExchanged(true);
+        bookRepository.save(exchangedBook);
+
+        MvcResult mvcResult = mockMvc.perform(get(BookPaths.BOOK_PATH_BOOK_ID, exchangedBookId)
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isNotFound())
+                .andReturn();
+
+        assertErrorResponse(
+                responseBody(mvcResult),
+                404,
+                MessageKey.BOOK_PUBLIC_NOT_FOUND,
+                BookPaths.BOOK_PATH + "/" + exchangedBookId
+        );
+    }
+
+    @Test
+    void shouldReturnNotFound_whenAnonymousUserGetsDeletedBookById() throws Exception {
+        Long deletedBookId = bookUtil.createBook(user.getId(), 26);
+        Book deletedBook = bookRepository.findById(deletedBookId).orElseThrow();
+        deletedBook.setDeletedAt(java.time.Instant.now());
+        bookRepository.save(deletedBook);
+
+        MvcResult mvcResult = mockMvc.perform(get(BookPaths.BOOK_PATH_BOOK_ID, deletedBookId)
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isNotFound())
+                .andReturn();
+
+        assertErrorResponse(
+                responseBody(mvcResult),
+                404,
+                MessageKey.BOOK_PUBLIC_NOT_FOUND,
+                BookPaths.BOOK_PATH + "/" + deletedBookId
+        );
     }
 
     @Test
@@ -249,6 +315,7 @@ class BookControllerIT extends IntegrationTestSupport {
         assertThat(body.path("data").path("totalElements").asLong()).isEqualTo(1);
         assertThat(content.size()).isEqualTo(1);
         assertThat(content.get(0).path("id").asLong()).isEqualTo(senderBookId);
+        assertHasVersion(content.get(0));
         assertThat(content.get(0).path("isExchanged").asBoolean()).isTrue();
     }
 
@@ -291,6 +358,10 @@ class BookControllerIT extends IntegrationTestSupport {
         assertThat(body.path("data").path("totalElements").asLong()).isEqualTo(1);
         assertThat(content.size()).isEqualTo(1);
         assertThat(content.get(0).path("id").asLong()).isEqualTo(bookId);
+        assertThat(content.get(0).path("contactDetails").asText()).isNotBlank();
+        assertThat(content.get(0).path("ownerUserId").asLong()).isEqualTo(user.getId());
+        assertThat(content.get(0).path("ownerNickname").asText()).isEqualTo(user.getNickname());
+        assertHasVersion(content.get(0));
     }
 
     @Test

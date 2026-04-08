@@ -11,6 +11,7 @@ import com.example.bookexchange.common.swagger.error_response.BadRequestErrorRes
 import com.example.bookexchange.common.swagger.error_response.ConflictErrorResponse;
 import com.example.bookexchange.common.swagger.error_response.NotFoundErrorResponse;
 import com.example.bookexchange.common.swagger.error_response.UnauthorizedErrorResponse;
+import com.example.bookexchange.common.web.ApiResponse;
 import com.example.bookexchange.common.web.ResultResponseMapper;
 import com.example.bookexchange.book.service.BookService;
 import com.example.bookexchange.common.util.ParserUtil;
@@ -19,7 +20,6 @@ import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -40,7 +40,7 @@ public class BookController {
     @UnauthorizedErrorResponse
     @BadRequestErrorResponse
     @NotFoundErrorResponse
-    @ApiResponse(
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "201",
             description = "The book has been created",
             headers = @Header(
@@ -57,6 +57,8 @@ public class BookController {
                                           "success": true,
                                           "data": {
                                             "id": 1,
+                                            "ownerUserId": 1,
+                                            "ownerNickname": "user_12345",
                                             "name": "Charley Smash",
                                             "description": "An interesting book about ...",
                                             "author": "Frank Oester",
@@ -64,6 +66,7 @@ public class BookController {
                                             "publicationYear": 1765,
                                             "photoBase64": "Book photo",
                                             "city": "string",
+                                            "contactDetails": "Juchostr. 12, 44320 Dortmund; 01512 0089 34 567",
                                             "isGift": true,
                                             "isExchanged": false
                                           },
@@ -89,7 +92,7 @@ public class BookController {
 
     @UnauthorizedErrorResponse
     @NotFoundErrorResponse
-    @ApiResponse(
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
             description = "A list of returned user's books",
             content = @Content(
@@ -112,7 +115,7 @@ public class BookController {
 
     @UnauthorizedErrorResponse
     @NotFoundErrorResponse
-    @ApiResponse(
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
             description = "The returned user's book",
             headers = @Header(
@@ -138,9 +141,33 @@ public class BookController {
         return responseMapper.map(bookService.findUserBookById(userId, bookId), request);
     }
 
+    @NotFoundErrorResponse
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "200",
+            description = "The returned public book",
+            headers = @Header(
+                    name = "ETag",
+                    description = "Entity version",
+                    schema = @Schema(type = "string", example = "\"3\"")
+            ),
+            content = @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = BookDTO.class)
+            )
+    )
+    @GetMapping(BookPaths.BOOK_PATH_BOOK_ID)
+    public ResponseEntity<?> getBookById(
+            @Parameter(description = "Book ID", example = "1")
+            @PathVariable Long bookId,
+
+            HttpServletRequest request
+    ) {
+        return responseMapper.map(bookService.findBookById(bookId), request);
+    }
+
     @UnauthorizedErrorResponse
     @NotFoundErrorResponse
-    @ApiResponse(
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
             description = "A list of returned exchanged user's books",
             content = @Content(
@@ -164,7 +191,7 @@ public class BookController {
     @UnauthorizedErrorResponse
     @BadRequestErrorResponse
     @NotFoundErrorResponse
-    @ApiResponse(
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
             description = "A list of returned books",
             content = @Content(
@@ -188,12 +215,12 @@ public class BookController {
     @UnauthorizedErrorResponse
     @ConflictErrorResponse
     @NotFoundErrorResponse
-    @ApiResponse(
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
             description = "The book has been deleted",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = com.example.bookexchange.common.web.ApiResponse.class),
+                    schema = @Schema(implementation = ApiResponse.class),
                     examples = @ExampleObject(
                             value = """
                                         {
@@ -231,7 +258,7 @@ public class BookController {
     @ConflictErrorResponse
     @NotFoundErrorResponse
     @BadRequestErrorResponse
-    @ApiResponse(
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
             description = "The book has been updated",
             headers = @Header(
@@ -248,6 +275,8 @@ public class BookController {
                                           "success": true,
                                           "data": {
                                             "id": 1,
+                                            "ownerUserId": 1,
+                                            "ownerNickname": "user_12345",
                                             "name": "Charley Smash",
                                             "description": "An interesting book about ...",
                                             "author": "Frank Oester",
@@ -255,6 +284,7 @@ public class BookController {
                                             "publicationYear": 1765,
                                             "photoBase64": "Book photo",
                                             "city": "string",
+                                            "contactDetails": "Juchostr. 12, 44320 Dortmund; 01512 0089 34 567",
                                             "isGift": true,
                                             "isExchanged": false
                                           },

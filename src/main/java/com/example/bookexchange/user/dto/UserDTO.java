@@ -21,6 +21,10 @@ public class UserDTO {
     @JsonProperty("id")
     private Long id;
 
+    @Schema(example = "3")
+    @JsonProperty("version")
+    private Long version;
+
     @Schema(example = "example@info.com")
     @JsonProperty("email")
     private String email;

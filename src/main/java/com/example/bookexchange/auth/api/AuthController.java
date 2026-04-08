@@ -8,13 +8,13 @@ import com.example.bookexchange.common.swagger.error_response.BadRequestErrorRes
 import com.example.bookexchange.common.swagger.error_response.ConflictErrorResponse;
 import com.example.bookexchange.common.swagger.error_response.ForbiddenErrorResponse;
 import com.example.bookexchange.common.swagger.error_response.NotFoundErrorResponse;
+import com.example.bookexchange.common.web.ApiResponse;
 import com.example.bookexchange.common.web.ResultResponseMapper;
 import com.example.bookexchange.user.dto.*;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.AllArgsConstructor;
@@ -33,12 +33,12 @@ public class AuthController {
     @BadRequestErrorResponse
     @ForbiddenErrorResponse
     @ConflictErrorResponse
-    @ApiResponse(
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "201",
             description = "User's account has been created",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = com.example.bookexchange.common.web.ApiResponse.class),
+                    schema = @Schema(implementation = ApiResponse.class),
                     examples = @ExampleObject(
                             value = """
                                         {
@@ -67,7 +67,7 @@ public class AuthController {
     @BadRequestErrorResponse
     @ForbiddenErrorResponse
     @NotFoundErrorResponse
-    @ApiResponse(
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
             description = "User has been logged in",
             content = @Content(
@@ -103,12 +103,12 @@ public class AuthController {
 
     @BadRequestErrorResponse
     @NotFoundErrorResponse
-    @ApiResponse(
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "201",
             description = "A new access token has been generated",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = com.example.bookexchange.common.web.ApiResponse.class),
+                    schema = @Schema(implementation = ApiResponse.class),
                     examples = @ExampleObject(
                             value = """
                                         {
@@ -136,12 +136,12 @@ public class AuthController {
 
     @BadRequestErrorResponse
     @NotFoundErrorResponse
-    @ApiResponse(
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
             description = "User's email address has been confirmed",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = com.example.bookexchange.common.web.ApiResponse.class),
+                    schema = @Schema(implementation = ApiResponse.class),
                     examples = @ExampleObject(
                             value = """
                                         {
@@ -166,12 +166,12 @@ public class AuthController {
 
     @ForbiddenErrorResponse
     @NotFoundErrorResponse
-    @ApiResponse(
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
             description = "An E-Mail has been sent to reset user's password",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = com.example.bookexchange.common.web.ApiResponse.class),
+                    schema = @Schema(implementation = ApiResponse.class),
                     examples = @ExampleObject(
                             value = """
                                         {
@@ -199,12 +199,12 @@ public class AuthController {
 
     @BadRequestErrorResponse
     @NotFoundErrorResponse
-    @ApiResponse(
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
             description = "User's password has been reset",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = com.example.bookexchange.common.web.ApiResponse.class),
+                    schema = @Schema(implementation = ApiResponse.class),
                     examples = @ExampleObject(
                             value = """
                                         {
@@ -235,12 +235,12 @@ public class AuthController {
 
     @BadRequestErrorResponse
     @NotFoundErrorResponse
-    @ApiResponse(
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
             description = "An additional confirmation has been sent to verify the E-Mail address",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = com.example.bookexchange.common.web.ApiResponse.class),
+                    schema = @Schema(implementation = ApiResponse.class),
                     examples = @ExampleObject(
                             value = """
                                         {
@@ -267,12 +267,12 @@ public class AuthController {
     }
 
     @NotFoundErrorResponse
-    @ApiResponse(
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
             description = "An E-Mail has been sent to delete user's account",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = com.example.bookexchange.common.web.ApiResponse.class),
+                    schema = @Schema(implementation = ApiResponse.class),
                     examples = @ExampleObject(
                             value = """
                                         {
@@ -303,12 +303,12 @@ public class AuthController {
 
     @ConflictErrorResponse
     @NotFoundErrorResponse
-    @ApiResponse(
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
             description = "User's account has been deleted",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = com.example.bookexchange.common.web.ApiResponse.class),
+                    schema = @Schema(implementation = ApiResponse.class),
                     examples = @ExampleObject(
                             value = """
                                         {

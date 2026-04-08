@@ -88,6 +88,7 @@ class OfferControllerIT extends IntegrationTestSupport {
         assertThat(body.path("data").path("totalElements").asLong()).isEqualTo(1);
         assertThat(content.size()).isEqualTo(1);
         assertThat(content.get(0).path("id").asLong()).isEqualTo(pendingFixture.exchangeId());
+        assertHasVersion(content.get(0));
     }
 
     @Test
@@ -107,6 +108,7 @@ class OfferControllerIT extends IntegrationTestSupport {
         assertThat(body.path("data").path("id").asLong()).isEqualTo(fixture.exchangeId());
         assertThat(body.path("data").path("status").asText()).isEqualTo(ExchangeStatus.PENDING.name());
         assertThat(body.path("data").path("userNickname").asText()).isEqualTo(fixture.sender().getNickname());
+        assertThat(body.path("data").path("otherUserId").asLong()).isEqualTo(fixture.sender().getId());
     }
 
     @Test

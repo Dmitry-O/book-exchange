@@ -13,7 +13,7 @@ public class CustomUserDetailsServiceImpl {
     private final UserRepository userRepository;
 
     public UserPrincipal loadUserByUserId(Long userId) {
-        User user = userRepository.findById(userId)
+        User user = userRepository.findByIdWithRoles(userId)
                 .filter(foundUser -> foundUser.getDeletedAt() == null)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 

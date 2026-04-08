@@ -82,8 +82,62 @@ class AdminBookControllerIT extends IntegrationTestSupport {
         assertThat(body.path("success").asBoolean()).isTrue();
         assertThat(body.path("data").path("totalElements").asLong()).isEqualTo(1);
         assertThat(content.get(0).path("id").asLong()).isEqualTo(activeBookId);
+        assertThat(content.get(0).path("ownerUserId").asLong()).isEqualTo(owner.getId());
+        assertThat(content.get(0).path("ownerNickname").asText()).isEqualTo(owner.getNickname());
         assertThat(content.get(0).path("meta").path("deletedAt").isNull()).isTrue();
         assertThat(content.get(0).path("id").asLong()).isNotEqualTo(deletedBookId);
+    }
+
+    @Test
+    void shouldReturnDeletedBooks_whenAdminSearchesDeletedBooks() throws Exception {
+        User admin = userUtil.createAdmin(FixtureNumbers.adminBook(21));
+        User owner = userUtil.createUser(FixtureNumbers.adminBook(22));
+        Long deletedBookId = bookUtil.createBook(owner.getId(), FixtureNumbers.adminBook(23));
+        Long activeBookId = bookUtil.createBook(owner.getId(), FixtureNumbers.adminBook(24));
+
+        Book deletedBook = bookRepository.findById(deletedBookId).orElseThrow();
+        deletedBook.setDeletedAt(Instant.parse("2026-04-05T10:35:00Z"));
+        bookRepository.saveAndFlush(deletedBook);
+
+        MvcResult mvcResult = mockMvc.perform(get(AdminPaths.ADMIN_PATH_BOOKS_SEARCH)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(admin))
+                        .queryParam("pageIndex", PageTestDefaults.PAGE_INDEX.toString())
+                        .queryParam("pageSize", PageTestDefaults.PAGE_SIZE.toString())
+                        .queryParam("bookType", BookType.DELETED.name())
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode content = responseBody(mvcResult).path("data").path("content");
+
+        assertThat(content.toString()).contains("\"id\":" + deletedBookId);
+        assertThat(content.toString()).doesNotContain("\"id\":" + activeBookId);
+    }
+
+    @Test
+    void shouldReturnActiveAndDeletedBooks_whenAdminSearchesAllBooks() throws Exception {
+        User admin = userUtil.createAdmin(FixtureNumbers.adminBook(25));
+        User owner = userUtil.createUser(FixtureNumbers.adminBook(26));
+        Long deletedBookId = bookUtil.createBook(owner.getId(), FixtureNumbers.adminBook(27));
+        Long activeBookId = bookUtil.createBook(owner.getId(), FixtureNumbers.adminBook(28));
+
+        Book deletedBook = bookRepository.findById(deletedBookId).orElseThrow();
+        deletedBook.setDeletedAt(Instant.parse("2026-04-05T10:40:00Z"));
+        bookRepository.saveAndFlush(deletedBook);
+
+        MvcResult mvcResult = mockMvc.perform(get(AdminPaths.ADMIN_PATH_BOOKS_SEARCH)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(admin))
+                        .queryParam("pageIndex", PageTestDefaults.PAGE_INDEX.toString())
+                        .queryParam("pageSize", PageTestDefaults.PAGE_SIZE.toString())
+                        .queryParam("bookType", BookType.ALL.name())
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode content = responseBody(mvcResult).path("data").path("content");
+
+        assertThat(content.toString()).contains("\"id\":" + activeBookId);
+        assertThat(content.toString()).contains("\"id\":" + deletedBookId);
     }
 
     @Test
@@ -109,7 +163,45 @@ class AdminBookControllerIT extends IntegrationTestSupport {
 
         assertThat(body.path("success").asBoolean()).isTrue();
         assertThat(body.path("data").path("id").asLong()).isEqualTo(deletedBookId);
+        assertThat(body.path("data").path("ownerUserId").asLong()).isEqualTo(owner.getId());
+        assertThat(body.path("data").path("ownerNickname").asText()).isEqualTo(owner.getNickname());
         assertThat(body.path("data").path("meta").path("deletedAt").asText()).isNotBlank();
+    }
+
+    @Test
+    void shouldSortDeletedBooksByNameDescending_whenAdminRequestsNameDescSort() throws Exception {
+        User admin = userUtil.createAdmin(FixtureNumbers.adminBook(29));
+        User owner = userUtil.createUser(FixtureNumbers.adminBook(30));
+        Long alphaBookId = bookUtil.createBook(owner.getId(), FixtureNumbers.adminBook(31));
+        Long zuluBookId = bookUtil.createBook(owner.getId(), FixtureNumbers.adminBook(32));
+
+        Book alphaBook = bookRepository.findById(alphaBookId).orElseThrow();
+        alphaBook.setName("Alpha deleted sort");
+        alphaBook.setDeletedAt(Instant.parse("2026-04-05T10:45:00Z"));
+
+        Book zuluBook = bookRepository.findById(zuluBookId).orElseThrow();
+        zuluBook.setName("Zulu deleted sort");
+        zuluBook.setDeletedAt(Instant.parse("2026-04-05T10:46:00Z"));
+
+        bookRepository.save(alphaBook);
+        bookRepository.saveAndFlush(zuluBook);
+
+        MvcResult mvcResult = mockMvc.perform(get(AdminPaths.ADMIN_PATH_BOOKS_SEARCH)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(admin))
+                        .queryParam("pageIndex", PageTestDefaults.PAGE_INDEX.toString())
+                        .queryParam("pageSize", PageTestDefaults.PAGE_SIZE.toString())
+                        .queryParam("bookType", BookType.DELETED.name())
+                        .queryParam("searchText", "deleted sort")
+                        .queryParam("sortBy", "NAME")
+                        .queryParam("sortDirection", "DESC")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode content = responseBody(mvcResult).path("data").path("content");
+
+        assertThat(content.get(0).path("id").asLong()).isEqualTo(zuluBookId);
+        assertThat(content.get(1).path("id").asLong()).isEqualTo(alphaBookId);
     }
 
     @Test

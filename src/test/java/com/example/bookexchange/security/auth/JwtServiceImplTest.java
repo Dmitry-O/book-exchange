@@ -3,6 +3,7 @@ package com.example.bookexchange.security.auth;
 import com.example.bookexchange.common.config.AppProperties;
 import com.example.bookexchange.support.unit.UnitFixtureIds;
 import com.example.bookexchange.support.unit.UnitTestDataFactory;
+import com.example.bookexchange.user.model.User;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.Test;
@@ -20,7 +21,7 @@ class JwtServiceImplTest {
         appProperties.setJwtSecretKey("01234567890123456789012345678901");
         appProperties.setAccessTokenTimeToLive(3600);
         JwtServiceImpl jwtService = new JwtServiceImpl(appProperties);
-        var user = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, "reader@example.com", "reader_one");
+        User user = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, "reader@example.com", "reader_one");
 
         String token = jwtService.generateToken(user);
 

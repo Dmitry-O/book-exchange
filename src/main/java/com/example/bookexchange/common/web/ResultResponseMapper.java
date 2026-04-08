@@ -3,6 +3,7 @@ package com.example.bookexchange.common.web;
 import com.example.bookexchange.common.audit.model.AuditEvent;
 import com.example.bookexchange.common.audit.model.AuditResult;
 import com.example.bookexchange.common.audit.service.AuditService;
+import com.example.bookexchange.common.swagger.page_data_response.PageResponse;
 import com.example.bookexchange.common.result.Failure;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.common.result.Success;
@@ -13,6 +14,7 @@ import jakarta.persistence.OptimisticLockException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.http.ResponseEntity;
@@ -38,9 +40,11 @@ public class ResultResponseMapper {
                     ? messageService.getMessage(success.messageKey(), success.args())
                     : null;
 
+            Object responseData = normalizeResponseBody(success.body());
+
             ApiResponse<?> response = ApiResponse.builder()
                     .success(true)
-                    .data(success.body())
+                    .data(responseData)
                     .message(message)
                     .error(null)
                     .build();
@@ -76,6 +80,20 @@ public class ResultResponseMapper {
                 request,
                 MessageKey.SYSTEM_UNEXPECTED_ERROR.toString()
         );
+    }
+
+    private Object normalizeResponseBody(Object body) {
+        if (body instanceof Page<?> page) {
+            return new PageResponse<>(
+                    page.getContent(),
+                    page.getNumber(),
+                    page.getSize(),
+                    page.getTotalElements(),
+                    page.getTotalPages()
+            );
+        }
+
+        return body;
     }
 
     @ExceptionHandler(Exception.class)

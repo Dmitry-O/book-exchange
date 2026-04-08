@@ -70,6 +70,7 @@ class AdminReportControllerIT extends IntegrationTestSupport {
         assertThat(body.path("success").asBoolean()).isTrue();
         assertThat(body.path("data").path("totalElements").asLong()).isEqualTo(1);
         assertThat(content.get(0).path("id").asLong()).isEqualTo(openReport.getId());
+        assertHasVersion(content.get(0));
         assertThat(content.get(0).path("status").asText()).isEqualTo(ReportStatus.OPEN.name());
     }
 
@@ -90,7 +91,7 @@ class AdminReportControllerIT extends IntegrationTestSupport {
         assertThat(body.path("success").asBoolean()).isTrue();
         assertThat(body.path("data").path("id").asLong()).isEqualTo(report.getId());
         assertThat(body.path("data").path("status").asText()).isEqualTo(ReportStatus.OPEN.name());
-        assertThat(body.path("data").path("targetUrl").asText()).contains(AdminPaths.ADMIN_PATH_USERS + "/" + report.getTargetId());
+        assertThat(body.path("data").path("targetId").asLong()).isEqualTo(report.getTargetId());
     }
 
     @Test

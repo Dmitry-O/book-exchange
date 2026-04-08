@@ -21,6 +21,7 @@ public class OpenApiConfig {
                 .addTagsItem(new Tag().name("Users").description("Operations with users"))
                 .addTagsItem(new Tag().name("Books").description("Operations with books"))
                 .addTagsItem(new Tag().name("Reports").description("Operations with reports"))
+                .addTagsItem(new Tag().name("Metadata").description("Reference data for frontend forms and filters"))
                 .addTagsItem(new Tag().name("Exchange requests").description("Operations with exchange requests"))
                 .addTagsItem(new Tag().name("Exchange offers").description("Operations with exchange offers"))
                 .addTagsItem(new Tag().name("Exchange history").description("Operations with exchange history"))

@@ -4,17 +4,21 @@ import com.example.bookexchange.admin.dto.ReportAdminDTO;
 import com.example.bookexchange.common.audit.service.AuditService;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.report.mapper.ReportMapper;
+import com.example.bookexchange.report.model.Report;
 import com.example.bookexchange.report.model.ReportStatus;
+import com.example.bookexchange.report.model.TargetType;
 import com.example.bookexchange.report.repository.ReportRepository;
 import com.example.bookexchange.support.unit.UnitFixtureIds;
 import com.example.bookexchange.support.unit.UnitTestDataFactory;
 import com.example.bookexchange.common.audit.service.VersionedEntityTransitionHelper;
+import com.example.bookexchange.user.model.User;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Optional;
 
@@ -49,10 +53,10 @@ class AdminReportServiceImplTest {
 
     @Test
     void shouldSetResolvedStatus_whenAdminResolvesReportWithCurrentVersion() {
-        var reporter = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, "reporter@example.com", "reporter_one");
-        var report = UnitTestDataFactory.report(UnitFixtureIds.REPORT_ID, reporter, com.example.bookexchange.report.model.TargetType.USER, UnitFixtureIds.TARGET_USER_ID, ReportStatus.OPEN);
+        User reporter = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, "reporter@example.com", "reporter_one");
+        Report report = UnitTestDataFactory.report(UnitFixtureIds.REPORT_ID, reporter, TargetType.USER, UnitFixtureIds.TARGET_USER_ID, ReportStatus.OPEN);
         ReportAdminDTO dto = org.mockito.Mockito.mock(ReportAdminDTO.class);
-        var admin = UnitTestDataFactory.adminPrincipal("admin@example.com");
+        UserDetails admin = UnitTestDataFactory.adminPrincipal("admin@example.com");
 
         when(reportRepository.findById(report.getId())).thenReturn(Optional.of(report));
         when(versionedEntityTransitionHelper.requireVersion(any(), any(), any(), any())).thenReturn(ok(report));
@@ -67,10 +71,10 @@ class AdminReportServiceImplTest {
 
     @Test
     void shouldSetRejectedStatus_whenAdminRejectsReportWithCurrentVersion() {
-        var reporter = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, "reporter@example.com", "reporter_one");
-        var report = UnitTestDataFactory.report(UnitFixtureIds.REPORT_ID, reporter, com.example.bookexchange.report.model.TargetType.USER, UnitFixtureIds.TARGET_USER_ID, ReportStatus.OPEN);
+        User reporter = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, "reporter@example.com", "reporter_one");
+        Report report = UnitTestDataFactory.report(UnitFixtureIds.REPORT_ID, reporter, TargetType.USER, UnitFixtureIds.TARGET_USER_ID, ReportStatus.OPEN);
         ReportAdminDTO dto = org.mockito.Mockito.mock(ReportAdminDTO.class);
-        var admin = UnitTestDataFactory.adminPrincipal("admin@example.com");
+        UserDetails admin = UnitTestDataFactory.adminPrincipal("admin@example.com");
 
         when(reportRepository.findById(report.getId())).thenReturn(Optional.of(report));
         when(versionedEntityTransitionHelper.requireVersion(any(), any(), any(), any())).thenReturn(ok(report));
@@ -85,9 +89,9 @@ class AdminReportServiceImplTest {
 
     @Test
     void shouldReturnConflict_whenAdminResolvesReportWithStaleVersion() {
-        var reporter = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, "reporter@example.com", "reporter_one");
-        var report = UnitTestDataFactory.report(UnitFixtureIds.REPORT_ID, reporter, com.example.bookexchange.report.model.TargetType.USER, UnitFixtureIds.TARGET_USER_ID, ReportStatus.OPEN);
-        var admin = UnitTestDataFactory.adminPrincipal("admin@example.com");
+        User reporter = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, "reporter@example.com", "reporter_one");
+        Report report = UnitTestDataFactory.report(UnitFixtureIds.REPORT_ID, reporter, TargetType.USER, UnitFixtureIds.TARGET_USER_ID, ReportStatus.OPEN);
+        UserDetails admin = UnitTestDataFactory.adminPrincipal("admin@example.com");
 
         when(reportRepository.findById(report.getId())).thenReturn(Optional.of(report));
         when(versionedEntityTransitionHelper.requireVersion(any(), any(), any(), any()))

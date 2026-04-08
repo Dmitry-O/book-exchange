@@ -6,5 +6,6 @@ import lombok.NoArgsConstructor;
 public final class ReportPaths {
 
     public static final String REPORT_PATH = "/report";
+    public static final String REPORT_PATH_USER = REPORT_PATH + "/user";
     public static final String REPORT_PATH_TARGET_ID = REPORT_PATH + "/{targetId}";
 }

@@ -5,6 +5,7 @@ import com.example.bookexchange.admin.dto.UserAdminDTO;
 import com.example.bookexchange.admin.mapper.AdminMapper;
 import com.example.bookexchange.auth.repository.RefreshTokenRepository;
 import com.example.bookexchange.auth.repository.VerificationTokenRepository;
+import com.example.bookexchange.book.model.Book;
 import com.example.bookexchange.book.repository.BookRepository;
 import com.example.bookexchange.common.audit.service.AuditService;
 import com.example.bookexchange.common.audit.service.VersionedEntityTransitionHelper;
@@ -189,7 +190,7 @@ class AdminUserServiceImplTest {
     @Test
     void shouldAnonymizeAndSoftDeleteUserData_whenAdminDeletesUser() {
         User user = UnitTestDataFactory.user(UnitFixtureIds.TARGET_USER_ID, "target@example.com", "target_one");
-        var book = UnitTestDataFactory.book(UnitFixtureIds.SENDER_BOOK_ID, "Target book", user);
+        Book book = UnitTestDataFactory.book(UnitFixtureIds.SENDER_BOOK_ID, "Target book", user);
         UserAdminDTO adminDto = org.mockito.Mockito.mock(UserAdminDTO.class);
         UserDetails admin = UnitTestDataFactory.adminPrincipal("admin@example.com");
 

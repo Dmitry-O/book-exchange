@@ -128,6 +128,14 @@ public class BookServiceImpl implements BookService {
         return ResultFactory.ok(bookPage);
     }
 
+    @Transactional(readOnly = true)
+    @Override
+    public Result<BookDTO> findBookById(Long bookId) {
+        return ResultFactory
+                .fromOptional(bookRepository.findPublicBookById(bookId), MessageKey.BOOK_PUBLIC_NOT_FOUND)
+                .flatMap(book -> ResultFactory.okETag(bookMapper.bookToBookDto(book), ETagUtil.form(book)));
+    }
+
     @Transactional
     @Override
     public Result<Void> deleteUserBookById(Long userId, Long bookId, Long version) {

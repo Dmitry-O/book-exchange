@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -105,6 +106,92 @@ class ReportControllerIT extends IntegrationTestSupport {
         assertThat(savedReport.getTargetType()).isEqualTo(TargetType.BOOK);
         assertThat(savedReport.getTargetId()).isEqualTo(targetBookId);
         assertThat(savedReport.getReason()).isEqualTo(ReportReason.INAPPROPRIATE);
+    }
+
+    @Test
+    void shouldReturnConflict_whenUserCreatesDuplicateReportForSameTarget() throws Exception {
+        User reporter = userUtil.createUser(709);
+        User targetUser = userUtil.createUser(710);
+        ReportCreateDTO dto = ReportCreateDTO.builder()
+                .targetType(TargetType.USER)
+                .reason(ReportReason.SPAM)
+                .comment("This user keeps sending spam offers.")
+                .build();
+
+        mockMvc.perform(post(ReportPaths.REPORT_PATH_TARGET_ID, targetUser.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(reporter))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isOk());
+
+        MvcResult mvcResult = mockMvc.perform(post(ReportPaths.REPORT_PATH_TARGET_ID, targetUser.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(reporter))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isConflict())
+                .andReturn();
+
+        assertErrorResponse(
+                responseBody(mvcResult),
+                409,
+                MessageKey.REPORT_ALREADY_EXISTS,
+                reportPath(targetUser.getId())
+        );
+    }
+
+    @Test
+    void shouldReturnCurrentUserReports_whenUserGetsOwnReports() throws Exception {
+        User reporter = userUtil.createUser(720);
+        User targetUser = userUtil.createUser(721);
+        User anotherReporter = userUtil.createUser(722);
+        Long targetBookId = bookUtil.createBook(targetUser.getId(), 723);
+
+        reportRepository.save(new Report(
+                null,
+                TargetType.USER,
+                targetUser.getId(),
+                ReportReason.SPAM,
+                "User report",
+                ReportStatus.OPEN,
+                reporter
+        ));
+        reportRepository.save(new Report(
+                null,
+                TargetType.BOOK,
+                targetBookId,
+                ReportReason.FRAUD,
+                "Book report",
+                ReportStatus.RESOLVED,
+                reporter
+        ));
+        reportRepository.save(new Report(
+                null,
+                TargetType.USER,
+                reporter.getId(),
+                ReportReason.OTHER,
+                "Another reporter entry",
+                ReportStatus.OPEN,
+                anotherReporter
+        ));
+
+        MvcResult mvcResult = mockMvc.perform(get(ReportPaths.REPORT_PATH_USER)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(reporter))
+                        .queryParam("pageIndex", "0")
+                        .queryParam("pageSize", "20")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode body = responseBody(mvcResult);
+        JsonNode content = body.path("data").path("content");
+
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(body.path("data").path("totalElements").asLong()).isEqualTo(2);
+        assertThat(content).hasSize(2);
+        assertHasVersion(content.get(0));
+        assertThat(content.get(0).path("status").asText()).isIn(ReportStatus.OPEN.name(), ReportStatus.RESOLVED.name());
     }
 
     @Test

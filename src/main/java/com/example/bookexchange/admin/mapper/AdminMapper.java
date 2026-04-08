@@ -23,6 +23,8 @@ public interface AdminMapper {
 
     EntityAuditMetadataDTO metaToMetaDto(SoftDeletableEntity entity);
 
+    @Mapping(target = "ownerUserId", source = "user.id")
+    @Mapping(target = "ownerNickname", source = "user.nickname")
     @Mapping(target = "meta", source = ".")
     BookAdminDTO bookToBookAdminDto(Book book);
 

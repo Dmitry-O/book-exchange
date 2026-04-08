@@ -25,6 +25,8 @@ import org.testcontainers.containers.MySQLContainer;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 @SpringBootTest
 @Import(TestUserConfig.class)
 @ActiveProfiles("localmysql")
@@ -100,14 +102,14 @@ public abstract class IntegrationTestSupport {
     }
 
     protected void assertErrorResponse(JsonNode body, int status, String errorType, String path) {
-        org.assertj.core.api.Assertions.assertThat(body.path("success").asBoolean()).isFalse();
-        org.assertj.core.api.Assertions.assertThat(body.path("data").isNull()).isTrue();
-        org.assertj.core.api.Assertions.assertThat(body.path("message").isNull()).isTrue();
-        org.assertj.core.api.Assertions.assertThat(body.path("error").path("status").asInt()).isEqualTo(status);
-        org.assertj.core.api.Assertions.assertThat(body.path("error").path("error").asText()).isEqualTo(errorType);
-        org.assertj.core.api.Assertions.assertThat(body.path("error").path("message").asText()).isNotBlank();
-        org.assertj.core.api.Assertions.assertThat(body.path("error").path("path").asText()).isEqualTo(path);
-        org.assertj.core.api.Assertions.assertThat(body.path("error").path("requestId").asText()).isNotBlank();
+        assertThat(body.path("success").asBoolean()).isFalse();
+        assertThat(body.path("data").isNull()).isTrue();
+        assertThat(body.path("message").isNull()).isTrue();
+        assertThat(body.path("error").path("status").asInt()).isEqualTo(status);
+        assertThat(body.path("error").path("error").asText()).isEqualTo(errorType);
+        assertThat(body.path("error").path("message").asText()).isNotBlank();
+        assertThat(body.path("error").path("path").asText()).isEqualTo(path);
+        assertThat(body.path("error").path("requestId").asText()).isNotBlank();
     }
 
     protected void assertErrorResponse(JsonNode body, int status, MessageKey errorType, String path) {
@@ -116,5 +118,17 @@ public abstract class IntegrationTestSupport {
 
     protected void assertValidationErrorResponse(JsonNode body, String path) {
         assertErrorResponse(body, 400, VALIDATION_ERROR, path);
+    }
+
+    protected void assertHasVersion(JsonNode node) {
+        assertThat(node.hasNonNull("version")).isTrue();
+        assertThat(node.get("version").isIntegralNumber()).isTrue();
+        assertThat(node.get("version").longValue()).isGreaterThanOrEqualTo(0L);
+    }
+
+    protected void assertVersion(JsonNode node, long expectedVersion) {
+        assertThat(node.hasNonNull("version")).isTrue();
+        assertThat(node.get("version").isIntegralNumber()).isTrue();
+        assertThat(node.get("version").longValue()).isEqualTo(expectedVersion);
     }
 }

@@ -17,6 +17,7 @@ import com.example.bookexchange.user.model.User;
 import com.example.bookexchange.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -143,12 +144,15 @@ class RequestServiceImplTest {
         when(userRepository.findById(sender.getId())).thenReturn(Optional.of(sender));
         when(userRepository.findById(receiver.getId())).thenReturn(Optional.of(receiver));
         when(exchangeRepository.save(any(Exchange.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(exchangeMapper.exchangeToExchangeDetailsDto(any(Exchange.class), any(String.class))).thenReturn(detailsDto);
+        when(exchangeMapper.exchangeToExchangeDetailsDto(any(Exchange.class), any(Long.class), any(String.class))).thenReturn(detailsDto);
 
         Result<ExchangeDetailsDTO> result = requestService.createRequest(sender.getId(), dto);
+        ArgumentCaptor<Exchange> exchangeCaptor = ArgumentCaptor.forClass(Exchange.class);
 
         assertSuccess(result, HttpStatus.CREATED, EXCHANGE_CREATED);
-        verify(exchangeRepository).save(any(Exchange.class));
+        verify(exchangeRepository).save(exchangeCaptor.capture());
+        assertThat(exchangeCaptor.getValue().getIsReadBySender()).isTrue();
+        assertThat(exchangeCaptor.getValue().getIsReadByReceiver()).isFalse();
         assertThat(result.isSuccess()).isTrue();
     }
 
@@ -180,12 +184,14 @@ class RequestServiceImplTest {
         )).thenReturn(ok(exchange));
         when(userRepository.findById(sender.getId())).thenReturn(Optional.of(sender));
         when(exchangeRepository.save(exchange)).thenReturn(exchange);
-        when(exchangeMapper.exchangeToExchangeDetailsDto(exchange, receiver.getNickname())).thenReturn(detailsDto);
+        when(exchangeMapper.exchangeToExchangeDetailsDto(exchange, receiver.getId(), receiver.getNickname())).thenReturn(detailsDto);
 
         Result<ExchangeDetailsDTO> result = requestService.declineUserRequest(sender.getId(), exchange.getId(), exchange.getVersion());
 
         assertSuccess(result, HttpStatus.OK, EXCHANGE_DECLINED);
         assertThat(exchange.getStatus()).isEqualTo(ExchangeStatus.DECLINED);
         assertThat(exchange.getDeclinerUser()).isSameAs(sender);
+        assertThat(exchange.getIsReadBySender()).isTrue();
+        assertThat(exchange.getIsReadByReceiver()).isFalse();
     }
 }

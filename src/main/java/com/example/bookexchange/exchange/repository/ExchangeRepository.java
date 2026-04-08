@@ -2,6 +2,7 @@ package com.example.bookexchange.exchange.repository;
 
 import com.example.bookexchange.exchange.model.Exchange;
 import com.example.bookexchange.exchange.model.ExchangeStatus;
+import org.jspecify.annotations.NonNull;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -64,10 +65,30 @@ public interface ExchangeRepository extends JpaRepository<Exchange, Long>, JpaSp
             FROM Exchange e
             WHERE (e.senderUser.id = :userId OR e.receiverUser.id = :userId)
                 AND e.status <> :status
-            """)
+            """
+    )
     Page<Exchange> findUserExchangeHistory(
             @Param("userId") Long userId,
             @Param("status") ExchangeStatus status,
+            Pageable pageable
+    );
+
+    @EntityGraph(attributePaths = {
+            "senderUser",
+            "receiverUser",
+            "senderBook",
+            "receiverBook",
+            "declinerUser"
+    })
+    @Query("""
+            SELECT e
+            FROM Exchange e
+            WHERE (e.senderUser.id = :userId AND e.isReadBySender = false)
+                OR (e.receiverUser.id = :userId AND e.isReadByReceiver = false)
+            """
+    )
+    Page<Exchange> findUnreadUpdatesForUser(
+            @Param("userId") Long userId,
             Pageable pageable
     );
 
@@ -94,7 +115,7 @@ public interface ExchangeRepository extends JpaRepository<Exchange, Long>, JpaSp
             "receiverBook",
             "declinerUser"
     })
-    Page<Exchange> findAll(Pageable pageable);
+    Page<Exchange> findAll(@NonNull Pageable pageable);
 
     @Override
     @EntityGraph(attributePaths = {

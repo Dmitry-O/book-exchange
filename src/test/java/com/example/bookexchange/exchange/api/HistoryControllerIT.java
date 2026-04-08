@@ -26,6 +26,7 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @Testcontainers
@@ -88,6 +89,7 @@ class HistoryControllerIT extends IntegrationTestSupport {
         assertThat(content.size()).isEqualTo(2);
         assertThat(returnedIds).contains(approvedFixture.exchangeId(), declinedFixture.exchangeId());
         assertThat(returnedIds).doesNotContain(pendingFixture.exchangeId());
+        assertHasVersion(content.get(0));
     }
 
     @Test
@@ -129,7 +131,9 @@ class HistoryControllerIT extends IntegrationTestSupport {
         assertThat(body.path("data").path("status").asText()).isEqualTo(ExchangeStatus.APPROVED.name());
         assertThat(body.path("data").path("userExchangeRole").asText()).isEqualTo("SENDER");
         assertThat(body.path("data").path("userNickname").asText()).isEqualTo(fixture.receiver().getNickname());
+        assertThat(body.path("data").path("otherUserId").asLong()).isEqualTo(fixture.receiver().getId());
         assertThat(body.path("data").path("contactDetails").asText()).isEqualTo(fixture.receiverContactDetails());
+        assertVersion(body.path("data"), exchange.getVersion());
         assertThat(exchange.getIsReadBySender()).isTrue();
         assertThat(exchange.getIsReadByReceiver()).isFalse();
     }
@@ -152,9 +156,126 @@ class HistoryControllerIT extends IntegrationTestSupport {
         assertThat(body.path("success").asBoolean()).isTrue();
         assertThat(body.path("data").path("userExchangeRole").asText()).isEqualTo("RECEIVER");
         assertThat(body.path("data").path("userNickname").asText()).isEqualTo(fixture.sender().getNickname());
+        assertThat(body.path("data").path("otherUserId").asLong()).isEqualTo(fixture.sender().getId());
         assertThat(body.path("data").path("contactDetails").asText()).isEqualTo(fixture.senderContactDetails());
+        assertVersion(body.path("data"), exchange.getVersion());
         assertThat(exchange.getIsReadByReceiver()).isTrue();
-        assertThat(exchange.getIsReadBySender()).isFalse();
+        assertThat(exchange.getIsReadBySender()).isTrue();
+    }
+
+    @Test
+    void shouldReturnUnreadUpdates_whenReceiverGetsNewExchangeRequest() throws Exception {
+        ExchangeFixture fixture = createPendingExchange(620);
+
+        MvcResult mvcResult = mockMvc.perform(get(ExchangePaths.UPDATES_PATH_UNREAD)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(fixture.receiver()))
+                        .queryParam("pageIndex", PageTestDefaults.PAGE_INDEX.toString())
+                        .queryParam("pageSize", PageTestDefaults.PAGE_SIZE.toString())
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode body = responseBody(mvcResult);
+        JsonNode content = body.path("data").path("content");
+
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(body.path("data").path("totalElements").asLong()).isEqualTo(1);
+        assertThat(content).hasSize(1);
+        assertThat(content.get(0).path("id").asLong()).isEqualTo(fixture.exchangeId());
+        assertThat(content.get(0).path("userExchangeRole").asText()).isEqualTo("RECEIVER");
+        assertThat(content.get(0).path("otherBookName").asText()).isNotBlank();
+        assertThat(content.get(0).path("otherUserId").asLong()).isEqualTo(fixture.sender().getId());
+        assertThat(content.get(0).path("otherUserNickname").asText()).isEqualTo(fixture.sender().getNickname());
+        assertHasVersion(content.get(0));
+    }
+
+    @Test
+    void shouldReturnUnreadUpdatesAgain_whenSenderDeclinesRequestAfterReceiverReadOffer() throws Exception {
+        ExchangeFixture fixture = createPendingExchange(630);
+
+        mockMvc.perform(get(ExchangePaths.OFFER_PATH_EXCHANGE_ID, fixture.exchangeId())
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(fixture.receiver()))
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk());
+
+        clearPersistenceContext();
+
+        Exchange readExchange = exchangeRepository.findById(fixture.exchangeId()).orElseThrow();
+        assertThat(readExchange.getIsReadByReceiver()).isTrue();
+
+        MvcResult noUnreadResult = mockMvc.perform(get(ExchangePaths.UPDATES_PATH_UNREAD)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(fixture.receiver()))
+                        .queryParam("pageIndex", PageTestDefaults.PAGE_INDEX.toString())
+                        .queryParam("pageSize", PageTestDefaults.PAGE_SIZE.toString())
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        assertThat(responseBody(noUnreadResult).path("data").path("totalElements").asLong()).isZero();
+
+        mockMvc.perform(patch(ExchangePaths.REQUEST_PATH_DECLINE_REQUEST, fixture.exchangeId())
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(fixture.sender()))
+                        .header(HttpHeaders.IF_MATCH, ifMatch(readExchange.getVersion()))
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk());
+
+        clearPersistenceContext();
+
+        Exchange declinedExchange = exchangeRepository.findById(fixture.exchangeId()).orElseThrow();
+        assertThat(declinedExchange.getStatus()).isEqualTo(ExchangeStatus.DECLINED);
+        assertThat(declinedExchange.getIsReadBySender()).isTrue();
+        assertThat(declinedExchange.getIsReadByReceiver()).isFalse();
+
+        MvcResult unreadAgainResult = mockMvc.perform(get(ExchangePaths.UPDATES_PATH_UNREAD)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(fixture.receiver()))
+                        .queryParam("pageIndex", PageTestDefaults.PAGE_INDEX.toString())
+                        .queryParam("pageSize", PageTestDefaults.PAGE_SIZE.toString())
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode unreadContent = responseBody(unreadAgainResult).path("data").path("content");
+
+        assertThat(unreadContent).hasSize(1);
+        assertThat(unreadContent.get(0).path("id").asLong()).isEqualTo(fixture.exchangeId());
+        assertThat(unreadContent.get(0).path("status").asText()).isEqualTo(ExchangeStatus.DECLINED.name());
+        assertThat(unreadContent.get(0).path("userExchangeRole").asText()).isEqualTo("RECEIVER");
+    }
+
+    @Test
+    void shouldReturnUnreadUpdatesToSender_whenReceiverDeclinesOffer() throws Exception {
+        ExchangeFixture fixture = createPendingExchange(640);
+        Exchange exchange = exchangeRepository.findById(fixture.exchangeId()).orElseThrow();
+
+        mockMvc.perform(patch(ExchangePaths.OFFER_PATH_DECLINE_OFFER, fixture.exchangeId())
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(fixture.receiver()))
+                        .header(HttpHeaders.IF_MATCH, ifMatch(exchange.getVersion()))
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk());
+
+        clearPersistenceContext();
+
+        Exchange declinedExchange = exchangeRepository.findById(fixture.exchangeId()).orElseThrow();
+        assertThat(declinedExchange.getStatus()).isEqualTo(ExchangeStatus.DECLINED);
+        assertThat(declinedExchange.getIsReadBySender()).isFalse();
+        assertThat(declinedExchange.getIsReadByReceiver()).isTrue();
+
+        MvcResult mvcResult = mockMvc.perform(get(ExchangePaths.UPDATES_PATH_UNREAD)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(fixture.sender()))
+                        .queryParam("pageIndex", PageTestDefaults.PAGE_INDEX.toString())
+                        .queryParam("pageSize", PageTestDefaults.PAGE_SIZE.toString())
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode content = responseBody(mvcResult).path("data").path("content");
+
+        assertThat(content).hasSize(1);
+        assertThat(content.get(0).path("id").asLong()).isEqualTo(fixture.exchangeId());
+        assertThat(content.get(0).path("status").asText()).isEqualTo(ExchangeStatus.DECLINED.name());
+        assertThat(content.get(0).path("userExchangeRole").asText()).isEqualTo("SENDER");
+        assertThat(content.get(0).path("otherUserId").asLong()).isEqualTo(fixture.receiver().getId());
+        assertThat(content.get(0).path("otherUserNickname").asText()).isEqualTo(fixture.receiver().getNickname());
     }
 
     @Test
@@ -212,6 +333,10 @@ class HistoryControllerIT extends IntegrationTestSupport {
                 "Contact Details " + base,
                 "Contact Details " + (base + 1)
         );
+    }
+
+    private ExchangeFixture createPendingExchange(int base) {
+        return createCompletedExchange(base, ExchangeStatus.PENDING);
     }
 
     private String historyPath(Long exchangeId) {

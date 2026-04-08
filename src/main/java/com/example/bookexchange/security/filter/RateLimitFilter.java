@@ -52,8 +52,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
     }
 
     private Bucket createGetBooksBucket() {
-        Bandwidth limit = Bandwidth.classic(7,
-                Refill.intervally(7, Duration.ofMinutes(1)));
+        Bandwidth limit = Bandwidth.classic(100,
+                Refill.intervally(100, Duration.ofMinutes(1)));
         return Bucket.builder().addLimit(limit).build();
     }
 
