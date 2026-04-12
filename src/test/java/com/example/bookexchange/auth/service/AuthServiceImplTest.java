@@ -117,7 +117,7 @@ class AuthServiceImplTest {
         when(userMapper.userCreateDtoToUser(dto)).thenReturn(mappedUser);
         when(userRepository.save(mappedUser)).thenReturn(mappedUser);
         when(verificationTokenService.createToken(mappedUser, TokenType.CONFIRM_EMAIL)).thenReturn(ok("verification-token"));
-        when(emailService.buildAndSendEmail(mappedUser.getEmail(), "verification-token", EmailType.CONFIRM_EMAIL))
+        when(emailService.buildAndSendEmail(mappedUser, "verification-token", EmailType.CONFIRM_EMAIL))
                 .thenReturn(okMessage(MessageKey.EMAIL_VERIFY_ACCOUNT));
 
         Result<Void> result = authService.createUser(dto);
@@ -243,7 +243,7 @@ class AuthServiceImplTest {
 
         when(userRepository.findByEmail(dto.getEmail())).thenReturn(Optional.of(user));
         when(verificationTokenService.createToken(user, TokenType.DELETE_ACCOUNT)).thenReturn(ok("delete-token"));
-        when(emailService.buildAndSendEmail(user.getEmail(), "delete-token", EmailType.DELETE_ACCOUNT))
+        when(emailService.buildAndSendEmail(user, "delete-token", EmailType.DELETE_ACCOUNT))
                 .thenReturn(okMessage(MessageKey.EMAIL_DELETE_ACCOUNT));
 
         Result<Void> result = authService.initiateDeleteAccount(dto);
