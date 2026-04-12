@@ -12,6 +12,7 @@ import java.util.List;
 public class AppProperties {
 
     private String baseUrl = "http://localhost:8080";
+    private String frontendUrl = "http://localhost:5173";
     private String jwtSecretKey;
     private String emailSentFrom;
     private String baseApiPath = "/api/v1";

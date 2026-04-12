@@ -48,7 +48,7 @@ public class TestUserConfig {
     @Bean
     @Primary
     public EmailService testEmailService() {
-        return (emailTo, token, emailType) -> ResultFactory.successVoid();
+        return (user, token, emailType) -> ResultFactory.successVoid();
     }
 
     @Bean

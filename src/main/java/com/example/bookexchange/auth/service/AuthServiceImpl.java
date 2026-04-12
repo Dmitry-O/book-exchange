@@ -250,7 +250,7 @@ public class AuthServiceImpl implements AuthService {
 
     private Result<Void> sendEmailWithToken(User user, TokenType tokenType, EmailType emailType) {
         return verificationTokenService.createToken(user, tokenType)
-                .flatMap(token -> emailService.buildAndSendEmail(user.getEmail(), token, emailType));
+                .flatMap(token -> emailService.buildAndSendEmail(user, token, emailType));
     }
 
     private void logAuthSuccess(String action, User user) {

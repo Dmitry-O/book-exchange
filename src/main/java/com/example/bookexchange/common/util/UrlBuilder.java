@@ -1,10 +1,12 @@
 package com.example.bookexchange.common.util;
 
 import com.example.bookexchange.common.config.AppProperties;
-import com.example.bookexchange.auth.api.AuthPaths;
 import com.example.bookexchange.common.email.EmailType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
 @Component
 @RequiredArgsConstructor
@@ -12,15 +14,24 @@ public class UrlBuilder {
 
     private final AppProperties appProperties;
 
-    public String buildEmailVerificationUrl(String token, EmailType emailType) {
-        String base = appProperties.getBaseUrl() + appProperties.getBaseApiPath();
-
-        String endpoint = switch (emailType) {
-            case EmailType.CONFIRM_EMAIL -> AuthPaths.AUTH_PATH_CONFIRM_REGISTRATION;
-            case EmailType.RESET_PASSWORD -> AuthPaths.AUTH_PATH_RESET_PASSWORD;
-            case EmailType.DELETE_ACCOUNT -> AuthPaths.AUTH_PATH_DELETE_ACCOUNT;
+    public String buildEmailActionUrl(String token, EmailType emailType) {
+        String path = switch (emailType) {
+            case EmailType.CONFIRM_EMAIL -> "/verify-email";
+            case EmailType.RESET_PASSWORD -> "/reset-password";
+            case EmailType.DELETE_ACCOUNT -> "/delete-account-confirm";
         };
 
-        return base + endpoint + "?token=" + token;
+        return trimTrailingSlash(appProperties.getFrontendUrl())
+                + path
+                + "?token="
+                + URLEncoder.encode(token, StandardCharsets.UTF_8);
+    }
+
+    private String trimTrailingSlash(String value) {
+        if (value == null || value.isBlank()) {
+            return "http://localhost:5173";
+        }
+
+        return value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
     }
 }
