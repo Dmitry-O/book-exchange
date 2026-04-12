@@ -10,6 +10,7 @@ import com.example.bookexchange.common.email.EmailType;
 import com.example.bookexchange.common.i18n.MessageKey;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.security.auth.JwtService;
+import com.example.bookexchange.support.TestReportStrings;
 import com.example.bookexchange.support.unit.UnitFixtureIds;
 import com.example.bookexchange.support.unit.UnitTestDataFactory;
 import com.example.bookexchange.user.dto.UserCreateDTO;
@@ -161,7 +162,7 @@ class AuthServiceImplTest {
         AuthLoginRequestDTO request = UnitTestDataFactory.loginRequest("reader@example.com", "Password-123");
         User user = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, request.getEmail(), "reader_one");
         user.setBannedUntil(Instant.now().plusSeconds(600));
-        user.setBanReason("Spam");
+        user.setBanReason(TestReportStrings.banReason("Spam"));
 
         when(userRepository.findByEmail(request.getEmail())).thenReturn(Optional.of(user));
         when(passwordEncoder.matches(request.getPassword(), user.getPassword())).thenReturn(true);
@@ -177,7 +178,7 @@ class AuthServiceImplTest {
         AuthLoginRequestDTO request = UnitTestDataFactory.loginRequest("reader@example.com", "Password-123");
         User user = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, request.getEmail(), "reader_one");
         user.setBannedUntil(Instant.now().minusSeconds(600));
-        user.setBanReason("Old reason");
+        user.setBanReason(TestReportStrings.banReason("Old reason"));
 
         when(userRepository.findByEmail(request.getEmail())).thenReturn(Optional.of(user));
         when(passwordEncoder.matches(request.getPassword(), user.getPassword())).thenReturn(true);

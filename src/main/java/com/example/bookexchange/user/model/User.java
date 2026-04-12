@@ -48,7 +48,8 @@ public class User extends SoftDeletableEntity {
     @Column(length = 20)
     private String nickname;
 
-    private String photoBase64;
+    @Column(name = "photo_url", length = 1024)
+    private String photoUrl;
 
     @OneToMany(mappedBy = "user")
     @JsonManagedReference

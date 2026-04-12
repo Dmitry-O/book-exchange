@@ -17,7 +17,7 @@ public @interface Base64Image {
 
     String message() default "{validation.image.base64}";
 
-    int maxLength() default 255;
+    int maxLength() default 7_000_000;
 
     Class<?>[] groups() default {};
 

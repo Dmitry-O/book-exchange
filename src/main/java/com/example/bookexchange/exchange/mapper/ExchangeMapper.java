@@ -13,9 +13,9 @@ import org.mapstruct.*;
 public abstract class ExchangeMapper {
 
     @Mapping(target = "senderBookName", source = "senderBook.name")
-    @Mapping(target = "senderBookPhotoBase64", source = "senderBook.photoBase64")
+    @Mapping(target = "senderBookPhotoUrl", source = "senderBook.photoUrl")
     @Mapping(target = "receiverBookName", source = "receiverBook.name")
-    @Mapping(target = "receiverBookPhotoBase64", source = "receiverBook.photoBase64")
+    @Mapping(target = "receiverBookPhotoUrl", source = "receiverBook.photoUrl")
     @Mapping(target = "version", source = "version")
     public abstract ExchangeDTO exchangeToExchangeDto(Exchange exchange);
 
@@ -33,9 +33,9 @@ public abstract class ExchangeMapper {
     );
 
     @Mapping(target = "senderBookName", source = "exchange.senderBook.name")
-    @Mapping(target = "senderBookPhotoBase64", source = "exchange.senderBook.photoBase64")
+    @Mapping(target = "senderBookPhotoUrl", source = "exchange.senderBook.photoUrl")
     @Mapping(target = "receiverBookName", source = "exchange.receiverBook.name")
-    @Mapping(target = "receiverBookPhotoBase64", source = "exchange.receiverBook.photoBase64")
+    @Mapping(target = "receiverBookPhotoUrl", source = "exchange.receiverBook.photoUrl")
     @Mapping(target = "version", source = "exchange.version")
     public abstract ExchangeHistoryDTO exchangeToExchangeHistoryDto(Exchange exchange, UserExchangeRole userRole);
 

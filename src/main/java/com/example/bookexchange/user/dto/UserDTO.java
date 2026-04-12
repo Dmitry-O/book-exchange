@@ -33,9 +33,9 @@ public class UserDTO {
     @JsonProperty("nickname")
     private String nickname;
 
-    @Schema(example = "User photo")
-    @JsonProperty("photoBase64")
-    private String photoBase64;
+    @Schema(example = "https://book-exchange-prod.s3.eu-central-1.amazonaws.com/users/42/profile_photo_1712582410000.jpg")
+    @JsonProperty("photoUrl")
+    private String photoUrl;
 
     @Schema(example = "2026-04-21T12:00:00Z")
     @JsonProperty("bannedUntil")

@@ -1,12 +1,12 @@
 package com.example.bookexchange.exchange.service;
 
+import com.example.bookexchange.book.model.Book;
 import com.example.bookexchange.common.dto.PageQueryDTO;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.exchange.dto.ExchangeHistoryDTO;
 import com.example.bookexchange.exchange.dto.ExchangeHistoryDetailsDTO;
 import com.example.bookexchange.exchange.dto.ExchangeUnreadUpdateDTO;
 import com.example.bookexchange.exchange.mapper.ExchangeMapper;
-import com.example.bookexchange.book.model.Book;
 import com.example.bookexchange.exchange.model.Exchange;
 import com.example.bookexchange.exchange.model.ExchangeStatus;
 import com.example.bookexchange.exchange.model.UserExchangeRole;
@@ -20,6 +20,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.http.HttpStatus;
 
@@ -29,8 +30,9 @@ import java.util.Optional;
 import static com.example.bookexchange.common.result.ResultFactory.ok;
 import static com.example.bookexchange.support.unit.ResultAssertions.assertSuccess;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -64,14 +66,14 @@ class HistoryServiceImplTest {
                 receiverBook,
                 ExchangeStatus.APPROVED
         );
-        ExchangeHistoryDTO historyDto = org.mockito.Mockito.mock(ExchangeHistoryDTO.class);
+        ExchangeHistoryDTO historyDto = mock(ExchangeHistoryDTO.class);
         PageQueryDTO queryDTO = UnitTestDataFactory.pageQuery(0, 20);
 
         when(exchangeRepository.findUserExchangeHistory(eq(sender.getId()), eq(ExchangeStatus.PENDING), any()))
                 .thenReturn(new PageImpl<>(List.of(exchange)));
         when(exchangeMapper.exchangeToExchangeHistoryDto(exchange, UserExchangeRole.SENDER)).thenReturn(historyDto);
 
-        Result<org.springframework.data.domain.Page<ExchangeHistoryDTO>> result =
+        Result<Page<ExchangeHistoryDTO>> result =
                 historyService.getUserExchangeHistory(sender.getId(), queryDTO);
 
         assertSuccess(result, HttpStatus.OK);
@@ -92,7 +94,7 @@ class HistoryServiceImplTest {
                 receiverBook,
                 ExchangeStatus.APPROVED
         );
-        ExchangeHistoryDetailsDTO detailsDto = org.mockito.Mockito.mock(ExchangeHistoryDetailsDTO.class);
+        ExchangeHistoryDetailsDTO detailsDto = mock(ExchangeHistoryDetailsDTO.class);
 
         when(exchangeUtil.identifyUserExchangeRole(sender.getId(), exchange.getId())).thenReturn(ok(UserExchangeRole.SENDER));
         when(exchangeRepository.findById(exchange.getId())).thenReturn(Optional.of(exchange));
@@ -127,7 +129,7 @@ class HistoryServiceImplTest {
                 ExchangeStatus.APPROVED
         );
         exchange.setIsReadByReceiver(true);
-        ExchangeHistoryDetailsDTO detailsDto = org.mockito.Mockito.mock(ExchangeHistoryDetailsDTO.class);
+        ExchangeHistoryDetailsDTO detailsDto = mock(ExchangeHistoryDetailsDTO.class);
 
         when(exchangeUtil.identifyUserExchangeRole(receiver.getId(), exchange.getId())).thenReturn(ok(UserExchangeRole.RECEIVER));
         when(exchangeRepository.findById(exchange.getId())).thenReturn(Optional.of(exchange));
@@ -166,7 +168,7 @@ class HistoryServiceImplTest {
                 .thenReturn(new PageImpl<>(List.of(exchange)));
         when(exchangeMapper.exchangeToExchangeUnreadUpdateDto(exchange, UserExchangeRole.SENDER)).thenReturn(unreadDto);
 
-        Result<org.springframework.data.domain.Page<ExchangeUnreadUpdateDTO>> result =
+        Result<Page<ExchangeUnreadUpdateDTO>> result =
                 historyService.getUnreadExchangeUpdates(sender.getId(), queryDTO);
 
         assertSuccess(result, HttpStatus.OK);

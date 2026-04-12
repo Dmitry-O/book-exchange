@@ -124,7 +124,7 @@ public class OfferController {
                                                          "author": "Frank Oester",
                                                          "category": "Drama",
                                                          "publicationYear": 1765,
-                                                         "photoBase64": "Book photo",
+                                                         "photoUrl": "https://book-exchange-prod.s3.eu-central-1.amazonaws.com/users/42/books/15_1712582410000.jpg",
                                                          "city": "London",
                                                          "isGift": true,
                                                          "isExchanged": false
@@ -136,7 +136,7 @@ public class OfferController {
                                                          "author": "Frank Oester",
                                                          "category": "Drama",
                                                          "publicationYear": 1765,
-                                                         "photoBase64": "Book photo",
+                                                         "photoUrl": "https://book-exchange-prod.s3.eu-central-1.amazonaws.com/users/84/books/19_1712582411000.jpg",
                                                          "city": "London",
                                                          "isGift": true,
                                                          "isExchanged": false
@@ -207,7 +207,7 @@ public class OfferController {
                                                  "author": "Frank Oester",
                                                  "category": "Drama",
                                                  "publicationYear": 1765,
-                                                 "photoBase64": "Book photo",
+                                                 "photoUrl": "https://book-exchange-prod.s3.eu-central-1.amazonaws.com/users/42/books/15_1712582410000.jpg",
                                                  "city": "London",
                                                  "isGift": true,
                                                  "isExchanged": false
@@ -219,7 +219,7 @@ public class OfferController {
                                                  "author": "Frank Oester",
                                                  "category": "Drama",
                                                  "publicationYear": 1765,
-                                                 "photoBase64": "Book photo",
+                                                 "photoUrl": "https://book-exchange-prod.s3.eu-central-1.amazonaws.com/users/84/books/19_1712582411000.jpg",
                                                  "city": "London",
                                                  "isGift": true,
                                                  "isExchanged": false

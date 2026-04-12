@@ -30,6 +30,10 @@ public class BookDTO {
     @JsonProperty("ownerNickname")
     private String ownerNickname;
 
+    @Schema(example = "https://book-exchange-prod.s3.eu-central-1.amazonaws.com/users/42/profile_photo_1712582410000.jpg")
+    @JsonProperty("ownerPhotoUrl")
+    private String ownerPhotoUrl;
+
     @Schema(example = "Charley Smash")
     @JsonProperty("name")
     private String name;
@@ -50,9 +54,9 @@ public class BookDTO {
     @JsonProperty("publicationYear")
     private Integer publicationYear;
 
-    @Schema(example = "Book photo")
-    @JsonProperty("photoBase64")
-    private String photoBase64;
+    @Schema(example = "https://book-exchange-prod.s3.eu-central-1.amazonaws.com/users/42/books/15_1712582410000.jpg")
+    @JsonProperty("photoUrl")
+    private String photoUrl;
 
     @Schema(example = "London")
     @JsonProperty("city")

@@ -3,6 +3,7 @@ package com.example.bookexchange.support.fixture;
 import com.example.bookexchange.common.result.Failure;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.common.result.Success;
+import com.example.bookexchange.support.TestUserStrings;
 import com.example.bookexchange.security.auth.UserPrincipal;
 import com.example.bookexchange.user.dto.SupportedLocalesDTO;
 import com.example.bookexchange.user.dto.UserCreateDTO;
@@ -18,6 +19,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import java.util.Optional;
@@ -91,7 +93,7 @@ public class UserFixtureSupport {
             SecurityContext context = SecurityContextHolder.createEmptyContext();
             context.setAuthentication(auth);
 
-            return org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors
+            return SecurityMockMvcRequestPostProcessors
                     .securityContext(context)
                     .postProcessRequest(request);
         };
@@ -101,9 +103,9 @@ public class UserFixtureSupport {
         Integer userNumber = Optional.ofNullable(userNumberParam).orElse(1);
 
         return UserCreateDTO.builder()
-                .email("user" + userNumber + "@test.com")
+                .email(TestUserStrings.email(userNumber))
                 .password("Password1!")
-                .nickname("user" + userNumber)
+                .nickname(TestUserStrings.nickname(userNumber))
                 .locale(SupportedLocalesDTO.EN.getProperty())
                 .build();
     }

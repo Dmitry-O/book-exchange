@@ -8,8 +8,11 @@ import com.example.bookexchange.auth.repository.VerificationTokenRepository;
 import com.example.bookexchange.book.model.Book;
 import com.example.bookexchange.book.repository.BookRepository;
 import com.example.bookexchange.common.audit.service.AuditService;
+import com.example.bookexchange.common.audit.service.SoftDeleteFilterHelper;
 import com.example.bookexchange.common.audit.service.VersionedEntityTransitionHelper;
 import com.example.bookexchange.common.result.Result;
+import com.example.bookexchange.common.storage.ImageStorageService;
+import com.example.bookexchange.support.TestReportStrings;
 import com.example.bookexchange.support.unit.UnitFixtureIds;
 import com.example.bookexchange.support.unit.UnitTestDataFactory;
 import com.example.bookexchange.user.model.User;
@@ -39,6 +42,7 @@ import static com.example.bookexchange.support.unit.ResultAssertions.assertFailu
 import static com.example.bookexchange.support.unit.ResultAssertions.assertSuccess;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -65,7 +69,13 @@ class AdminUserServiceImplTest {
     private AuditService auditService;
 
     @Mock
+    private SoftDeleteFilterHelper softDeleteFilterHelper;
+
+    @Mock
     private VersionedEntityTransitionHelper versionedEntityTransitionHelper;
+
+    @Mock
+    private ImageStorageService imageStorageService;
 
     @InjectMocks
     private AdminUserServiceImpl adminUserService;
@@ -73,7 +83,7 @@ class AdminUserServiceImplTest {
     @Test
     void shouldAddAdminRole_whenAdminPromotesNonAdminUser() {
         User user = UnitTestDataFactory.user(UnitFixtureIds.TARGET_USER_ID, "target@example.com", "target_one");
-        UserAdminDTO dto = org.mockito.Mockito.mock(UserAdminDTO.class);
+        UserAdminDTO dto = mock(UserAdminDTO.class);
         UserDetails admin = UnitTestDataFactory.adminPrincipal("admin@example.com");
 
         when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
@@ -132,7 +142,7 @@ class AdminUserServiceImplTest {
     @Test
     void shouldReturnBadRequest_whenAdminBanConfigurationIsInvalid() {
         User user = UnitTestDataFactory.user(UnitFixtureIds.TARGET_USER_ID, "target@example.com", "target_one");
-        BanUserDTO dto = BanUserDTO.builder().banReason("Spam").build();
+        BanUserDTO dto = BanUserDTO.builder().banReason(TestReportStrings.banReason("Spam")).build();
         UserDetails admin = UnitTestDataFactory.adminPrincipal("admin@example.com");
 
         when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
@@ -148,7 +158,7 @@ class AdminUserServiceImplTest {
     void shouldPersistPermanentBanAndDeleteRefreshTokens_whenAdminBansUser() {
         User user = UnitTestDataFactory.user(UnitFixtureIds.TARGET_USER_ID, "target@example.com", "target_one");
         BanUserDTO dto = UnitTestDataFactory.permanentBanDto();
-        UserAdminDTO adminDto = org.mockito.Mockito.mock(UserAdminDTO.class);
+        UserAdminDTO adminDto = mock(UserAdminDTO.class);
         UserDetails admin = UnitTestDataFactory.adminPrincipal("admin@example.com");
 
         when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
@@ -168,9 +178,9 @@ class AdminUserServiceImplTest {
     void shouldClearBanState_whenAdminUnbansUser() {
         User user = UnitTestDataFactory.user(UnitFixtureIds.TARGET_USER_ID, "target@example.com", "target_one");
         user.setBannedPermanently(true);
-        user.setBanReason("Fraud");
+        user.setBanReason(TestReportStrings.banReason("Fraud"));
         user.setBannedUntil(UnitTestDataFactory.futureInstant());
-        UserAdminDTO adminDto = org.mockito.Mockito.mock(UserAdminDTO.class);
+        UserAdminDTO adminDto = mock(UserAdminDTO.class);
         UserDetails admin = UnitTestDataFactory.adminPrincipal("admin@example.com");
 
         when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
@@ -191,7 +201,7 @@ class AdminUserServiceImplTest {
     void shouldAnonymizeAndSoftDeleteUserData_whenAdminDeletesUser() {
         User user = UnitTestDataFactory.user(UnitFixtureIds.TARGET_USER_ID, "target@example.com", "target_one");
         Book book = UnitTestDataFactory.book(UnitFixtureIds.SENDER_BOOK_ID, "Target book", user);
-        UserAdminDTO adminDto = org.mockito.Mockito.mock(UserAdminDTO.class);
+        UserAdminDTO adminDto = mock(UserAdminDTO.class);
         UserDetails admin = UnitTestDataFactory.adminPrincipal("admin@example.com");
 
         when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
@@ -199,13 +209,17 @@ class AdminUserServiceImplTest {
                 .thenReturn(ok(user));
         when(bookRepository.findAllByUserIdAndDeletedAtIsNull(user.getId())).thenReturn(List.of(book));
         when(adminMapper.userToUserAdminDto(user)).thenReturn(adminDto);
+        when(imageStorageService.deleteAllUserImages(user.getId())).thenReturn(ok(null));
 
         Result<UserAdminDTO> result = adminUserService.deleteUser(admin, user.getId(), user.getVersion());
 
         assertSuccess(result, HttpStatus.OK, ADMIN_USER_DELETED);
         assertThat(user.getEmail()).isEqualTo("anonymized-" + user.getId() + "@anonymized.anonymized");
+        assertThat(user.getPhotoUrl()).isNull();
         assertThat(book.getDeletedAt()).isNotNull();
+        assertThat(book.getPhotoUrl()).isNull();
         verify(refreshTokenRepository).deleteByUserId(user.getId());
         verify(verificationTokenRepository).deleteByUserId(user.getId());
+        verify(imageStorageService).deleteAllUserImages(user.getId());
     }
 }

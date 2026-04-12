@@ -11,6 +11,7 @@ import com.example.bookexchange.common.audit.service.VersionedEntityTransitionHe
 import com.example.bookexchange.common.i18n.MessageKey;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.common.result.ResultFactory;
+import com.example.bookexchange.common.storage.ImageStorageService;
 import com.example.bookexchange.user.dto.*;
 import com.example.bookexchange.common.util.ETagUtil;
 import com.example.bookexchange.user.mapper.UserMapper;
@@ -21,6 +22,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
 
 import java.time.Instant;
 
@@ -36,6 +38,7 @@ public class UserServiceImpl implements UserService {
     private final VerificationTokenService verificationTokenService;
     private final BookService bookService;
     private final VersionedEntityTransitionHelper versionedEntityTransitionHelper;
+    private final ImageStorageService imageStorageService;
 
     @Transactional(readOnly = true)
     @Override
@@ -73,15 +76,61 @@ public class UserServiceImpl implements UserService {
                     }
 
                     userMapper.updateUserDtoToUser(dto, user);
-                    userRepository.save(user);
 
-                    logUserSuccess("USER_UPDATE", user.getId(), user.getEmail());
+                    Result<User> updatedUserResult = applyPhotoChange(user, dto.getPhotoBase64());
 
-                    return ResultFactory.updated(
-                            userMapper.userToUserDto(user),
-                            MessageKey.USER_PROFILE_UPDATED,
-                            ETagUtil.form(user)
-                    );
+                    if (updatedUserResult.isFailure()) {
+                        return rollbackOnFailure(updatedUserResult.map(userMapper::userToUserDto));
+                    }
+
+                    return updatedUserResult.flatMap(updatedUser -> {
+                        logUserSuccess("USER_UPDATE", updatedUser.getId(), updatedUser.getEmail());
+
+                        return ResultFactory.updated(
+                                userMapper.userToUserDto(updatedUser),
+                                MessageKey.USER_PROFILE_UPDATED,
+                                ETagUtil.form(updatedUser)
+                        );
+                    });
+                });
+    }
+
+    @Transactional
+    @Override
+    public Result<UserDTO> deleteUserPhoto(Long userId, Long version) {
+        return ResultFactory.fromRepository(
+                        userRepository,
+                        userId,
+                        MessageKey.USER_ACCOUNT_NOT_FOUND
+                )
+                .flatMap(user -> {
+                    Result<User> versionValidation = validateUserVersion(user, version, "USER_PHOTO_DELETE");
+
+                    if (versionValidation.isFailure()) {
+                        return versionValidation.map(userMapper::userToUserDto);
+                    }
+
+                    if (user.getPhotoUrl() == null || user.getPhotoUrl().isBlank()) {
+                        return ResultFactory.updated(
+                                userMapper.userToUserDto(user),
+                                MessageKey.USER_PROFILE_PHOTO_DELETED,
+                                ETagUtil.form(user)
+                        );
+                    }
+
+                    return imageStorageService.deleteUserProfileImage(user.getId())
+                            .flatMap(v -> {
+                                user.setPhotoUrl(null);
+                                User updatedUser = userRepository.save(user);
+
+                                logUserSuccess("USER_PHOTO_DELETE", updatedUser.getId(), updatedUser.getEmail());
+
+                                return ResultFactory.updated(
+                                        userMapper.userToUserDto(updatedUser),
+                                        MessageKey.USER_PROFILE_PHOTO_DELETED,
+                                        ETagUtil.form(updatedUser)
+                                );
+                            });
                 });
     }
 
@@ -98,6 +147,12 @@ public class UserServiceImpl implements UserService {
 
                     if (versionValidation.isFailure()) {
                         return versionValidation.map(v -> null);
+                    }
+
+                    Result<Void> deletedImagesResult = imageStorageService.deleteAllUserImages(user.getId());
+
+                    if (deletedImagesResult.isFailure()) {
+                        return deletedImagesResult.map(v -> null);
                     }
 
                     bookService.softDeleteBooks(user, Instant.now());
@@ -169,9 +224,27 @@ public class UserServiceImpl implements UserService {
     private void anonymizeUser(User user, Instant deletedAt) {
         user.setEmail("anonymized-" + user.getId() + "@anonymized.anonymized");
         user.setNickname("anonymized-" + user.getId());
-        user.setPhotoBase64(null);
+        user.setPhotoUrl(null);
         user.setPassword("");
         user.setDeletedAt(deletedAt);
+    }
+
+    private Result<User> applyPhotoChange(User user, String photoBase64) {
+        if (photoBase64 == null || photoBase64.isBlank()) {
+            return ResultFactory.ok(userRepository.save(user));
+        }
+
+        return imageStorageService.replaceUserProfileImage(user.getId(), photoBase64)
+                .flatMap(photoUrl -> {
+                    user.setPhotoUrl(photoUrl);
+
+                    return ResultFactory.ok(userRepository.save(user));
+                });
+    }
+
+    private <T> Result<T> rollbackOnFailure(Result<T> result) {
+        TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+        return result;
     }
 
     private void logUserSuccess(String action, Long actorId, String actorEmail) {

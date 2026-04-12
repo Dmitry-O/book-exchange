@@ -8,6 +8,8 @@ import com.example.bookexchange.report.model.TargetType;
 import com.example.bookexchange.report.repository.ReportRepository;
 import com.example.bookexchange.common.i18n.MessageKey;
 import com.example.bookexchange.report.model.Report;
+import com.example.bookexchange.support.FixtureNumbers;
+import com.example.bookexchange.support.TestReportStrings;
 import com.example.bookexchange.user.model.User;
 import com.example.bookexchange.support.fixture.BookFixtureSupport;
 import com.example.bookexchange.support.fixture.UserFixtureSupport;
@@ -51,12 +53,12 @@ class ReportControllerIT extends IntegrationTestSupport {
 
     @Test
     void shouldCreateUserReport_whenPayloadIsValid() throws Exception {
-        User reporter = userUtil.createUser(700);
-        User targetUser = userUtil.createUser(701);
+        User reporter = userUtil.createUser(FixtureNumbers.report(700));
+        User targetUser = userUtil.createUser(FixtureNumbers.report(701));
         ReportCreateDTO dto = ReportCreateDTO.builder()
                 .targetType(TargetType.USER)
                 .reason(ReportReason.SPAM)
-                .comment("This user keeps sending spam offers.")
+                .comment(TestReportStrings.comment("This user keeps sending spam offers."))
                 .build();
 
         MvcResult mvcResult = mockMvc.perform(post(ReportPaths.REPORT_PATH_TARGET_ID, targetUser.getId())
@@ -82,13 +84,13 @@ class ReportControllerIT extends IntegrationTestSupport {
 
     @Test
     void shouldCreateBookReport_whenPayloadIsValid() throws Exception {
-        User reporter = userUtil.createUser(702);
-        User bookOwner = userUtil.createUser(703);
-        Long targetBookId = bookUtil.createBook(bookOwner.getId(), 703);
+        User reporter = userUtil.createUser(FixtureNumbers.report(702));
+        User bookOwner = userUtil.createUser(FixtureNumbers.report(703));
+        Long targetBookId = bookUtil.createBook(bookOwner.getId(), FixtureNumbers.report(703));
         ReportCreateDTO dto = ReportCreateDTO.builder()
                 .targetType(TargetType.BOOK)
                 .reason(ReportReason.INAPPROPRIATE)
-                .comment("The book listing contains inappropriate content.")
+                .comment(TestReportStrings.comment("The book listing contains inappropriate content."))
                 .build();
 
         MvcResult mvcResult = mockMvc.perform(post(ReportPaths.REPORT_PATH_TARGET_ID, targetBookId)
@@ -110,12 +112,12 @@ class ReportControllerIT extends IntegrationTestSupport {
 
     @Test
     void shouldReturnConflict_whenUserCreatesDuplicateReportForSameTarget() throws Exception {
-        User reporter = userUtil.createUser(709);
-        User targetUser = userUtil.createUser(710);
+        User reporter = userUtil.createUser(FixtureNumbers.report(709));
+        User targetUser = userUtil.createUser(FixtureNumbers.report(710));
         ReportCreateDTO dto = ReportCreateDTO.builder()
                 .targetType(TargetType.USER)
                 .reason(ReportReason.SPAM)
-                .comment("This user keeps sending spam offers.")
+                .comment(TestReportStrings.comment("This user keeps sending spam offers."))
                 .build();
 
         mockMvc.perform(post(ReportPaths.REPORT_PATH_TARGET_ID, targetUser.getId())
@@ -143,10 +145,10 @@ class ReportControllerIT extends IntegrationTestSupport {
 
     @Test
     void shouldReturnCurrentUserReports_whenUserGetsOwnReports() throws Exception {
-        User reporter = userUtil.createUser(720);
-        User targetUser = userUtil.createUser(721);
-        User anotherReporter = userUtil.createUser(722);
-        Long targetBookId = bookUtil.createBook(targetUser.getId(), 723);
+        User reporter = userUtil.createUser(FixtureNumbers.report(720));
+        User targetUser = userUtil.createUser(FixtureNumbers.report(721));
+        User anotherReporter = userUtil.createUser(FixtureNumbers.report(722));
+        Long targetBookId = bookUtil.createBook(targetUser.getId(), FixtureNumbers.report(723));
 
         reportRepository.save(new Report(
                 null,
@@ -196,8 +198,8 @@ class ReportControllerIT extends IntegrationTestSupport {
 
     @Test
     void shouldReturnBadRequest_whenCreateReportPayloadIsInvalid() throws Exception {
-        User reporter = userUtil.createUser(704);
-        User targetUser = userUtil.createUser(705);
+        User reporter = userUtil.createUser(FixtureNumbers.report(704));
+        User targetUser = userUtil.createUser(FixtureNumbers.report(705));
         ReportCreateDTO dto = ReportCreateDTO.builder()
                 .targetType(TargetType.USER)
                 .reason(ReportReason.SPAM)
@@ -217,11 +219,11 @@ class ReportControllerIT extends IntegrationTestSupport {
 
     @Test
     void shouldReturnBadRequest_whenUserReportsThemself() throws Exception {
-        User reporter = userUtil.createUser(706);
+        User reporter = userUtil.createUser(FixtureNumbers.report(706));
         ReportCreateDTO dto = ReportCreateDTO.builder()
                 .targetType(TargetType.USER)
                 .reason(ReportReason.SPAM)
-                .comment("Trying to report myself should fail.")
+                .comment(TestReportStrings.comment("Trying to report myself should fail."))
                 .build();
 
         MvcResult mvcResult = mockMvc.perform(post(ReportPaths.REPORT_PATH_TARGET_ID, reporter.getId())
@@ -242,12 +244,12 @@ class ReportControllerIT extends IntegrationTestSupport {
 
     @Test
     void shouldReturnBadRequest_whenUserReportsOwnBook() throws Exception {
-        User reporter = userUtil.createUser(707);
-        Long ownBookId = bookUtil.createBook(reporter.getId(), 707);
+        User reporter = userUtil.createUser(FixtureNumbers.report(707));
+        Long ownBookId = bookUtil.createBook(reporter.getId(), FixtureNumbers.report(707));
         ReportCreateDTO dto = ReportCreateDTO.builder()
                 .targetType(TargetType.BOOK)
                 .reason(ReportReason.OTHER)
-                .comment("Trying to report my own book should fail.")
+                .comment(TestReportStrings.comment("Trying to report my own book should fail."))
                 .build();
 
         MvcResult mvcResult = mockMvc.perform(post(ReportPaths.REPORT_PATH_TARGET_ID, ownBookId)
@@ -268,11 +270,11 @@ class ReportControllerIT extends IntegrationTestSupport {
 
     @Test
     void shouldReturnNotFound_whenCreateUserReportTargetDoesNotExist() throws Exception {
-        User reporter = userUtil.createUser(708);
+        User reporter = userUtil.createUser(FixtureNumbers.report(708));
         ReportCreateDTO dto = ReportCreateDTO.builder()
                 .targetType(TargetType.USER)
                 .reason(ReportReason.FRAUD)
-                .comment("This target user does not exist.")
+                .comment(TestReportStrings.comment("This target user does not exist."))
                 .build();
 
         MvcResult mvcResult = mockMvc.perform(post(ReportPaths.REPORT_PATH_TARGET_ID, Long.MAX_VALUE)

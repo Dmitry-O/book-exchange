@@ -9,6 +9,7 @@ import com.example.bookexchange.book.repository.BookRepository;
 import com.example.bookexchange.common.audit.service.AuditService;
 import com.example.bookexchange.common.audit.service.VersionedEntityTransitionHelper;
 import com.example.bookexchange.common.result.Result;
+import com.example.bookexchange.common.storage.ImageStorageService;
 import com.example.bookexchange.support.unit.UnitFixtureIds;
 import com.example.bookexchange.support.unit.UnitTestDataFactory;
 import com.example.bookexchange.user.model.User;
@@ -26,6 +27,7 @@ import java.util.Optional;
 
 import static com.example.bookexchange.common.i18n.MessageKey.BOOK_CREATED;
 import static com.example.bookexchange.common.i18n.MessageKey.BOOK_DELETED;
+import static com.example.bookexchange.common.i18n.MessageKey.BOOK_PHOTO_DELETED;
 import static com.example.bookexchange.common.i18n.MessageKey.BOOK_PUBLIC_NOT_FOUND;
 import static com.example.bookexchange.common.i18n.MessageKey.BOOK_UPDATED;
 import static com.example.bookexchange.common.result.ResultFactory.ok;
@@ -33,6 +35,9 @@ import static com.example.bookexchange.support.unit.ResultAssertions.assertFailu
 import static com.example.bookexchange.support.unit.ResultAssertions.assertSuccess;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -54,6 +59,9 @@ class BookServiceImplTest {
     @Mock
     private VersionedEntityTransitionHelper versionedEntityTransitionHelper;
 
+    @Mock
+    private ImageStorageService imageStorageService;
+
     @InjectMocks
     private BookServiceImpl bookService;
 
@@ -62,18 +70,21 @@ class BookServiceImplTest {
         User user = UnitTestDataFactory.user(UnitFixtureIds.BOOK_OWNER_ID, "owner@example.com", "book_owner");
         BookCreateDTO dto = UnitTestDataFactory.bookCreateDto();
         Book mappedBook = UnitTestDataFactory.book(UnitFixtureIds.SENDER_BOOK_ID, dto.getName(), user);
-        BookDTO bookDto = org.mockito.Mockito.mock(BookDTO.class);
+        BookDTO bookDto = mock(BookDTO.class);
 
         when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
         when(bookMapper.bookDtoToBook(dto)).thenReturn(mappedBook);
         when(bookRepository.save(mappedBook)).thenReturn(mappedBook);
         when(bookMapper.bookToBookDto(mappedBook)).thenReturn(bookDto);
+        when(imageStorageService.replaceBookImage(user.getId(), mappedBook.getId(), dto.getPhotoBase64()))
+                .thenReturn(ok("https://book-exchange-test.s3.eu-central-1.amazonaws.com/users/" + user.getId() + "/books/" + mappedBook.getId() + "_test.jpg"));
 
         Result<BookDTO> result = bookService.addUserBook(user.getId(), dto);
 
         assertSuccess(result, HttpStatus.CREATED, BOOK_CREATED);
         assertThat(mappedBook.getUser()).isSameAs(user);
-        verify(bookRepository).save(mappedBook);
+        assertThat(mappedBook.getPhotoUrl()).isNotBlank();
+        verify(bookRepository, times(2)).save(mappedBook);
         verify(auditService).log(any());
     }
 
@@ -82,25 +93,53 @@ class BookServiceImplTest {
         User user = UnitTestDataFactory.user(UnitFixtureIds.BOOK_OWNER_ID, "owner@example.com", "book_owner");
         Book book = UnitTestDataFactory.book(UnitFixtureIds.SENDER_BOOK_ID, "Old book", user);
         BookUpdateDTO dto = UnitTestDataFactory.bookUpdateDto();
-        BookDTO bookDto = org.mockito.Mockito.mock(BookDTO.class);
+        BookDTO bookDto = mock(BookDTO.class);
 
         when(bookRepository.findByIdAndUserId(book.getId(), user.getId())).thenReturn(Optional.of(book));
         when(versionedEntityTransitionHelper.requireVersion(any(Book.class), any(Long.class), any(String.class), any()))
                 .thenReturn(ok(book));
+        when(bookRepository.save(book)).thenReturn(book);
         when(bookMapper.bookToBookDto(book)).thenReturn(bookDto);
+        when(imageStorageService.replaceBookImage(user.getId(), book.getId(), dto.getPhotoBase64()))
+                .thenReturn(ok("https://book-exchange-test.s3.eu-central-1.amazonaws.com/users/" + user.getId() + "/books/" + book.getId() + "_test.jpg"));
 
         Result<BookDTO> result = bookService.updateUserBookById(user.getId(), book.getId(), dto, book.getVersion());
 
         assertSuccess(result, HttpStatus.OK, BOOK_UPDATED);
         verify(bookMapper).updateBookDtoToBook(dto, book);
         verify(bookRepository).save(book);
+        assertThat(book.getPhotoUrl()).isNotBlank();
+    }
+
+    @Test
+    void shouldKeepExistingPhoto_whenUpdateUserBookReceivesBlankPhotoBase64() {
+        User user = UnitTestDataFactory.user(UnitFixtureIds.BOOK_OWNER_ID, "owner@example.com", "book_owner");
+        Book book = UnitTestDataFactory.book(UnitFixtureIds.SENDER_BOOK_ID, "Old book", user);
+        book.setPhotoUrl("https://book-exchange-test.s3.eu-central-1.amazonaws.com/users/" + user.getId() + "/books/" + book.getId() + "_existing.jpg");
+
+        BookUpdateDTO dto = UnitTestDataFactory.bookUpdateDto();
+        dto.setPhotoBase64(" ");
+
+        BookDTO bookDto = mock(BookDTO.class);
+
+        when(bookRepository.findByIdAndUserId(book.getId(), user.getId())).thenReturn(Optional.of(book));
+        when(versionedEntityTransitionHelper.requireVersion(any(Book.class), any(Long.class), any(String.class), any()))
+                .thenReturn(ok(book));
+        when(bookRepository.save(book)).thenReturn(book);
+        when(bookMapper.bookToBookDto(book)).thenReturn(bookDto);
+
+        Result<BookDTO> result = bookService.updateUserBookById(user.getId(), book.getId(), dto, book.getVersion());
+
+        assertSuccess(result, HttpStatus.OK, BOOK_UPDATED);
+        assertThat(book.getPhotoUrl()).isEqualTo("https://book-exchange-test.s3.eu-central-1.amazonaws.com/users/" + user.getId() + "/books/" + book.getId() + "_existing.jpg");
+        verify(imageStorageService, never()).replaceBookImage(any(), any(), any());
     }
 
     @Test
     void shouldReturnPublicBook_whenFindBookByIdIsCalledForActiveBook() {
         User user = UnitTestDataFactory.user(UnitFixtureIds.BOOK_OWNER_ID, "owner@example.com", "book_owner");
         Book book = UnitTestDataFactory.book(UnitFixtureIds.SENDER_BOOK_ID, "Public book", user);
-        BookDTO bookDto = org.mockito.Mockito.mock(BookDTO.class);
+        BookDTO bookDto = mock(BookDTO.class);
 
         when(bookRepository.findPublicBookById(book.getId())).thenReturn(Optional.of(book));
         when(bookMapper.bookToBookDto(book)).thenReturn(bookDto);
@@ -136,6 +175,27 @@ class BookServiceImplTest {
     }
 
     @Test
+    void shouldDeleteBookPhoto_whenVersionMatchesAndPhotoExists() {
+        User user = UnitTestDataFactory.user(UnitFixtureIds.BOOK_OWNER_ID, "owner@example.com", "book_owner");
+        Book book = UnitTestDataFactory.book(UnitFixtureIds.SENDER_BOOK_ID, "Old book", user);
+        BookDTO bookDto = mock(BookDTO.class);
+
+        when(bookRepository.findByIdAndUserId(book.getId(), user.getId())).thenReturn(Optional.of(book));
+        when(versionedEntityTransitionHelper.requireVersion(any(Book.class), any(Long.class), any(String.class), any()))
+                .thenReturn(ok(book));
+        when(imageStorageService.deleteBookImage(user.getId(), book.getId())).thenReturn(ok(null));
+        when(bookRepository.save(book)).thenReturn(book);
+        when(bookMapper.bookToBookDto(book)).thenReturn(bookDto);
+
+        Result<BookDTO> result = bookService.deleteUserBookPhoto(user.getId(), book.getId(), book.getVersion());
+
+        assertSuccess(result, HttpStatus.OK, BOOK_PHOTO_DELETED);
+        assertThat(book.getPhotoUrl()).isNull();
+        verify(imageStorageService).deleteBookImage(user.getId(), book.getId());
+        verify(bookRepository).save(book);
+    }
+
+    @Test
     void shouldMarkAllActiveBooksAsDeleted_whenSoftDeleteBooksIsCalled() {
         User user = UnitTestDataFactory.user(UnitFixtureIds.BOOK_OWNER_ID, "owner@example.com", "book_owner");
         Book firstBook = UnitTestDataFactory.book(UnitFixtureIds.SENDER_BOOK_ID, "First", user);
@@ -148,5 +208,7 @@ class BookServiceImplTest {
 
         assertThat(firstBook.getDeletedAt()).isEqualTo(deletedAt);
         assertThat(secondBook.getDeletedAt()).isEqualTo(deletedAt);
+        assertThat(firstBook.getPhotoUrl()).isNull();
+        assertThat(secondBook.getPhotoUrl()).isNull();
     }
 }

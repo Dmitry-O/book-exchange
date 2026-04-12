@@ -5,6 +5,8 @@ import com.example.bookexchange.exchange.model.Exchange;
 import com.example.bookexchange.exchange.model.ExchangeStatus;
 import com.example.bookexchange.exchange.repository.ExchangeRepository;
 import com.example.bookexchange.common.i18n.MessageKey;
+import com.example.bookexchange.support.FixtureNumbers;
+import com.example.bookexchange.support.TestBookStrings;
 import com.example.bookexchange.user.model.User;
 import com.example.bookexchange.support.fixture.BookFixtureSupport;
 import com.example.bookexchange.support.fixture.ExchangeFixtureSupport;
@@ -55,7 +57,7 @@ class HistoryControllerIT extends IntegrationTestSupport {
 
     @Test
     void shouldReturnCompletedExchanges_whenUserGetsExchangeHistory() throws Exception {
-        User sender = userUtil.createUser(600);
+        User sender = userUtil.createUser(FixtureNumbers.history(600));
         ExchangeFixture approvedFixture = createExchangeForSender(sender, 601);
         ExchangeFixture declinedFixture = createExchangeForSender(sender, 603);
         ExchangeFixture pendingFixture = createExchangeForSender(sender, 605);
@@ -94,7 +96,7 @@ class HistoryControllerIT extends IntegrationTestSupport {
 
     @Test
     void shouldReturnEmptyPage_whenUserHasNoCompletedExchangesInHistory() throws Exception {
-        User user = userUtil.createUser(607);
+        User user = userUtil.createUser(FixtureNumbers.history(607));
 
         MvcResult mvcResult = mockMvc.perform(get(ExchangePaths.HISTORY_PATH)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
@@ -281,7 +283,7 @@ class HistoryControllerIT extends IntegrationTestSupport {
     @Test
     void shouldReturnNotFound_whenUnrelatedUserGetsExchangeHistoryDetails() throws Exception {
         ExchangeFixture fixture = createCompletedExchange(612, ExchangeStatus.APPROVED);
-        User unrelatedUser = userUtil.createUser(615);
+        User unrelatedUser = userUtil.createUser(FixtureNumbers.history(615));
 
         MvcResult mvcResult = mockMvc.perform(get(ExchangePaths.HISTORY_PATH_EXCHANGE_ID, fixture.exchangeId())
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(unrelatedUser))
@@ -298,25 +300,29 @@ class HistoryControllerIT extends IntegrationTestSupport {
     }
 
     private ExchangeFixture createExchangeForSender(User sender, int base) {
-        User receiver = userUtil.createUser(base);
-        Long senderBookId = bookUtil.createBook(sender.getId(), base);
-        Long receiverBookId = bookUtil.createBook(receiver.getId(), base + 1);
+        int senderBookNumber = FixtureNumbers.history(base);
+        int receiverNumber = FixtureNumbers.history(base + 1);
+        User receiver = userUtil.createUser(receiverNumber);
+        Long senderBookId = bookUtil.createBook(sender.getId(), senderBookNumber);
+        Long receiverBookId = bookUtil.createBook(receiver.getId(), receiverNumber);
         Long exchangeId = exchangeUtilIT.createExchange(sender.getId(), receiver.getId(), senderBookId, receiverBookId);
 
         return new ExchangeFixture(
                 sender,
                 receiver,
                 exchangeId,
-                "Contact Details " + base,
-                "Contact Details " + (base + 1)
+                TestBookStrings.contactDetails(senderBookNumber),
+                TestBookStrings.contactDetails(receiverNumber)
         );
     }
 
     private ExchangeFixture createCompletedExchange(int base, ExchangeStatus status) {
-        User sender = userUtil.createUser(base);
-        User receiver = userUtil.createUser(base + 1);
-        Long senderBookId = bookUtil.createBook(sender.getId(), base);
-        Long receiverBookId = bookUtil.createBook(receiver.getId(), base + 1);
+        int senderNumber = FixtureNumbers.history(base);
+        int receiverNumber = FixtureNumbers.history(base + 1);
+        User sender = userUtil.createUser(senderNumber);
+        User receiver = userUtil.createUser(receiverNumber);
+        Long senderBookId = bookUtil.createBook(sender.getId(), senderNumber);
+        Long receiverBookId = bookUtil.createBook(receiver.getId(), receiverNumber);
         Long exchangeId = exchangeUtilIT.createExchange(sender.getId(), receiver.getId(), senderBookId, receiverBookId);
         Exchange exchange = exchangeRepository.findById(exchangeId).orElseThrow();
 
@@ -330,8 +336,8 @@ class HistoryControllerIT extends IntegrationTestSupport {
                 sender,
                 receiver,
                 exchangeId,
-                "Contact Details " + base,
-                "Contact Details " + (base + 1)
+                TestBookStrings.contactDetails(senderNumber),
+                TestBookStrings.contactDetails(receiverNumber)
         );
     }
 

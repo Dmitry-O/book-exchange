@@ -27,6 +27,8 @@ public interface BookService {
 
     Result<BookDTO> updateUserBookById(Long userId, Long bookId, BookUpdateDTO dto, Long version);
 
+    Result<BookDTO> deleteUserBookPhoto(Long userId, Long bookId, Long version);
+
     Result<BookDTO> findUserBookById(Long userId, Long bookId);
 
     void softDeleteBooks(User user, Instant deletedAt);

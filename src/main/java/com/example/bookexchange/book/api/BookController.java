@@ -59,12 +59,13 @@ public class BookController {
                                             "id": 1,
                                             "ownerUserId": 1,
                                             "ownerNickname": "user_12345",
+                                            "ownerPhotoUrl": "https://book-exchange-prod.s3.eu-central-1.amazonaws.com/users/1/profile_photo_1712582410000.jpg",
                                             "name": "Charley Smash",
                                             "description": "An interesting book about ...",
                                             "author": "Frank Oester",
                                             "category": "Drama",
                                             "publicationYear": 1765,
-                                            "photoBase64": "Book photo",
+                                            "photoUrl": "https://book-exchange-prod.s3.eu-central-1.amazonaws.com/users/42/books/15_1712582410000.jpg",
                                             "city": "string",
                                             "contactDetails": "Juchostr. 12, 44320 Dortmund; 01512 0089 34 567",
                                             "isGift": true,
@@ -277,12 +278,13 @@ public class BookController {
                                             "id": 1,
                                             "ownerUserId": 1,
                                             "ownerNickname": "user_12345",
+                                            "ownerPhotoUrl": "https://book-exchange-prod.s3.eu-central-1.amazonaws.com/users/1/profile_photo_1712582410000.jpg",
                                             "name": "Charley Smash",
                                             "description": "An interesting book about ...",
                                             "author": "Frank Oester",
                                             "category": "Drama",
                                             "publicationYear": 1765,
-                                            "photoBase64": "Book photo",
+                                            "photoUrl": "https://book-exchange-prod.s3.eu-central-1.amazonaws.com/users/42/books/15_1712582410000.jpg",
                                             "city": "string",
                                             "contactDetails": "Juchostr. 12, 44320 Dortmund; 01512 0089 34 567",
                                             "isGift": true,
@@ -317,5 +319,43 @@ public class BookController {
             HttpServletRequest request
     ) {
         return responseMapper.map(bookService.updateUserBookById(userId, bookId, dto, parserUtil.ifMatchParser(ifMatch)), request);
+    }
+
+    @UnauthorizedErrorResponse
+    @ConflictErrorResponse
+    @NotFoundErrorResponse
+    @BadRequestErrorResponse
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "200",
+            description = "The book photo has been deleted",
+            headers = @Header(
+                    name = "ETag",
+                    description = "Entity version",
+                    schema = @Schema(type = "string", example = "\"3\"")
+            ),
+            content = @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = BookDTO.class)
+            )
+    )
+    @DeleteMapping(BookPaths.BOOK_PATH_USER_BOOK_ID_PHOTO)
+    public ResponseEntity<?> deleteUserBookPhoto(
+            @Parameter(description = "User ID", example = "1")
+            @CurrentUser Long userId,
+
+            @Parameter(description = "Book ID", example = "1")
+            @PathVariable Long bookId,
+
+            @Parameter(
+                    name = "If-Match",
+                    description = "Entity version for optimistic locking",
+                    example = "\"3\"",
+                    required = true
+            )
+            @RequestHeader("If-Match") String ifMatch,
+
+            HttpServletRequest request
+    ) {
+        return responseMapper.map(bookService.deleteUserBookPhoto(userId, bookId, parserUtil.ifMatchParser(ifMatch)), request);
     }
 }

@@ -1,9 +1,9 @@
 package com.example.bookexchange.exchange.service;
 
+import com.example.bookexchange.book.model.Book;
 import com.example.bookexchange.common.audit.service.AuditService;
 import com.example.bookexchange.common.i18n.MessageKey;
 import com.example.bookexchange.common.result.Result;
-import com.example.bookexchange.book.model.Book;
 import com.example.bookexchange.exchange.dto.ExchangeDetailsDTO;
 import com.example.bookexchange.exchange.mapper.ExchangeMapper;
 import com.example.bookexchange.exchange.model.Exchange;
@@ -29,6 +29,7 @@ import static com.example.bookexchange.common.i18n.MessageKey.EXCHANGE_DECLINED;
 import static com.example.bookexchange.common.result.ResultFactory.ok;
 import static com.example.bookexchange.support.unit.ResultAssertions.assertSuccess;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -76,7 +77,7 @@ class OfferServiceImplTest {
                 UnitTestDataFactory.book(UnitFixtureIds.COMPETING_BOOK_ID, "Competing book", receiver),
                 ExchangeStatus.PENDING
         );
-        ExchangeDetailsDTO detailsDto = org.mockito.Mockito.mock(ExchangeDetailsDTO.class);
+        ExchangeDetailsDTO detailsDto = mock(ExchangeDetailsDTO.class);
 
         when(exchangeRepository.findByIdAndReceiverUserId(approvedExchange.getId(), receiver.getId())).thenReturn(Optional.of(approvedExchange));
         when(exchangeTransitionHelper.requirePendingVersion(
@@ -127,7 +128,7 @@ class OfferServiceImplTest {
                 receiverBook,
                 ExchangeStatus.PENDING
         );
-        ExchangeDetailsDTO detailsDto = org.mockito.Mockito.mock(ExchangeDetailsDTO.class);
+        ExchangeDetailsDTO detailsDto = mock(ExchangeDetailsDTO.class);
 
         when(exchangeRepository.findByIdAndReceiverUserId(exchange.getId(), receiver.getId())).thenReturn(Optional.of(exchange));
         when(exchangeTransitionHelper.requirePendingVersion(
@@ -166,7 +167,7 @@ class OfferServiceImplTest {
                 receiverBook,
                 ExchangeStatus.PENDING
         );
-        ExchangeDetailsDTO detailsDto = org.mockito.Mockito.mock(ExchangeDetailsDTO.class);
+        ExchangeDetailsDTO detailsDto = mock(ExchangeDetailsDTO.class);
 
         when(exchangeRepository.findByIdAndReceiverUserId(exchange.getId(), receiver.getId())).thenReturn(Optional.of(exchange));
         when(exchangeRepository.saveAndFlush(exchange)).thenReturn(exchange);

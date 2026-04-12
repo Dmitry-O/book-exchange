@@ -2,7 +2,9 @@ package com.example.bookexchange.config;
 
 import com.example.bookexchange.common.audit.service.AuditService;
 import com.example.bookexchange.common.email.EmailService;
+import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.common.result.ResultFactory;
+import com.example.bookexchange.common.storage.ImageStorageService;
 import com.example.bookexchange.common.web.ErrorResponseWriter;
 import com.example.bookexchange.user.mapper.UserMapper;
 import com.example.bookexchange.book.repository.BookRepository;
@@ -60,6 +62,37 @@ public class TestUserConfig {
                     FilterChain filterChain
             ) throws ServletException, IOException {
                 filterChain.doFilter(request, response);
+            }
+        };
+    }
+
+    @Bean
+    @Primary
+    public ImageStorageService testImageStorageService() {
+        return new ImageStorageService() {
+            @Override
+            public Result<String> replaceUserProfileImage(Long userId, String photoBase64) {
+                return ResultFactory.ok("https://book-exchange-test.s3.eu-central-1.amazonaws.com/users/" + userId + "/profile_photo_test.jpg");
+            }
+
+            @Override
+            public Result<String> replaceBookImage(Long userId, Long bookId, String photoBase64) {
+                return ResultFactory.ok("https://book-exchange-test.s3.eu-central-1.amazonaws.com/users/" + userId + "/books/" + bookId + "_test.jpg");
+            }
+
+            @Override
+            public Result<Void> deleteUserProfileImage(Long userId) {
+                return ResultFactory.successVoid();
+            }
+
+            @Override
+            public Result<Void> deleteBookImage(Long userId, Long bookId) {
+                return ResultFactory.successVoid();
+            }
+
+            @Override
+            public Result<Void> deleteAllUserImages(Long userId) {
+                return ResultFactory.successVoid();
             }
         };
     }

@@ -8,6 +8,7 @@ import com.example.bookexchange.common.audit.service.AuditService;
 import com.example.bookexchange.common.audit.service.VersionedEntityTransitionHelper;
 import com.example.bookexchange.common.i18n.MessageKey;
 import com.example.bookexchange.common.result.Result;
+import com.example.bookexchange.common.storage.ImageStorageService;
 import com.example.bookexchange.support.unit.UnitFixtureIds;
 import com.example.bookexchange.support.unit.UnitTestDataFactory;
 import com.example.bookexchange.user.dto.UserDTO;
@@ -27,17 +28,19 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import java.util.Optional;
 
 import static com.example.bookexchange.common.i18n.MessageKey.AUTH_LOGOUT;
+import static com.example.bookexchange.common.i18n.MessageKey.AUTH_NICKNAME_ALREADY_EXISTS;
 import static com.example.bookexchange.common.i18n.MessageKey.AUTH_PASSWORD_CHANGED;
 import static com.example.bookexchange.common.i18n.MessageKey.AUTH_SAME_PASSWORDS;
 import static com.example.bookexchange.common.i18n.MessageKey.AUTH_WRONG_ACTUAL_PASSWORD;
-import static com.example.bookexchange.common.i18n.MessageKey.AUTH_NICKNAME_ALREADY_EXISTS;
 import static com.example.bookexchange.common.i18n.MessageKey.USER_ACCOUNT_DELETED;
+import static com.example.bookexchange.common.i18n.MessageKey.USER_PROFILE_PHOTO_DELETED;
 import static com.example.bookexchange.common.result.ResultFactory.ok;
 import static com.example.bookexchange.common.result.ResultFactory.okMessage;
 import static com.example.bookexchange.support.unit.ResultAssertions.assertFailure;
 import static com.example.bookexchange.support.unit.ResultAssertions.assertSuccess;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -69,6 +72,9 @@ class UserServiceImplTest {
     @Mock
     private VersionedEntityTransitionHelper versionedEntityTransitionHelper;
 
+    @Mock
+    private ImageStorageService imageStorageService;
+
     @InjectMocks
     private UserServiceImpl userService;
 
@@ -95,6 +101,7 @@ class UserServiceImplTest {
         when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
         when(versionedEntityTransitionHelper.requireVersion(any(User.class), any(Long.class), any(String.class), any()))
                 .thenReturn(ok(user));
+        when(imageStorageService.deleteAllUserImages(user.getId())).thenReturn(ok(null));
         when(refreshTokenService.deleteUserTokens(user)).thenReturn(ok(user));
         when(verificationTokenService.deleteUserTokens(user)).thenReturn(ok(user));
 
@@ -105,7 +112,54 @@ class UserServiceImplTest {
         assertThat(user.getNickname()).isEqualTo("anonymized-" + user.getId());
         assertThat(user.getPassword()).isEmpty();
         assertThat(user.getDeletedAt()).isNotNull();
+        assertThat(user.getPhotoUrl()).isNull();
         verify(bookService).softDeleteBooks(any(User.class), any());
+        verify(imageStorageService).deleteAllUserImages(user.getId());
+    }
+
+    @Test
+    void shouldDeleteUserPhoto_whenVersionMatchesAndPhotoExists() {
+        User user = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, "reader@example.com", "reader_one");
+        UserDTO userDto = mock(UserDTO.class);
+        user.setPhotoUrl("https://book-exchange-test.s3.eu-central-1.amazonaws.com/users/" + user.getId() + "/profile_photo_test.jpg");
+
+        when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
+        when(versionedEntityTransitionHelper.requireVersion(any(User.class), any(Long.class), any(String.class), any()))
+                .thenReturn(ok(user));
+        when(imageStorageService.deleteUserProfileImage(user.getId())).thenReturn(ok(null));
+        when(userRepository.save(user)).thenReturn(user);
+        when(userMapper.userToUserDto(user)).thenReturn(userDto);
+
+        Result<UserDTO> result = userService.deleteUserPhoto(user.getId(), user.getVersion());
+
+        assertSuccess(result, HttpStatus.OK, USER_PROFILE_PHOTO_DELETED);
+        assertThat(user.getPhotoUrl()).isNull();
+        verify(imageStorageService).deleteUserProfileImage(user.getId());
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    void shouldKeepExistingPhoto_whenUpdateUserReceivesBlankPhotoBase64() {
+        User user = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, "reader@example.com", "reader_one");
+        user.setPhotoUrl("https://book-exchange-test.s3.eu-central-1.amazonaws.com/users/" + user.getId() + "/profile_photo_existing.jpg");
+
+        UserUpdateDTO dto = UnitTestDataFactory.userUpdateDto("reader_updated");
+        dto.setPhotoBase64(" ");
+
+        UserDTO userDto = mock(UserDTO.class);
+
+        when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
+        when(versionedEntityTransitionHelper.requireVersion(any(User.class), any(Long.class), any(String.class), any()))
+                .thenReturn(ok(user));
+        when(userRepository.findByNickname(dto.getNickname())).thenReturn(Optional.empty());
+        when(userRepository.save(user)).thenReturn(user);
+        when(userMapper.userToUserDto(user)).thenReturn(userDto);
+
+        Result<UserDTO> result = userService.updateUser(user.getId(), dto, user.getVersion());
+
+        assertSuccess(result, HttpStatus.OK, MessageKey.USER_PROFILE_UPDATED);
+        assertThat(user.getPhotoUrl()).isEqualTo("https://book-exchange-test.s3.eu-central-1.amazonaws.com/users/" + user.getId() + "/profile_photo_existing.jpg");
+        verify(imageStorageService, never()).replaceUserProfileImage(any(), any());
     }
 
     @Test

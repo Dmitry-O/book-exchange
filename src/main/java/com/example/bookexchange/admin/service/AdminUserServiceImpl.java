@@ -15,6 +15,7 @@ import com.example.bookexchange.common.dto.PageQueryDTO;
 import com.example.bookexchange.common.i18n.MessageKey;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.common.result.ResultFactory;
+import com.example.bookexchange.common.storage.ImageStorageService;
 import com.example.bookexchange.common.util.ETagUtil;
 import com.example.bookexchange.user.model.User;
 import com.example.bookexchange.user.model.UserRole;
@@ -47,6 +48,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     private final AuditService auditService;
     private final SoftDeleteFilterHelper softDeleteFilterHelper;
     private final VersionedEntityTransitionHelper versionedEntityTransitionHelper;
+    private final ImageStorageService imageStorageService;
 
     @Transactional(readOnly = true)
     @Override
@@ -363,17 +365,26 @@ public class AdminUserServiceImpl implements AdminUserService {
                         return versionValidation.map(adminMapper::userToUserAdminDto);
                     }
 
+                    Result<Void> deletedImagesResult = imageStorageService.deleteAllUserImages(userId);
+
+                    if (deletedImagesResult.isFailure()) {
+                        return deletedImagesResult.map(v -> adminMapper.userToUserAdminDto(user));
+                    }
+
                     String oldUserEmail = user.getEmail();
                     Instant deletedAt = Instant.now();
 
                     user.setEmail("anonymized-" + user.getId() + "@anonymized.anonymized");
                     user.setNickname("anonymized-" + user.getId());
-                    user.setPhotoBase64(null);
+                    user.setPhotoUrl(null);
                     user.setPassword("");
                     user.setDeletedAt(deletedAt);
 
                     bookRepository.findAllByUserIdAndDeletedAtIsNull(userId)
-                            .forEach(book -> book.setDeletedAt(deletedAt));
+                            .forEach(book -> {
+                                book.setDeletedAt(deletedAt);
+                                book.setPhotoUrl(null);
+                            });
 
                     refreshTokenRepository.deleteByUserId(userId);
                     verificationTokenRepository.deleteByUserId(userId);

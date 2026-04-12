@@ -77,7 +77,7 @@ public class UserController {
                                             "id": 1,
                                             "email": "example@info.com",
                                             "nickname": "user_12345",
-                                            "photoBase64": "User photo",
+                                            "photoUrl": "https://book-exchange-prod.s3.eu-central-1.amazonaws.com/users/42/profile_photo_1712582410000.jpg",
                                             "bannedUntil": "2026-04-21T12:00:00Z",
                                             "bannedPermanently": false,
                                             "banReason": "Spam distribution",
@@ -110,6 +110,41 @@ public class UserController {
             HttpServletRequest request
     ) {
         return responseMapper.map(userService.updateUser(userId, dto, parserUtil.ifMatchParser(ifMatch)), request);
+    }
+
+    @UnauthorizedErrorResponse
+    @ConflictErrorResponse
+    @NotFoundErrorResponse
+    @BadRequestErrorResponse
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "200",
+            description = "User profile photo has been deleted",
+            headers = @Header(
+                    name = "ETag",
+                    description = "Entity version",
+                    schema = @Schema(type = "string", example = "\"3\"")
+            ),
+            content = @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = UserDTO.class)
+            )
+    )
+    @DeleteMapping(UserPaths.USER_PATH_PHOTO)
+    public ResponseEntity<?> deleteUserPhoto(
+            @Parameter(description = "User ID", example = "1")
+            @CurrentUser Long userId,
+
+            @Parameter(
+                    name = "If-Match",
+                    description = "Entity version for optimistic locking",
+                    example = "\"3\"",
+                    required = true
+            )
+            @RequestHeader("If-Match") String ifMatch,
+
+            HttpServletRequest request
+    ) {
+        return responseMapper.map(userService.deleteUserPhoto(userId, parserUtil.ifMatchParser(ifMatch)), request);
     }
 
     @UnauthorizedErrorResponse
