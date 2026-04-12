@@ -14,6 +14,7 @@ import com.example.bookexchange.report.model.Report;
 import com.example.bookexchange.report.model.ReportReason;
 import com.example.bookexchange.report.model.ReportStatus;
 import com.example.bookexchange.report.model.TargetType;
+import com.example.bookexchange.support.TestReportStrings;
 import com.example.bookexchange.user.dto.UserCreateDTO;
 import com.example.bookexchange.user.dto.UserForgotPasswordDTO;
 import com.example.bookexchange.user.dto.UserInitiateDeleteAccountDTO;
@@ -28,9 +29,12 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.Base64;
 
+import static org.springframework.security.core.userdetails.User.withUsername;
+
 public final class UnitTestDataFactory {
 
     private static final String BASE64_PHOTO = Base64.getEncoder().encodeToString("photo".getBytes());
+    private static final String PHOTO_URL = "https://test-bucket.s3.eu-central-1.amazonaws.com/test-image.jpg";
 
     private UnitTestDataFactory() {
     }
@@ -62,7 +66,7 @@ public final class UnitTestDataFactory {
         book.setAuthor("Author");
         book.setCategory("Drama");
         book.setPublicationYear(2020);
-        book.setPhotoBase64(BASE64_PHOTO);
+        book.setPhotoUrl(PHOTO_URL);
         book.setCity("Berlin");
         book.setContactDetails("Telegram: reader");
         book.setIsGift(false);
@@ -100,7 +104,7 @@ public final class UnitTestDataFactory {
         report.setTargetType(targetType);
         report.setTargetId(targetId);
         report.setReason(ReportReason.SPAM);
-        report.setComment("Looks suspicious");
+        report.setComment(TestReportStrings.comment("Looks suspicious"));
         report.setStatus(status);
         report.setVersion(1L);
         return report;
@@ -195,22 +199,14 @@ public final class UnitTestDataFactory {
         return ReportCreateDTO.builder()
                 .targetType(targetType)
                 .reason(ReportReason.SPAM)
-                .comment("Looks suspicious")
-                .build();
-    }
-
-    public static BanUserDTO temporaryBanDto() {
-        return BanUserDTO.builder()
-                .bannedUntil(OffsetDateTime.now().plusDays(7))
-                .bannedPermanently(false)
-                .banReason("Spam")
+                .comment(TestReportStrings.comment("Looks suspicious"))
                 .build();
     }
 
     public static BanUserDTO permanentBanDto() {
         return BanUserDTO.builder()
                 .bannedPermanently(true)
-                .banReason("Fraud")
+                .banReason(TestReportStrings.banReason("Fraud"))
                 .build();
     }
 
@@ -222,7 +218,7 @@ public final class UnitTestDataFactory {
     }
 
     public static UserDetails adminPrincipal(String email) {
-        return org.springframework.security.core.userdetails.User.withUsername(email)
+        return withUsername(email)
                 .password("secret")
                 .authorities("ROLE_ADMIN")
                 .build();

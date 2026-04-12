@@ -1,0 +1,5 @@
+ALTER TABLE app_user
+    ADD COLUMN photo_url VARCHAR(1024) NULL;
+
+ALTER TABLE book
+    ADD COLUMN photo_url VARCHAR(1024) NULL;

@@ -7,6 +7,7 @@ import com.example.bookexchange.book.service.BookService;
 import com.example.bookexchange.common.result.Failure;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.common.result.Success;
+import com.example.bookexchange.support.TestBookStrings;
 import lombok.RequiredArgsConstructor;
 
 import java.nio.charset.StandardCharsets;
@@ -23,14 +24,14 @@ public class BookFixtureSupport {
 
     private BookCreateDTO generateBookCreateDTO(Integer bookNumber) {
         return BookCreateDTO.builder()
-                .name("Book " + bookNumber)
-                .description("Book " + bookNumber)
-                .author("Author " + bookNumber)
-                .category("Category " + bookNumber)
+                .name(TestBookStrings.name(bookNumber))
+                .description(TestBookStrings.description(bookNumber))
+                .author(TestBookStrings.author(bookNumber))
+                .category(TestBookStrings.category(bookNumber))
                 .publicationYear(2000)
                 .photoBase64(validPhotoBase64(bookNumber))
-                .city("City " + bookNumber)
-                .contactDetails("Contact Details " + bookNumber)
+                .city(TestBookStrings.city(bookNumber))
+                .contactDetails(TestBookStrings.contactDetails(bookNumber))
                 .isGift(false)
                 .build();
     }

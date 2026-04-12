@@ -7,6 +7,8 @@ import com.example.bookexchange.auth.repository.RefreshTokenRepository;
 import com.example.bookexchange.book.model.Book;
 import com.example.bookexchange.book.repository.BookRepository;
 import com.example.bookexchange.common.i18n.MessageKey;
+import com.example.bookexchange.support.FixtureNumbers;
+import com.example.bookexchange.support.TestUserStrings;
 import com.example.bookexchange.user.dto.UserCreateDTO;
 import com.example.bookexchange.user.dto.UserResetPasswordDTO;
 import com.example.bookexchange.user.dto.UserUpdateDTO;
@@ -84,6 +86,7 @@ class UserControllerIT extends IntegrationTestSupport {
         assertThat(data.path("email").asText()).isEqualTo(fixture.user().getEmail());
         assertThat(data.path("nickname").asText()).isEqualTo(fixture.user().getNickname());
         assertThat(data.path("locale").asText()).isEqualTo(fixture.user().getLocale());
+        assertThat(data.path("photoUrl").isNull()).isTrue();
         assertThat(eTagVersion(mvcResult)).isEqualTo(fixture.user().getVersion());
     }
 
@@ -91,7 +94,7 @@ class UserControllerIT extends IntegrationTestSupport {
     void shouldUpdateUser_whenPayloadIsValid() throws Exception {
         UserFixture fixture = createUserFixture(201);
         UserUpdateDTO dto = UserUpdateDTO.builder()
-                .nickname("updated_user_201")
+                .nickname(TestUserStrings.updatedNickname(201))
                 .photoBase64(validBase64("updated-user-photo"))
                 .locale("de")
                 .build();
@@ -115,10 +118,39 @@ class UserControllerIT extends IntegrationTestSupport {
         assertThat(body.path("data").path("id").asLong()).isEqualTo(updatedUser.getId());
         assertThat(body.path("data").path("nickname").asText()).isEqualTo(dto.getNickname());
         assertThat(body.path("data").path("locale").asText()).isEqualTo(dto.getLocale());
+        assertThat(body.path("data").path("photoUrl").asText()).isEqualTo(expectedUserPhotoUrl(updatedUser.getId()));
         assertThat(updatedUser.getNickname()).isEqualTo(dto.getNickname());
-        assertThat(updatedUser.getPhotoBase64()).isEqualTo(dto.getPhotoBase64());
+        assertThat(updatedUser.getPhotoUrl()).isEqualTo(expectedUserPhotoUrl(updatedUser.getId()));
         assertThat(updatedUser.getLocale()).isEqualTo(dto.getLocale());
         assertThat(mvcResult.getResponse().getHeader(HttpHeaders.ETAG)).isNotBlank();
+    }
+
+    @Test
+    void shouldDeleteUserPhoto_whenPhotoExists() throws Exception {
+        UserFixture fixture = createUserFixture(2011);
+        User userWithPhoto = userRepository.findById(fixture.user().getId()).orElseThrow();
+        userWithPhoto.setPhotoUrl(expectedUserPhotoUrl(userWithPhoto.getId()));
+        userRepository.save(userWithPhoto);
+        clearPersistenceContext();
+
+        Long currentVersion = userRepository.findById(fixture.user().getId()).orElseThrow().getVersion();
+
+        MvcResult mvcResult = mockMvc.perform(delete(UserPaths.USER_PATH_PHOTO)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(fixture.user()))
+                        .header(HttpHeaders.IF_MATCH, ifMatch(currentVersion))
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(header().exists(HttpHeaders.ETAG))
+                .andReturn();
+
+        clearPersistenceContext();
+
+        User updatedUser = userRepository.findById(fixture.user().getId()).orElseThrow();
+        JsonNode body = responseBody(mvcResult);
+
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(body.path("data").path("photoUrl").isNull()).isTrue();
+        assertThat(updatedUser.getPhotoUrl()).isNull();
     }
 
     @Test
@@ -144,7 +176,7 @@ class UserControllerIT extends IntegrationTestSupport {
 
     @Test
     void shouldReturnConflict_whenUpdateUserNicknameAlreadyExists() throws Exception {
-        User existingUser = userUtil.createUser(203);
+        User existingUser = userUtil.createUser(FixtureNumbers.user(203));
         UserFixture fixture = createUserFixture(204);
         UserUpdateDTO dto = UserUpdateDTO.builder()
                 .nickname(existingUser.getNickname())
@@ -168,7 +200,7 @@ class UserControllerIT extends IntegrationTestSupport {
     void shouldReturnConflict_whenUpdateUserVersionIsStale() throws Exception {
         UserFixture fixture = createUserFixture(205);
         UserUpdateDTO dto = UserUpdateDTO.builder()
-                .nickname("updated_user_205")
+                .nickname(TestUserStrings.updatedNickname(205))
                 .photoBase64(validBase64("user-photo"))
                 .locale("en")
                 .build();
@@ -189,7 +221,7 @@ class UserControllerIT extends IntegrationTestSupport {
     void shouldReturnBadRequest_whenUpdateUserIfMatchHeaderIsInvalid() throws Exception {
         UserFixture fixture = createUserFixture(2051);
         UserUpdateDTO dto = UserUpdateDTO.builder()
-                .nickname("updated_user_invalid_etag")
+                .nickname(TestUserStrings.updatedNickname(2051))
                 .photoBase64(validBase64("user-photo"))
                 .locale("en")
                 .build();
@@ -284,7 +316,7 @@ class UserControllerIT extends IntegrationTestSupport {
     @Test
     void shouldDeleteUser_whenVersionIsCurrent() throws Exception {
         UserFixture fixture = createUserFixture(209);
-        Long bookId = bookUtil.createBook(fixture.user().getId(), 209);
+        Long bookId = bookUtil.createBook(fixture.user().getId(), FixtureNumbers.user(209));
 
         MvcResult mvcResult = mockMvc.perform(delete(UserPaths.USER_PATH)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(fixture.user()))

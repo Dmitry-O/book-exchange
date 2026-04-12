@@ -27,7 +27,7 @@ public interface UserMapper {
     @Mapping(target = "version", source = "version")
     @Mapping(target = "email", source = "email")
     @Mapping(target = "nickname", source = "nickname")
-    @Mapping(target = "photoBase64", source = "photoBase64")
+    @Mapping(target = "photoUrl", source = "photoUrl")
     @Mapping(target = "bannedUntil", source = "bannedUntil")
     @Mapping(target = "bannedPermanently", source = "bannedPermanently")
     @Mapping(target = "banReason", source = "banReason")
@@ -37,7 +37,6 @@ public interface UserMapper {
 
     @BeanMapping(ignoreByDefault = true, nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     @Mapping(target = "nickname", source = "dto.nickname")
-    @Mapping(target = "photoBase64", source = "dto.photoBase64")
     @Mapping(target = "locale", source = "dto.locale", qualifiedByName = "normalizeLocale")
     void updateUserDtoToUser(UserUpdateDTO dto, @MappingTarget User user);
 

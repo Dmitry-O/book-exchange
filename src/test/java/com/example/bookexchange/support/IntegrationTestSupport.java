@@ -66,6 +66,7 @@ public abstract class IntegrationTestSupport {
         registry.add("app.email-sent-from", () -> "noreply@test.com");
         registry.add("spring.mvc.servlet.path", () -> "/");
         registry.add("app.base-api-path", () -> "/");
+        registry.add("spring.task.scheduling.enabled", () -> false);
     }
 
     protected MockMvc buildMockMvc() {
@@ -99,6 +100,14 @@ public abstract class IntegrationTestSupport {
 
     protected String validBase64(String value) {
         return Base64.getEncoder().encodeToString(value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    protected String expectedUserPhotoUrl(Long userId) {
+        return "https://book-exchange-test.s3.eu-central-1.amazonaws.com/users/" + userId + "/profile_photo_test.jpg";
+    }
+
+    protected String expectedBookPhotoUrl(Long userId, Long bookId) {
+        return "https://book-exchange-test.s3.eu-central-1.amazonaws.com/users/" + userId + "/books/" + bookId + "_test.jpg";
     }
 
     protected void assertErrorResponse(JsonNode body, int status, String errorType, String path) {

@@ -17,6 +17,8 @@ public interface AdminBookService {
 
     Result<BookAdminDTO> updateBookById(UserDetails adminUser, Long bookId, BookUpdateDTO dto, Long version);
 
+    Result<BookAdminDTO> deleteBookPhotoById(UserDetails adminUser, Long bookId, Long version);
+
     Result<BookAdminDTO> deleteBookById(UserDetails adminUser, Long bookId, Long version);
 
     Result<BookAdminDTO> restoreBookById(UserDetails adminUser, Long bookId, Long version);

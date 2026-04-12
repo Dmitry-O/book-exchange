@@ -9,6 +9,7 @@ import com.example.bookexchange.auth.repository.RefreshTokenRepository;
 import com.example.bookexchange.auth.repository.VerificationTokenRepository;
 import com.example.bookexchange.common.i18n.MessageKey;
 import com.example.bookexchange.support.FixtureNumbers;
+import com.example.bookexchange.support.TestReportStrings;
 import com.example.bookexchange.user.dto.UserCreateDTO;
 import com.example.bookexchange.user.dto.UserForgotPasswordDTO;
 import com.example.bookexchange.user.dto.UserInitiateDeleteAccountDTO;
@@ -236,7 +237,7 @@ class AuthControllerIT extends IntegrationTestSupport {
         UserCreateDTO userCreateDTO = userUtil.buildUserCreateDTO(slot);
         User user = userUtil.createUser(slot);
         user.setBannedUntil(Instant.now().plusSeconds(3_600));
-        user.setBanReason("Temporary ban");
+        user.setBanReason(TestReportStrings.banReason("Temporary ban"));
         userRepository.save(user);
 
         MvcResult mvcResult = mockMvc.perform(post(AuthPaths.AUTH_PATH_LOGIN)
@@ -260,7 +261,7 @@ class AuthControllerIT extends IntegrationTestSupport {
         UserCreateDTO userCreateDTO = userUtil.buildUserCreateDTO(slot);
         User user = userUtil.createUser(slot);
         user.setBannedPermanently(true);
-        user.setBanReason("Permanent ban");
+        user.setBanReason(TestReportStrings.banReason("Permanent ban"));
         userRepository.save(user);
 
         MvcResult mvcResult = mockMvc.perform(post(AuthPaths.AUTH_PATH_LOGIN)

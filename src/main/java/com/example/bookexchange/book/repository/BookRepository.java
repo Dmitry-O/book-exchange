@@ -12,6 +12,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
+import java.time.Instant;
 
 public interface BookRepository extends JpaRepository<Book, Long>, JpaSpecificationExecutor<Book> {
 
@@ -36,6 +37,9 @@ public interface BookRepository extends JpaRepository<Book, Long>, JpaSpecificat
     Optional<Book> findPublicBookById(@Param("bookId") Long bookId);
 
     List<Book> findAllByUserIdAndDeletedAtIsNull(Long userId);
+
+    @EntityGraph(attributePaths = "user")
+    List<Book> findAllByDeletedAtBeforeAndPhotoUrlIsNotNull(Instant deletedAtBefore);
 
     void deleteByUserId(Long userId);
 }

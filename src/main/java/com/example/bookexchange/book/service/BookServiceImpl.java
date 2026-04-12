@@ -18,6 +18,7 @@ import com.example.bookexchange.book.dto.BookUpdateDTO;
 import com.example.bookexchange.book.model.BookType;
 import com.example.bookexchange.common.dto.SortDirectionDTO;
 import com.example.bookexchange.common.i18n.MessageKey;
+import com.example.bookexchange.common.storage.ImageStorageService;
 import com.example.bookexchange.user.model.User;
 import com.example.bookexchange.user.repository.UserRepository;
 import com.example.bookexchange.common.util.ETagUtil;
@@ -29,6 +30,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
 
 import java.time.Instant;
 
@@ -41,6 +43,7 @@ public class BookServiceImpl implements BookService {
     private final BookMapper bookMapper;
     private final AuditService auditService;
     private final VersionedEntityTransitionHelper versionedEntityTransitionHelper;
+    private final ImageStorageService imageStorageService;
 
     @Transactional
     @Override
@@ -50,22 +53,36 @@ public class BookServiceImpl implements BookService {
                 .flatMap(user -> {
                     Book book = bookMapper.bookDtoToBook(dto);
                     book.setUser(user);
-                    book = bookRepository.save(book);
+                    Book persistedBook = bookRepository.save(book);
 
-                    auditService.log(AuditEvent.builder()
-                            .action("BOOK_CREATE")
-                            .result(AuditResult.SUCCESS)
-                            .actorId(userId)
-                            .detail("bookId", book.getId())
-                            .detail("bookName", book.getName())
-                            .build()
-                    );
+                    Result<Book> savedBookResult = dto.getPhotoBase64() != null && !dto.getPhotoBase64().isBlank()
+                            ? imageStorageService.replaceBookImage(userId, persistedBook.getId(), dto.getPhotoBase64())
+                            .flatMap(photoUrl -> {
+                                persistedBook.setPhotoUrl(photoUrl);
+                                return ResultFactory.ok(bookRepository.save(persistedBook));
+                            })
+                            : ResultFactory.ok(persistedBook);
 
-                    return ResultFactory.created(
-                            bookMapper.bookToBookDto(book),
-                            MessageKey.BOOK_CREATED,
-                            ETagUtil.form(book)
-                    );
+                    if (savedBookResult.isFailure()) {
+                        return rollbackOnFailure(savedBookResult.map(bookMapper::bookToBookDto));
+                    }
+
+                    return savedBookResult.flatMap(savedBook -> {
+                        auditService.log(AuditEvent.builder()
+                                .action("BOOK_CREATE")
+                                .result(AuditResult.SUCCESS)
+                                .actorId(userId)
+                                .detail("bookId", savedBook.getId())
+                                .detail("bookName", savedBook.getName())
+                                .build()
+                        );
+
+                        return ResultFactory.created(
+                                bookMapper.bookToBookDto(savedBook),
+                                MessageKey.BOOK_CREATED,
+                                ETagUtil.form(savedBook)
+                        );
+                    });
                 });
     }
 
@@ -162,14 +179,56 @@ public class BookServiceImpl implements BookService {
                         return versionValidation.map(bookMapper::bookToBookDto);
                     }
                     bookMapper.updateBookDtoToBook(dto, book);
-                    bookRepository.save(book);
-                    logBookSuccess("BOOK_UPDATE", userId, book);
 
-                    return ResultFactory.updated(
-                            bookMapper.bookToBookDto(book),
-                            MessageKey.BOOK_UPDATED,
-                            ETagUtil.form(book)
-                    );
+                    Result<Book> updatedBookResult = applyPhotoChange(book, dto.getPhotoBase64(), userId, bookId);
+
+                    if (updatedBookResult.isFailure()) {
+                        return rollbackOnFailure(updatedBookResult.map(bookMapper::bookToBookDto));
+                    }
+
+                    return updatedBookResult.flatMap(updatedBook -> {
+                        logBookSuccess("BOOK_UPDATE", userId, updatedBook);
+
+                        return ResultFactory.updated(
+                                bookMapper.bookToBookDto(updatedBook),
+                                MessageKey.BOOK_UPDATED,
+                                ETagUtil.form(updatedBook)
+                        );
+                    });
+                });
+    }
+
+    @Transactional
+    @Override
+    public Result<BookDTO> deleteUserBookPhoto(Long userId, Long bookId, Long version) {
+        return findUserBook(userId, bookId)
+                .flatMap(book -> {
+                    Result<Book> versionValidation = validateBookVersion(book, version, "BOOK_PHOTO_DELETE", userId);
+
+                    if (versionValidation.isFailure()) {
+                        return versionValidation.map(bookMapper::bookToBookDto);
+                    }
+
+                    if (book.getPhotoUrl() == null || book.getPhotoUrl().isBlank()) {
+                        return ResultFactory.updated(
+                                bookMapper.bookToBookDto(book),
+                                MessageKey.BOOK_PHOTO_DELETED,
+                                ETagUtil.form(book)
+                        );
+                    }
+
+                    return imageStorageService.deleteBookImage(userId, bookId)
+                            .flatMap(v -> {
+                                book.setPhotoUrl(null);
+                                Book updatedBook = bookRepository.save(book);
+                                logBookSuccess("BOOK_PHOTO_DELETE", userId, updatedBook);
+
+                                return ResultFactory.updated(
+                                        bookMapper.bookToBookDto(updatedBook),
+                                        MessageKey.BOOK_PHOTO_DELETED,
+                                        ETagUtil.form(updatedBook)
+                                );
+                            });
                 });
     }
 
@@ -213,7 +272,10 @@ public class BookServiceImpl implements BookService {
     @Override
     public void softDeleteBooks(User user, Instant deletedAt) {
         bookRepository.findAllByUserIdAndDeletedAtIsNull(user.getId())
-                .forEach(book -> book.setDeletedAt(deletedAt));
+                .forEach(book -> {
+                    book.setDeletedAt(deletedAt);
+                    book.setPhotoUrl(null);
+                });
     }
 
     private void logBookSuccess(String action, Long actorId, Book book) {
@@ -225,6 +287,23 @@ public class BookServiceImpl implements BookService {
                 .detail("bookId", book.getId())
                 .detail("bookName", book.getName())
                 .build());
+    }
+
+    private Result<Book> applyPhotoChange(Book book, String photoBase64, Long userId, Long bookId) {
+        if (photoBase64 == null || photoBase64.isBlank()) {
+            return ResultFactory.ok(bookRepository.save(book));
+        }
+
+        return imageStorageService.replaceBookImage(userId, bookId, photoBase64)
+                .flatMap(photoUrl -> {
+                    book.setPhotoUrl(photoUrl);
+                    return ResultFactory.ok(bookRepository.save(book));
+                });
+    }
+
+    private <T> Result<T> rollbackOnFailure(Result<T> result) {
+        TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+        return result;
     }
 
 }

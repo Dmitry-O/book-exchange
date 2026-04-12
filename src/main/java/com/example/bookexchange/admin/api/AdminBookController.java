@@ -120,7 +120,7 @@ public class AdminBookController {
                                             "author": "Frank Oester",
                                             "category": "Drama",
                                             "publicationYear": 1765,
-                                            "photoBase64": "Book photo",
+                                            "photoUrl": "https://book-exchange-prod.s3.eu-central-1.amazonaws.com/users/42/books/15_1712582410000.jpg",
                                             "city": "London",
                                             "isGift": true,
                                             "isExchanged": false,
@@ -175,6 +175,51 @@ public class AdminBookController {
     @UnauthorizedErrorResponse
     @ConflictErrorResponse
     @NotFoundErrorResponse
+    @BadRequestErrorResponse
+    @ForbiddenErrorResponse
+    @ApiResponse(
+            responseCode = "200",
+            description = "The book photo has been deleted",
+            headers = @Header(
+                    name = "ETag",
+                    description = "Entity version",
+                    schema = @Schema(type = "string", example = "\"3\"")
+            ),
+            content = @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = BookAdminDTO.class)
+            )
+    )
+    @DeleteMapping(AdminPaths.ADMIN_PATH_BOOKS_ID_PHOTO)
+    public ResponseEntity<?> adminDeleteBookPhotoById(
+            @AuthenticationPrincipal UserDetails adminUser,
+
+            @Parameter(description = "Book ID", example = "1")
+            @PathVariable Long bookId,
+
+            @Parameter(
+                    name = "If-Match",
+                    description = "Entity version for optimistic locking",
+                    example = "\"3\"",
+                    required = true
+            )
+            @RequestHeader("If-Match") String ifMatch,
+
+            HttpServletRequest request
+    ) {
+        return responseMapper.map(
+                adminBookService.deleteBookPhotoById(
+                        adminUser,
+                        bookId,
+                        parserUtil.ifMatchParser(ifMatch)
+                ),
+                request
+        );
+    }
+
+    @UnauthorizedErrorResponse
+    @ConflictErrorResponse
+    @NotFoundErrorResponse
     @ForbiddenErrorResponse
     @ApiResponse(
             responseCode = "200",
@@ -198,7 +243,7 @@ public class AdminBookController {
                                             "author": "Frank Oester",
                                             "category": "Drama",
                                             "publicationYear": 1765,
-                                            "photoBase64": "Book photo",
+                                            "photoUrl": "https://book-exchange-prod.s3.eu-central-1.amazonaws.com/users/42/books/15_1712582410000.jpg",
                                             "city": "London",
                                             "isGift": true,
                                             "isExchanged": false,
@@ -268,7 +313,7 @@ public class AdminBookController {
                                             "author": "Frank Oester",
                                             "category": "Drama",
                                             "publicationYear": 1765,
-                                            "photoBase64": "Book photo",
+                                            "photoUrl": "https://book-exchange-prod.s3.eu-central-1.amazonaws.com/users/42/books/15_1712582410000.jpg",
                                             "city": "London",
                                             "isGift": true,
                                             "isExchanged": false,

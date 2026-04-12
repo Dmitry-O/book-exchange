@@ -15,6 +15,7 @@ import com.example.bookexchange.user.repository.UserRepository;
 import com.example.bookexchange.support.fixture.BookFixtureSupport;
 import com.example.bookexchange.support.PageTestDefaults;
 import com.example.bookexchange.support.FixtureNumbers;
+import com.example.bookexchange.support.TestReportStrings;
 import com.example.bookexchange.support.fixture.UserFixtureSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.BeforeEach;
@@ -314,7 +315,7 @@ class AdminUserControllerIT extends IntegrationTestSupport {
         String refreshToken = refreshTokenService.createToken(targetUser);
         BanUserDTO dto = BanUserDTO.builder()
                 .bannedUntil(OffsetDateTime.parse("2026-05-01T12:00:00Z"))
-                .banReason("Repeated spam offers")
+                .banReason(TestReportStrings.banReason("Repeated spam offers"))
                 .build();
 
         MvcResult mvcResult = mockMvc.perform(patch(AdminPaths.ADMIN_PATH_USERS_ID_BAN, targetUser.getId())
@@ -345,7 +346,7 @@ class AdminUserControllerIT extends IntegrationTestSupport {
         User admin = userUtil.createAdmin(FixtureNumbers.adminUser(14));
         BanUserDTO dto = BanUserDTO.builder()
                 .bannedPermanently(true)
-                .banReason("Should not happen")
+                .banReason(TestReportStrings.banReason("Should not happen"))
                 .build();
 
         MvcResult mvcResult = mockMvc.perform(patch(AdminPaths.ADMIN_PATH_USERS_ID_BAN, admin.getId())
@@ -370,7 +371,7 @@ class AdminUserControllerIT extends IntegrationTestSupport {
         User admin = userUtil.createAdmin(FixtureNumbers.adminUser(26));
         User targetUser = userUtil.createUser(FixtureNumbers.adminUser(27));
         BanUserDTO dto = BanUserDTO.builder()
-                .banReason("Missing ban window")
+                .banReason(TestReportStrings.banReason("Missing ban window"))
                 .build();
 
         MvcResult mvcResult = mockMvc.perform(patch(AdminPaths.ADMIN_PATH_USERS_ID_BAN, targetUser.getId())
@@ -393,7 +394,7 @@ class AdminUserControllerIT extends IntegrationTestSupport {
         User admin = userUtil.createAdmin(FixtureNumbers.adminUser(15));
         User targetUser = userUtil.createUser(FixtureNumbers.adminUser(16));
         targetUser.setBannedUntil(OffsetDateTime.parse("2026-05-01T12:00:00Z").toInstant());
-        targetUser.setBanReason("Old ban");
+        targetUser.setBanReason(TestReportStrings.banReason("Old ban"));
         userRepository.save(targetUser);
 
         clearPersistenceContext();

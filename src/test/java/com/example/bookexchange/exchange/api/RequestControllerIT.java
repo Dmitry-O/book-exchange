@@ -8,6 +8,7 @@ import com.example.bookexchange.exchange.repository.ExchangeRepository;
 import com.example.bookexchange.book.model.Book;
 import com.example.bookexchange.book.repository.BookRepository;
 import com.example.bookexchange.common.i18n.MessageKey;
+import com.example.bookexchange.support.FixtureNumbers;
 import com.example.bookexchange.user.model.User;
 import com.example.bookexchange.support.fixture.BookFixtureSupport;
 import com.example.bookexchange.support.fixture.ExchangeFixtureSupport;
@@ -89,7 +90,7 @@ class RequestControllerIT extends IntegrationTestSupport {
 
     @Test
     void shouldReturnBadRequest_whenCreateRequestPayloadIsInvalid() throws Exception {
-        User sender = userUtil.createUser(401);
+        User sender = userUtil.createUser(FixtureNumbers.request(401));
 
         MvcResult mvcResult = mockMvc.perform(post(ExchangePaths.REQUEST_PATH)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(sender))
@@ -104,9 +105,9 @@ class RequestControllerIT extends IntegrationTestSupport {
 
     @Test
     void shouldReturnBadRequest_whenUserCreatesRequestWithThemself() throws Exception {
-        User user = userUtil.createUser(402);
-        Long senderBookId = bookUtil.createBook(user.getId(), 402);
-        Long receiverBookId = bookUtil.createBook(user.getId(), 403);
+        User user = userUtil.createUser(FixtureNumbers.request(402));
+        Long senderBookId = bookUtil.createBook(user.getId(), FixtureNumbers.request(402));
+        Long receiverBookId = bookUtil.createBook(user.getId(), FixtureNumbers.request(403));
         RequestCreateDTO dto = RequestCreateDTO.builder()
                 .receiverUserId(user.getId())
                 .senderBookId(senderBookId)
@@ -222,9 +223,9 @@ class RequestControllerIT extends IntegrationTestSupport {
     @Test
     void shouldReturnPendingRequests_whenSenderGetsRequests() throws Exception {
         ExchangeFixture pendingFixture = createPendingExchange(408);
-        User secondReceiver = userUtil.createUser(410);
-        Long secondSenderBookId = bookUtil.createBook(pendingFixture.sender().getId(), 411);
-        Long secondReceiverBookId = bookUtil.createBook(secondReceiver.getId(), 412);
+        User secondReceiver = userUtil.createUser(FixtureNumbers.request(410));
+        Long secondSenderBookId = bookUtil.createBook(pendingFixture.sender().getId(), FixtureNumbers.request(411));
+        Long secondReceiverBookId = bookUtil.createBook(secondReceiver.getId(), FixtureNumbers.request(412));
         Long approvedExchangeId = exchangeUtilIT.createExchange(
                 pendingFixture.sender().getId(),
                 secondReceiver.getId(),

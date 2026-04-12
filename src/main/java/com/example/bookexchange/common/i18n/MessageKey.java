@@ -26,11 +26,13 @@ public enum MessageKey {
     USER_ACCOUNT_NOT_FOUND("user.not.found"),
     USER_RECEIVER_NOT_FOUND("user.receiver.not.found"),
     USER_PROFILE_UPDATED("user.profile.updated"),
+    USER_PROFILE_PHOTO_DELETED("user.profile.photo.deleted"),
     USER_ACCOUNT_DELETED("user.account.deleted"),
 
     BOOK_CREATED("book.created"),
     BOOK_DELETED("book.deleted"),
     BOOK_UPDATED("book.updated"),
+    BOOK_PHOTO_DELETED("book.photo.deleted"),
     BOOK_NOT_FOUND("book.not.found"),
     BOOK_PUBLIC_NOT_FOUND("book.public.not.found"),
     BOOK_ALREADY_EXCHANGED("book.already.exchanged"),
@@ -69,6 +71,7 @@ public enum MessageKey {
     ADMIN_BOOK_NOT_FOUND("admin.book.not.found"),
     ADMIN_BOOK_DELETED("admin.book.deleted"),
     ADMIN_BOOK_UPDATED("admin.book.updated"),
+    ADMIN_BOOK_PHOTO_DELETED("admin.book.photo.deleted"),
     ADMIN_REPORT_NOT_FOUND("admin.report.not.found"),
     ADMIN_REPORT_RESOLVED("admin.report.resolved"),
     ADMIN_REPORT_REJECTED("admin.report.rejected"),
@@ -84,7 +87,9 @@ public enum MessageKey {
     SYSTEM_TOO_MANY_REQUESTS("system.too.many.requests"),
     SYSTEM_UNEXPECTED_DB_ERROR("system.unexpected.db.error"),
     SYSTEM_OPTIMISTIC_LOCK("system.optimistic.lock"),
-    SYSTEM_INVALID_DATA("system.invalid.data");
+    SYSTEM_INVALID_DATA("system.invalid.data"),
+    SYSTEM_INVALID_IMAGE("system.invalid.image"),
+    SYSTEM_IMAGE_STORAGE_ERROR("system.image.storage.error");
 
     private final String key;
 

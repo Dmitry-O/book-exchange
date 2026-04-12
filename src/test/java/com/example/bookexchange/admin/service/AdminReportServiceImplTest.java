@@ -2,6 +2,7 @@ package com.example.bookexchange.admin.service;
 
 import com.example.bookexchange.admin.dto.ReportAdminDTO;
 import com.example.bookexchange.common.audit.service.AuditService;
+import com.example.bookexchange.common.audit.service.VersionedEntityTransitionHelper;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.report.mapper.ReportMapper;
 import com.example.bookexchange.report.model.Report;
@@ -10,7 +11,6 @@ import com.example.bookexchange.report.model.TargetType;
 import com.example.bookexchange.report.repository.ReportRepository;
 import com.example.bookexchange.support.unit.UnitFixtureIds;
 import com.example.bookexchange.support.unit.UnitTestDataFactory;
-import com.example.bookexchange.common.audit.service.VersionedEntityTransitionHelper;
 import com.example.bookexchange.user.model.User;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,6 +31,7 @@ import static com.example.bookexchange.support.unit.ResultAssertions.assertFailu
 import static com.example.bookexchange.support.unit.ResultAssertions.assertSuccess;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -55,7 +56,7 @@ class AdminReportServiceImplTest {
     void shouldSetResolvedStatus_whenAdminResolvesReportWithCurrentVersion() {
         User reporter = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, "reporter@example.com", "reporter_one");
         Report report = UnitTestDataFactory.report(UnitFixtureIds.REPORT_ID, reporter, TargetType.USER, UnitFixtureIds.TARGET_USER_ID, ReportStatus.OPEN);
-        ReportAdminDTO dto = org.mockito.Mockito.mock(ReportAdminDTO.class);
+        ReportAdminDTO dto = mock(ReportAdminDTO.class);
         UserDetails admin = UnitTestDataFactory.adminPrincipal("admin@example.com");
 
         when(reportRepository.findById(report.getId())).thenReturn(Optional.of(report));
@@ -73,7 +74,7 @@ class AdminReportServiceImplTest {
     void shouldSetRejectedStatus_whenAdminRejectsReportWithCurrentVersion() {
         User reporter = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, "reporter@example.com", "reporter_one");
         Report report = UnitTestDataFactory.report(UnitFixtureIds.REPORT_ID, reporter, TargetType.USER, UnitFixtureIds.TARGET_USER_ID, ReportStatus.OPEN);
-        ReportAdminDTO dto = org.mockito.Mockito.mock(ReportAdminDTO.class);
+        ReportAdminDTO dto = mock(ReportAdminDTO.class);
         UserDetails admin = UnitTestDataFactory.adminPrincipal("admin@example.com");
 
         when(reportRepository.findById(report.getId())).thenReturn(Optional.of(report));

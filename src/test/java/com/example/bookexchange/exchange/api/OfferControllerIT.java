@@ -7,6 +7,7 @@ import com.example.bookexchange.common.i18n.MessageKey;
 import com.example.bookexchange.exchange.model.Exchange;
 import com.example.bookexchange.exchange.model.ExchangeStatus;
 import com.example.bookexchange.exchange.repository.ExchangeRepository;
+import com.example.bookexchange.support.FixtureNumbers;
 import com.example.bookexchange.user.model.User;
 import com.example.bookexchange.support.fixture.BookFixtureSupport;
 import com.example.bookexchange.support.fixture.ExchangeFixtureSupport;
@@ -60,8 +61,8 @@ class OfferControllerIT extends IntegrationTestSupport {
     @Test
     void shouldReturnPendingOffers_whenUserGetsOffers() throws Exception {
         ExchangeFixture pendingFixture = createPendingOffer(500);
-        User secondSender = userUtil.createUser(502);
-        Long secondSenderBookId = bookUtil.createBook(secondSender.getId(), 502);
+        User secondSender = userUtil.createUser(FixtureNumbers.offer(502));
+        Long secondSenderBookId = bookUtil.createBook(secondSender.getId(), FixtureNumbers.offer(502));
         Long approvedExchangeId = exchangeUtilIT.createExchange(
                 secondSender.getId(),
                 pendingFixture.receiver().getId(),
@@ -131,12 +132,12 @@ class OfferControllerIT extends IntegrationTestSupport {
 
     @Test
     void shouldApproveOffer_whenReceiverApprovesPendingOffer() throws Exception {
-        User receiver = userUtil.createUser(505);
-        User firstSender = userUtil.createUser(506);
-        User secondSender = userUtil.createUser(507);
-        Long receiverBookId = bookUtil.createBook(receiver.getId(), 505);
-        Long firstSenderBookId = bookUtil.createBook(firstSender.getId(), 506);
-        Long secondSenderBookId = bookUtil.createBook(secondSender.getId(), 507);
+        User receiver = userUtil.createUser(FixtureNumbers.offer(505));
+        User firstSender = userUtil.createUser(FixtureNumbers.offer(506));
+        User secondSender = userUtil.createUser(FixtureNumbers.offer(507));
+        Long receiverBookId = bookUtil.createBook(receiver.getId(), FixtureNumbers.offer(505));
+        Long firstSenderBookId = bookUtil.createBook(firstSender.getId(), FixtureNumbers.offer(506));
+        Long secondSenderBookId = bookUtil.createBook(secondSender.getId(), FixtureNumbers.offer(507));
         Long approvedExchangeId = exchangeUtilIT.createExchange(
                 firstSender.getId(),
                 receiver.getId(),

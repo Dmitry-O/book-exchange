@@ -10,6 +10,7 @@ import com.example.bookexchange.user.model.User;
 import com.example.bookexchange.support.fixture.BookFixtureSupport;
 import com.example.bookexchange.support.PageTestDefaults;
 import com.example.bookexchange.support.FixtureNumbers;
+import com.example.bookexchange.support.TestBookStrings;
 import com.example.bookexchange.support.fixture.UserFixtureSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.BeforeEach;
@@ -71,7 +72,7 @@ class AdminBookControllerIT extends IntegrationTestSupport {
                         .queryParam("pageIndex", PageTestDefaults.PAGE_INDEX.toString())
                         .queryParam("pageSize", PageTestDefaults.PAGE_SIZE.toString())
                         .queryParam("bookType", BookType.ACTIVE.name())
-                        .queryParam("searchText", "Book " + FixtureNumbers.adminBook(4))
+                        .queryParam("searchText", TestBookStrings.name(FixtureNumbers.adminBook(4)))
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andReturn();
@@ -242,7 +243,7 @@ class AdminBookControllerIT extends IntegrationTestSupport {
 
         MvcResult mvcResult = mockMvc.perform(patch(AdminPaths.ADMIN_PATH_BOOKS_ID, bookId)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(admin))
-                        .header(HttpHeaders.IF_MATCH, ifMatch(bookRepository.findById(bookId).orElseThrow().getVersion()))
+                        .header(HttpHeaders.IF_MATCH, bookIfMatch(bookId))
                         .contentType(MediaType.APPLICATION_JSON)
                         .accept(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
@@ -264,15 +265,37 @@ class AdminBookControllerIT extends IntegrationTestSupport {
     }
 
     @Test
+    void shouldDeleteBookPhoto_whenAdminDeletesBookPhotoById() throws Exception {
+        User admin = userUtil.createAdmin(FixtureNumbers.adminBook(33));
+        User owner = userUtil.createUser(FixtureNumbers.adminBook(34));
+        Long bookId = bookUtil.createBook(owner.getId(), FixtureNumbers.adminBook(35));
+
+        MvcResult mvcResult = mockMvc.perform(delete(AdminPaths.ADMIN_PATH_BOOKS_ID_PHOTO, bookId)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(admin))
+                        .header(HttpHeaders.IF_MATCH, bookIfMatch(bookId))
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(header().exists(HttpHeaders.ETAG))
+                .andReturn();
+
+        clearPersistenceContext();
+
+        Book updatedBook = bookRepository.findById(bookId).orElseThrow();
+        JsonNode body = responseBody(mvcResult);
+
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(body.path("data").path("photoUrl").isNull()).isTrue();
+        assertThat(updatedBook.getPhotoUrl()).isNull();
+    }
+
+    @Test
     void shouldSoftDeleteBook_whenAdminDeletesBookById() throws Exception {
         User admin = userUtil.createAdmin(FixtureNumbers.adminBook(11));
         User owner = userUtil.createUser(FixtureNumbers.adminBook(12));
         Long bookId = bookUtil.createBook(owner.getId(), FixtureNumbers.adminBook(13));
-        Long version = bookRepository.findById(bookId).orElseThrow().getVersion();
-
         MvcResult mvcResult = mockMvc.perform(delete(AdminPaths.ADMIN_PATH_BOOKS_ID, bookId)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(admin))
-                        .header(HttpHeaders.IF_MATCH, ifMatch(version))
+                        .header(HttpHeaders.IF_MATCH, bookIfMatch(bookId))
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(header().exists(HttpHeaders.ETAG))
@@ -299,11 +322,9 @@ class AdminBookControllerIT extends IntegrationTestSupport {
 
         clearPersistenceContext();
 
-        Long version = bookRepository.findById(bookId).orElseThrow().getVersion();
-
         MvcResult mvcResult = mockMvc.perform(patch(AdminPaths.ADMIN_PATH_BOOKS_ID_RESTORE, bookId)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(admin))
-                        .header(HttpHeaders.IF_MATCH, ifMatch(version))
+                        .header(HttpHeaders.IF_MATCH, bookIfMatch(bookId))
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(header().exists(HttpHeaders.ETAG))
@@ -351,5 +372,11 @@ class AdminBookControllerIT extends IntegrationTestSupport {
                 MessageKey.SYSTEM_OPTIMISTIC_LOCK,
                 AdminPaths.ADMIN_PATH_BOOKS + "/" + bookId
         );
+    }
+
+    private String bookIfMatch(Long bookId) {
+        clearPersistenceContext();
+        Long version = bookRepository.findById(bookId).orElseThrow().getVersion();
+        return ifMatch(version);
     }
 }

@@ -15,13 +15,13 @@ public class ExchangeHistoryDTO {
     @JsonProperty("version")
     private Long version;
 
-    @Schema(example = "Book photo")
-    @JsonProperty("senderBookPhotoBase64")
-    private String senderBookPhotoBase64;
+    @Schema(example = "https://book-exchange-prod.s3.eu-central-1.amazonaws.com/users/42/books/15_1712582410000.jpg")
+    @JsonProperty("senderBookPhotoUrl")
+    private String senderBookPhotoUrl;
 
-    @Schema(example = "Book photo")
-    @JsonProperty("receiverBookPhotoBase64")
-    private String receiverBookPhotoBase64;
+    @Schema(example = "https://book-exchange-prod.s3.eu-central-1.amazonaws.com/users/84/books/19_1712582411000.jpg")
+    @JsonProperty("receiverBookPhotoUrl")
+    private String receiverBookPhotoUrl;
 
     @Schema(example = "Charley Smash")
     @JsonProperty("senderBookName")

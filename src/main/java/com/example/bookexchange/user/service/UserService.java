@@ -10,6 +10,8 @@ public interface UserService {
 
     Result<UserDTO> updateUser(Long userId, UserUpdateDTO dto, Long version);
 
+    Result<UserDTO> deleteUserPhoto(Long userId, Long version);
+
     Result<Void> deleteUser(Long userId, Long version);
 
     Result<Void> resetPassword(Long userId, UserResetPasswordDTO dto, Long version);

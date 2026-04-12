@@ -1,10 +1,10 @@
 package com.example.bookexchange.report.service;
 
+import com.example.bookexchange.book.model.Book;
 import com.example.bookexchange.book.repository.BookRepository;
 import com.example.bookexchange.common.audit.service.AuditService;
 import com.example.bookexchange.common.dto.PageQueryDTO;
 import com.example.bookexchange.common.result.Result;
-import com.example.bookexchange.book.model.Book;
 import com.example.bookexchange.report.dto.ReportCreateDTO;
 import com.example.bookexchange.report.dto.ReportDTO;
 import com.example.bookexchange.report.mapper.ReportMapper;
@@ -21,8 +21,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpStatus;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.http.HttpStatus;
 
 import java.util.List;
 import java.util.Optional;
@@ -158,7 +159,7 @@ class ReportServiceImplTest {
                 .thenReturn(new PageImpl<>(List.of(report)));
         when(reportMapper.reportToUserReportDto(report)).thenReturn(reportDto);
 
-        Result<org.springframework.data.domain.Page<ReportDTO>> result = reportService.findUserReports(reporter.getId(), queryDTO);
+        Result<Page<ReportDTO>> result = reportService.findUserReports(reporter.getId(), queryDTO);
 
         assertSuccess(result, HttpStatus.OK);
     }

@@ -5,6 +5,7 @@ import com.example.bookexchange.admin.api.AdminPaths;
 import com.example.bookexchange.book.api.BookPaths;
 import com.example.bookexchange.common.api.MetadataPaths;
 import com.example.bookexchange.common.i18n.MessageKey;
+import com.example.bookexchange.support.FixtureNumbers;
 import com.example.bookexchange.user.api.UserPaths;
 import com.example.bookexchange.user.model.User;
 import com.example.bookexchange.user.model.UserRole;
@@ -106,7 +107,7 @@ class SecurityIT extends IntegrationTestSupport {
 
     @Test
     void shouldReturnForbidden_whenRegularUserCallsAdminEndpoint() throws Exception {
-        User user = userUtil.createUser(300);
+        User user = userUtil.createUser(FixtureNumbers.security(300));
 
         MvcResult mvcResult = mockMvc.perform(get(AdminPaths.ADMIN_PATH_USERS)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
@@ -125,7 +126,7 @@ class SecurityIT extends IntegrationTestSupport {
 
     @Test
     void shouldAllowAccess_whenAdminCallsAdminEndpoint() throws Exception {
-        User adminUser = userUtil.createUser(301);
+        User adminUser = userUtil.createUser(FixtureNumbers.security(301));
         adminUser.addRole(UserRole.ADMIN);
         userRepository.save(adminUser);
 

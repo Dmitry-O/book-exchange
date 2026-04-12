@@ -64,7 +64,8 @@ public class Book extends SoftDeletableEntity {
     @NotNull
     private Integer publicationYear;
 
-    private String photoBase64;
+    @Column(name = "photo_url", length = 1024)
+    private String photoUrl;
 
     @NotBlank
     @NotNull

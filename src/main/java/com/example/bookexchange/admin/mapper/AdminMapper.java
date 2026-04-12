@@ -25,6 +25,7 @@ public interface AdminMapper {
 
     @Mapping(target = "ownerUserId", source = "user.id")
     @Mapping(target = "ownerNickname", source = "user.nickname")
+    @Mapping(target = "ownerPhotoUrl", source = "user.photoUrl")
     @Mapping(target = "meta", source = ".")
     BookAdminDTO bookToBookAdminDto(Book book);
 

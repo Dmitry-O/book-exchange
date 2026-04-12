@@ -20,6 +20,7 @@ import com.example.bookexchange.common.dto.SortDirectionDTO;
 import com.example.bookexchange.common.i18n.MessageKey;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.common.result.ResultFactory;
+import com.example.bookexchange.common.storage.ImageStorageService;
 import com.example.bookexchange.common.util.ETagUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -30,6 +31,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
 
 import java.time.Instant;
 
@@ -43,6 +45,7 @@ public class AdminBookServiceImpl implements AdminBookService {
     private final AuditService auditService;
     private final SoftDeleteFilterHelper softDeleteFilterHelper;
     private final VersionedEntityTransitionHelper versionedEntityTransitionHelper;
+    private final ImageStorageService imageStorageService;
 
     @Transactional(readOnly = true)
     @Override
@@ -148,25 +151,92 @@ public class AdminBookServiceImpl implements AdminBookService {
                     }
 
                     bookMapper.updateBookDtoToBook(dto, book);
-                    bookRepository.save(book);
 
-                    auditService.log(AuditEvent.builder()
-                            .action("ADMIN_BOOK_UPDATE")
-                            .result(AuditResult.SUCCESS)
-                            .actorEmail(adminUser.getUsername())
-                            .detail("actorUserRoles", adminUser.getAuthorities())
-                            .detail("bookId", bookId)
-                            .detail("bookName", book.getName())
-                            .build()
-                    );
+                    Result<Book> updatedBookResult = applyPhotoChange(book, dto.getPhotoBase64());
 
-                    return ResultFactory.updated(
-                            adminMapper.bookToBookAdminDto(book),
-                            MessageKey.ADMIN_BOOK_UPDATED,
-                            ETagUtil.form(book),
-                            book.getName()
-                    );
+                    if (updatedBookResult.isFailure()) {
+                        return rollbackOnFailure(updatedBookResult.map(adminMapper::bookToBookAdminDto));
+                    }
+
+                    return updatedBookResult.flatMap(updatedBook -> {
+                        auditService.log(AuditEvent.builder()
+                                .action("ADMIN_BOOK_UPDATE")
+                                .result(AuditResult.SUCCESS)
+                                .actorEmail(adminUser.getUsername())
+                                .detail("actorUserRoles", adminUser.getAuthorities())
+                                .detail("bookId", bookId)
+                                .detail("bookName", updatedBook.getName())
+                                .build()
+                        );
+
+                        return ResultFactory.updated(
+                                adminMapper.bookToBookAdminDto(updatedBook),
+                                MessageKey.ADMIN_BOOK_UPDATED,
+                                ETagUtil.form(updatedBook),
+                                updatedBook.getName()
+                        );
+                    });
                 });
+    }
+
+    @Transactional
+    @Override
+    public Result<BookAdminDTO> deleteBookPhotoById(UserDetails adminUser, Long bookId, Long version) {
+        return softDeleteFilterHelper.runWithoutDeletedFilter(() ->
+                ResultFactory.fromRepository(
+                                bookRepository,
+                                bookId,
+                                MessageKey.ADMIN_BOOK_NOT_FOUND
+                        )
+                        .flatMap(book -> {
+                            Result<Book> versionValidation = versionedEntityTransitionHelper.requireVersion(
+                                    book,
+                                    version,
+                                    "ADMIN_BOOK_PHOTO_DELETE",
+                                    builder -> builder
+                                            .actorEmail(adminUser.getUsername())
+                                            .detail("actorUserRoles", adminUser.getAuthorities())
+                                            .detail("bookId", bookId)
+                                            .detail("bookName", book.getName())
+                            );
+
+                            if (versionValidation.isFailure()) {
+                                return versionValidation.map(adminMapper::bookToBookAdminDto);
+                            }
+
+                            if (book.getPhotoUrl() == null || book.getPhotoUrl().isBlank()) {
+                                return ResultFactory.updated(
+                                        adminMapper.bookToBookAdminDto(book),
+                                        MessageKey.ADMIN_BOOK_PHOTO_DELETED,
+                                        ETagUtil.form(book),
+                                        book.getName()
+                                );
+                            }
+
+                            return imageStorageService.deleteBookImage(book.getUser().getId(), book.getId())
+                                    .flatMap(v -> {
+                                        book.setPhotoUrl(null);
+                                        Book updatedBook = bookRepository.save(book);
+
+                                        auditService.log(AuditEvent.builder()
+                                                .action("ADMIN_BOOK_PHOTO_DELETE")
+                                                .result(AuditResult.SUCCESS)
+                                                .actorEmail(adminUser.getUsername())
+                                                .detail("actorUserRoles", adminUser.getAuthorities())
+                                                .detail("bookId", bookId)
+                                                .detail("bookName", updatedBook.getName())
+                                                .build()
+                                        );
+
+                                        return ResultFactory.updated(
+                                                adminMapper.bookToBookAdminDto(updatedBook),
+                                                MessageKey.ADMIN_BOOK_PHOTO_DELETED,
+                                                ETagUtil.form(updatedBook),
+                                                updatedBook.getName()
+                                        );
+                                    });
+                        })
+        );
     }
 
     @Transactional
@@ -259,5 +329,22 @@ public class AdminBookServiceImpl implements AdminBookService {
                             );
                         })
         );
+    }
+
+    private Result<Book> applyPhotoChange(Book book, String photoBase64) {
+        if (photoBase64 == null || photoBase64.isBlank()) {
+            return ResultFactory.ok(bookRepository.save(book));
+        }
+
+        return imageStorageService.replaceBookImage(book.getUser().getId(), book.getId(), photoBase64)
+                .flatMap(photoUrl -> {
+                    book.setPhotoUrl(photoUrl);
+                    return ResultFactory.ok(bookRepository.save(book));
+                });
+    }
+
+    private <T> Result<T> rollbackOnFailure(Result<T> result) {
+        TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+        return result;
     }
 }

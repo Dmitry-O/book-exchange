@@ -36,6 +36,7 @@ import static com.example.bookexchange.support.unit.ResultAssertions.assertFailu
 import static com.example.bookexchange.support.unit.ResultAssertions.assertSuccess;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -137,7 +138,7 @@ class RequestServiceImplTest {
         Book senderBook = UnitTestDataFactory.book(UnitFixtureIds.SENDER_BOOK_ID, "Sender book", sender);
         Book receiverBook = UnitTestDataFactory.book(UnitFixtureIds.RECEIVER_BOOK_ID, "Receiver book", receiver);
         RequestCreateDTO dto = UnitTestDataFactory.requestCreateDto(receiver.getId(), senderBook.getId(), receiverBook.getId());
-        ExchangeDetailsDTO detailsDto = org.mockito.Mockito.mock(ExchangeDetailsDTO.class);
+        ExchangeDetailsDTO detailsDto = mock(ExchangeDetailsDTO.class);
 
         when(bookRepository.findByIdAndUserId(receiverBook.getId(), receiver.getId())).thenReturn(Optional.of(receiverBook));
         when(bookRepository.findByIdAndUserId(senderBook.getId(), sender.getId())).thenReturn(Optional.of(senderBook));
@@ -170,7 +171,7 @@ class RequestServiceImplTest {
                 receiverBook,
                 ExchangeStatus.PENDING
         );
-        ExchangeDetailsDTO detailsDto = org.mockito.Mockito.mock(ExchangeDetailsDTO.class);
+        ExchangeDetailsDTO detailsDto = mock(ExchangeDetailsDTO.class);
 
         when(exchangeRepository.findByIdAndSenderUserId(exchange.getId(), sender.getId())).thenReturn(Optional.of(exchange));
         when(exchangeTransitionHelper.requirePendingVersion(

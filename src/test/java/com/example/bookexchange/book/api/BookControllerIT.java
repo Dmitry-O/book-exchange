@@ -9,7 +9,10 @@ import com.example.bookexchange.common.i18n.MessageKey;
 import com.example.bookexchange.exchange.model.Exchange;
 import com.example.bookexchange.exchange.model.ExchangeStatus;
 import com.example.bookexchange.exchange.repository.ExchangeRepository;
+import com.example.bookexchange.support.FixtureNumbers;
+import com.example.bookexchange.support.TestBookStrings;
 import com.example.bookexchange.user.model.User;
+import com.example.bookexchange.user.repository.UserRepository;
 import com.example.bookexchange.support.fixture.BookFixtureSupport;
 import com.example.bookexchange.support.fixture.ExchangeFixtureSupport;
 import com.example.bookexchange.support.fixture.UserFixtureSupport;
@@ -56,6 +59,9 @@ class BookControllerIT extends IntegrationTestSupport {
 
     @Autowired
     UserFixtureSupport userUtil;
+
+    @Autowired
+    UserRepository userRepository;
 
     @Autowired
     BookFixtureSupport bookUtil;
@@ -120,7 +126,8 @@ class BookControllerIT extends IntegrationTestSupport {
         assertThat(savedBook.getAuthor()).isEqualTo(bookCreateDTO.getAuthor());
         assertThat(savedBook.getCategory()).isEqualTo(bookCreateDTO.getCategory());
         assertThat(savedBook.getPublicationYear()).isEqualTo(bookCreateDTO.getPublicationYear());
-        assertThat(savedBook.getPhotoBase64()).isEqualTo(bookCreateDTO.getPhotoBase64());
+        assertThat(savedBook.getPhotoUrl()).isEqualTo(expectedBookPhotoUrl(user.getId(), savedId));
+        assertThat(body.path("data").path("photoUrl").asText()).isEqualTo(expectedBookPhotoUrl(user.getId(), savedId));
         assertThat(savedBook.getCity()).isEqualTo(bookCreateDTO.getCity());
         assertThat(savedBook.getContactDetails()).isEqualTo(bookCreateDTO.getContactDetails());
         assertThat(savedBook.getIsGift()).isFalse();
@@ -143,8 +150,8 @@ class BookControllerIT extends IntegrationTestSupport {
 
     @Test
     void shouldReturnUserBooks_whenUserGetsOwnBooks() throws Exception {
-        Long secondBookId = bookUtil.createBook(user.getId(), 2);
-        Long exchangedBookId = bookUtil.createBook(user.getId(), 3);
+        Long secondBookId = bookUtil.createBook(user.getId(), FixtureNumbers.book(2));
+        Long exchangedBookId = bookUtil.createBook(user.getId(), FixtureNumbers.book(3));
 
         Book exchangedBook = bookRepository.findById(exchangedBookId).orElseThrow();
         exchangedBook.setIsExchanged(true);
@@ -197,6 +204,7 @@ class BookControllerIT extends IntegrationTestSupport {
         assertThat(data.path("publicationYear").asInt()).isEqualTo(persistedBook.getPublicationYear());
         assertThat(data.path("city").asText()).isEqualTo(persistedBook.getCity());
         assertThat(data.path("contactDetails").asText()).isEqualTo(persistedBook.getContactDetails());
+        assertThat(data.path("photoUrl").asText()).isEqualTo(persistedBook.getPhotoUrl());
         assertVersion(data, persistedBook.getVersion());
         assertThat(data.path("isGift").asBoolean()).isEqualTo(persistedBook.getIsGift());
         assertThat(data.path("isExchanged").asBoolean()).isEqualTo(persistedBook.getIsExchanged());
@@ -205,6 +213,9 @@ class BookControllerIT extends IntegrationTestSupport {
 
     @Test
     void shouldReturnPublicBook_whenAnonymousUserGetsBookById() throws Exception {
+        user.setPhotoUrl(expectedUserPhotoUrl(user.getId()));
+        userRepository.saveAndFlush(user);
+
         Book persistedBook = bookRepository.findById(bookId).orElseThrow();
 
         MvcResult mvcResult = mockMvc.perform(get(BookPaths.BOOK_PATH_BOOK_ID, bookId)
@@ -223,12 +234,14 @@ class BookControllerIT extends IntegrationTestSupport {
         assertThat(data.path("contactDetails").asText()).isEqualTo(persistedBook.getContactDetails());
         assertThat(data.path("ownerUserId").asLong()).isEqualTo(user.getId());
         assertThat(data.path("ownerNickname").asText()).isEqualTo(user.getNickname());
+        assertThat(data.path("ownerPhotoUrl").asText()).isEqualTo(expectedUserPhotoUrl(user.getId()));
+        assertThat(data.path("photoUrl").asText()).isEqualTo(persistedBook.getPhotoUrl());
         assertThat(eTagVersion(mvcResult)).isEqualTo(persistedBook.getVersion());
     }
 
     @Test
     void shouldReturnNotFound_whenAnonymousUserGetsExchangedBookById() throws Exception {
-        Long exchangedBookId = bookUtil.createBook(user.getId(), 25);
+        Long exchangedBookId = bookUtil.createBook(user.getId(), FixtureNumbers.book(25));
         Book exchangedBook = bookRepository.findById(exchangedBookId).orElseThrow();
         exchangedBook.setIsExchanged(true);
         bookRepository.save(exchangedBook);
@@ -248,7 +261,7 @@ class BookControllerIT extends IntegrationTestSupport {
 
     @Test
     void shouldReturnNotFound_whenAnonymousUserGetsDeletedBookById() throws Exception {
-        Long deletedBookId = bookUtil.createBook(user.getId(), 26);
+        Long deletedBookId = bookUtil.createBook(user.getId(), FixtureNumbers.book(26));
         Book deletedBook = bookRepository.findById(deletedBookId).orElseThrow();
         deletedBook.setDeletedAt(java.time.Instant.now());
         bookRepository.save(deletedBook);
@@ -268,8 +281,8 @@ class BookControllerIT extends IntegrationTestSupport {
 
     @Test
     void shouldReturnNotFound_whenUserGetsMissingBookById() throws Exception {
-        User anotherUser = userUtil.createUser(20);
-        Long anotherUserBookId = bookUtil.createBook(anotherUser.getId(), 20);
+        User anotherUser = userUtil.createUser(FixtureNumbers.book(20));
+        Long anotherUserBookId = bookUtil.createBook(anotherUser.getId(), FixtureNumbers.book(20));
 
         MvcResult mvcResult = mockMvc.perform(get(BookPaths.BOOK_PATH_USER_BOOK_ID, anotherUserBookId)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
@@ -287,9 +300,9 @@ class BookControllerIT extends IntegrationTestSupport {
 
     @Test
     void shouldReturnExchangedBooks_whenUserGetsExchangeHistoryBooks() throws Exception {
-        User receiverUser = userUtil.createUser(30);
-        Long senderBookId = bookUtil.createBook(user.getId(), 30);
-        Long receiverBookId = bookUtil.createBook(receiverUser.getId(), 31);
+        User receiverUser = userUtil.createUser(FixtureNumbers.book(30));
+        Long senderBookId = bookUtil.createBook(user.getId(), FixtureNumbers.book(30));
+        Long receiverBookId = bookUtil.createBook(receiverUser.getId(), FixtureNumbers.book(31));
         Long exchangeId = exchangeUtilIT.createExchange(user.getId(), receiverUser.getId(), senderBookId, receiverBookId);
 
         Exchange exchange = exchangeRepository.findById(exchangeId).orElseThrow();
@@ -337,15 +350,18 @@ class BookControllerIT extends IntegrationTestSupport {
 
     @Test
     void shouldReturnBooks_whenPublicSearchMatchesBooks() throws Exception {
+        user.setPhotoUrl(expectedUserPhotoUrl(user.getId()));
+        userRepository.saveAndFlush(user);
+
         MvcResult mvcResult = mockMvc.perform(get(BookPaths.BOOK_PATH_SEARCH)
                         .queryParam("pageIndex", PAGE_INDEX.toString())
                         .queryParam("pageSize", PAGE_SIZE.toString())
-                        .queryParam("author", "Author 1")
-                        .queryParam("category", "Category 1")
+                        .queryParam("author", TestBookStrings.author(1))
+                        .queryParam("category", TestBookStrings.category(1))
                         .queryParam("publicationYear", "2000")
-                        .queryParam("city", "City 1")
+                        .queryParam("city", TestBookStrings.city(1))
                         .queryParam("isGift", "false")
-                        .queryParam("searchText", "Book 1")
+                        .queryParam("searchText", TestBookStrings.name(1))
                         .queryParam("sortBy", "CATEGORY")
                         .queryParam("sortDirection", "ASC"))
                 .andExpect(status().isOk())
@@ -361,6 +377,8 @@ class BookControllerIT extends IntegrationTestSupport {
         assertThat(content.get(0).path("contactDetails").asText()).isNotBlank();
         assertThat(content.get(0).path("ownerUserId").asLong()).isEqualTo(user.getId());
         assertThat(content.get(0).path("ownerNickname").asText()).isEqualTo(user.getNickname());
+        assertThat(content.get(0).path("ownerPhotoUrl").asText()).isEqualTo(expectedUserPhotoUrl(user.getId()));
+        assertThat(content.get(0).path("photoUrl").asText()).isEqualTo(expectedBookPhotoUrl(user.getId(), bookId));
         assertHasVersion(content.get(0));
     }
 
@@ -378,7 +396,7 @@ class BookControllerIT extends IntegrationTestSupport {
 
     @Test
     void shouldDeleteBook_whenUserDeletesBookById() throws Exception {
-        Long bookToDeleteId = bookUtil.createBook(user.getId(), 40);
+        Long bookToDeleteId = bookUtil.createBook(user.getId(), FixtureNumbers.book(40));
 
         MvcResult mvcResult = mockMvc.perform(delete(BookPaths.BOOK_PATH_USER_BOOK_ID, bookToDeleteId)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
@@ -399,8 +417,8 @@ class BookControllerIT extends IntegrationTestSupport {
 
     @Test
     void shouldReturnNotFound_whenUserDeletesMissingBookById() throws Exception {
-        User anotherUser = userUtil.createUser(50);
-        Long anotherUserBookId = bookUtil.createBook(anotherUser.getId(), 50);
+        User anotherUser = userUtil.createUser(FixtureNumbers.book(50));
+        Long anotherUserBookId = bookUtil.createBook(anotherUser.getId(), FixtureNumbers.book(50));
 
         MvcResult mvcResult = mockMvc.perform(delete(BookPaths.BOOK_PATH_USER_BOOK_ID, anotherUserBookId)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
@@ -418,7 +436,7 @@ class BookControllerIT extends IntegrationTestSupport {
 
     @Test
     void shouldReturnConflict_whenUserDeletesBookWithStaleVersion() throws Exception {
-        Long bookToDeleteId = bookUtil.createBook(user.getId(), 60);
+        Long bookToDeleteId = bookUtil.createBook(user.getId(), FixtureNumbers.book(60));
 
         MvcResult mvcResult = mockMvc.perform(delete(BookPaths.BOOK_PATH_USER_BOOK_ID, bookToDeleteId)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
@@ -439,8 +457,8 @@ class BookControllerIT extends IntegrationTestSupport {
 
     @Test
     void shouldUpdateBook_whenUserUpdatesBookById() throws Exception {
-        Long bookToUpdateId = bookUtil.createBook(user.getId(), 70);
-        BookUpdateDTO bookUpdateDTO = buildBookUpdateDTO(70);
+        Long bookToUpdateId = bookUtil.createBook(user.getId(), FixtureNumbers.book(70));
+        BookUpdateDTO bookUpdateDTO = buildBookUpdateDTO(FixtureNumbers.book(70));
 
         MvcResult mvcResult = mockMvc.perform(patch(BookPaths.BOOK_PATH_USER_BOOK_ID, bookToUpdateId)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
@@ -467,7 +485,8 @@ class BookControllerIT extends IntegrationTestSupport {
         assertThat(updatedBook.getAuthor()).isEqualTo(bookUpdateDTO.getAuthor());
         assertThat(updatedBook.getCategory()).isEqualTo(bookUpdateDTO.getCategory());
         assertThat(updatedBook.getPublicationYear()).isEqualTo(bookUpdateDTO.getPublicationYear());
-        assertThat(updatedBook.getPhotoBase64()).isEqualTo(bookUpdateDTO.getPhotoBase64());
+        assertThat(updatedBook.getPhotoUrl()).isEqualTo(expectedBookPhotoUrl(user.getId(), bookToUpdateId));
+        assertThat(body.path("data").path("photoUrl").asText()).isEqualTo(expectedBookPhotoUrl(user.getId(), bookToUpdateId));
         assertThat(updatedBook.getCity()).isEqualTo(bookUpdateDTO.getCity());
         assertThat(updatedBook.getContactDetails()).isEqualTo(bookUpdateDTO.getContactDetails());
         assertThat(updatedBook.getIsGift()).isEqualTo(bookUpdateDTO.getIsGift());
@@ -475,9 +494,31 @@ class BookControllerIT extends IntegrationTestSupport {
     }
 
     @Test
+    void shouldDeleteBookPhoto_whenUserDeletesBookPhoto() throws Exception {
+        Long bookWithPhotoId = bookUtil.createBook(user.getId(), FixtureNumbers.book(701));
+
+        MvcResult mvcResult = mockMvc.perform(delete(BookPaths.BOOK_PATH_USER_BOOK_ID_PHOTO, bookWithPhotoId)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
+                        .header(HttpHeaders.IF_MATCH, bookIfMatch(bookWithPhotoId))
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(header().exists(HttpHeaders.ETAG))
+                .andReturn();
+
+        clearPersistenceContext();
+
+        Book updatedBook = bookRepository.findById(bookWithPhotoId).orElseThrow();
+        JsonNode body = responseBody(mvcResult);
+
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(body.path("data").path("photoUrl").isNull()).isTrue();
+        assertThat(updatedBook.getPhotoUrl()).isNull();
+    }
+
+    @Test
     void shouldReturnNotFound_whenUserUpdatesMissingBookById() throws Exception {
-        User anotherUser = userUtil.createUser(80);
-        Long anotherUserBookId = bookUtil.createBook(anotherUser.getId(), 80);
+        User anotherUser = userUtil.createUser(FixtureNumbers.book(80));
+        Long anotherUserBookId = bookUtil.createBook(anotherUser.getId(), FixtureNumbers.book(80));
 
         MvcResult mvcResult = mockMvc.perform(patch(BookPaths.BOOK_PATH_USER_BOOK_ID, anotherUserBookId)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
@@ -498,7 +539,7 @@ class BookControllerIT extends IntegrationTestSupport {
 
     @Test
     void shouldReturnBadRequest_whenUserUpdateBookPayloadIsInvalid() throws Exception {
-        Long bookToUpdateId = bookUtil.createBook(user.getId(), 90);
+        Long bookToUpdateId = bookUtil.createBook(user.getId(), FixtureNumbers.book(90));
 
         BookUpdateDTO invalidBookUpdateDTO = BookUpdateDTO.builder()
                 .name("ab")
@@ -516,13 +557,14 @@ class BookControllerIT extends IntegrationTestSupport {
         clearPersistenceContext();
 
         assertValidationErrorResponse(responseBody(mvcResult), userBookPath(bookToUpdateId));
-        assertThat(bookRepository.findById(bookToUpdateId).orElseThrow().getName()).isEqualTo("Book 90");
+        assertThat(bookRepository.findById(bookToUpdateId).orElseThrow().getName())
+                .isEqualTo(TestBookStrings.name(FixtureNumbers.book(90)));
     }
 
     @Test
     void shouldReturnConflict_whenUserUpdatesBookWithStaleVersion() throws Exception {
-        Long bookToUpdateId = bookUtil.createBook(user.getId(), 100);
-        BookUpdateDTO bookUpdateDTO = buildBookUpdateDTO(100);
+        Long bookToUpdateId = bookUtil.createBook(user.getId(), FixtureNumbers.book(100));
+        BookUpdateDTO bookUpdateDTO = buildBookUpdateDTO(FixtureNumbers.book(100));
 
         MvcResult mvcResult = mockMvc.perform(patch(BookPaths.BOOK_PATH_USER_BOOK_ID, bookToUpdateId)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
@@ -541,38 +583,40 @@ class BookControllerIT extends IntegrationTestSupport {
                 MessageKey.SYSTEM_OPTIMISTIC_LOCK,
                 userBookPath(bookToUpdateId)
         );
-        assertThat(bookRepository.findById(bookToUpdateId).orElseThrow().getName()).isEqualTo("Book 100");
+        assertThat(bookRepository.findById(bookToUpdateId).orElseThrow().getName())
+                .isEqualTo(TestBookStrings.name(FixtureNumbers.book(100)));
     }
 
     private BookCreateDTO buildBookCreateDTO(int bookNumber) {
         return BookCreateDTO.builder()
-                .name("Book " + bookNumber)
-                .description("Book " + bookNumber + " description")
-                .author("Author " + bookNumber)
-                .category("Category " + bookNumber)
+                .name(TestBookStrings.name(bookNumber))
+                .description(TestBookStrings.description(bookNumber))
+                .author(TestBookStrings.author(bookNumber))
+                .category(TestBookStrings.category(bookNumber))
                 .publicationYear(2000)
                 .photoBase64(validPhotoBase64("photo-" + bookNumber))
-                .city("City " + bookNumber)
-                .contactDetails("Contact Details " + bookNumber)
+                .city(TestBookStrings.city(bookNumber))
+                .contactDetails(TestBookStrings.contactDetails(bookNumber))
                 .isGift(false)
                 .build();
     }
 
     private BookUpdateDTO buildBookUpdateDTO(int bookNumber) {
         return BookUpdateDTO.builder()
-                .name("Updated Book " + bookNumber)
-                .description("Updated description " + bookNumber)
-                .author("Updated Author " + bookNumber)
-                .category("Updated Category " + bookNumber)
+                .name(TestBookStrings.updatedName(bookNumber))
+                .description(TestBookStrings.updatedDescription(bookNumber))
+                .author(TestBookStrings.updatedAuthor(bookNumber))
+                .category(TestBookStrings.updatedCategory(bookNumber))
                 .publicationYear(2010)
                 .photoBase64(validPhotoBase64("updated-photo-" + bookNumber))
-                .city("Updated City " + bookNumber)
-                .contactDetails("Updated Contact Details " + bookNumber)
+                .city(TestBookStrings.updatedCity(bookNumber))
+                .contactDetails(TestBookStrings.updatedContactDetails(bookNumber))
                 .isGift(true)
                 .build();
     }
 
     private String bookIfMatch(Long currentBookId) {
+        clearPersistenceContext();
         Long version = bookRepository.findById(currentBookId).orElseThrow().getVersion();
         return "\"" + version + "\"";
     }
