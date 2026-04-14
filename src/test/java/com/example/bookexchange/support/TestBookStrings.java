@@ -17,10 +17,6 @@ public final class TestBookStrings {
         return numbered("Author ", number, 25);
     }
 
-    public static String category(int number) {
-        return numbered("Category ", number, 20);
-    }
-
     public static String city(int number) {
         return numbered("City ", number, 25);
     }
@@ -39,10 +35,6 @@ public final class TestBookStrings {
 
     public static String updatedAuthor(int number) {
         return numbered("Updated Author ", number, 25);
-    }
-
-    public static String updatedCategory(int number) {
-        return numbered("Updated Category ", number, 20);
     }
 
     public static String updatedCity(int number) {

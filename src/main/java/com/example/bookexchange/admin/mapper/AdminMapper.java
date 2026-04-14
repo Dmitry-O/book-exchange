@@ -3,16 +3,18 @@ package com.example.bookexchange.admin.mapper;
 import com.example.bookexchange.admin.dto.BookAdminDTO;
 import com.example.bookexchange.admin.dto.ExchangeAdminDTO;
 import com.example.bookexchange.admin.dto.UserAdminDTO;
+import com.example.bookexchange.book.dto.BookCategoryDTO;
 import com.example.bookexchange.book.model.Book;
 import com.example.bookexchange.common.audit.dto.EntityAuditMetadataDTO;
+import com.example.bookexchange.common.audit.model.SoftDeletableEntity;
 import com.example.bookexchange.common.mapper.TemporalMapper;
 import com.example.bookexchange.exchange.model.Exchange;
-import com.example.bookexchange.common.audit.model.SoftDeletableEntity;
 import com.example.bookexchange.user.dto.SupportedLocalesDTO;
 import com.example.bookexchange.user.model.User;
 import org.mapstruct.Builder;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import org.mapstruct.Named;
 
 @Mapper(
         componentModel = "spring",
@@ -26,6 +28,7 @@ public interface AdminMapper {
     @Mapping(target = "ownerUserId", source = "user.id")
     @Mapping(target = "ownerNickname", source = "user.nickname")
     @Mapping(target = "ownerPhotoUrl", source = "user.photoUrl")
+    @Mapping(target = "category", source = "category", qualifiedByName = "storageValueToBookCategory")
     @Mapping(target = "meta", source = ".")
     BookAdminDTO bookToBookAdminDto(Book book);
 
@@ -37,5 +40,10 @@ public interface AdminMapper {
 
     default SupportedLocalesDTO map(String locale) {
         return locale == null ? null : SupportedLocalesDTO.fromValue(locale);
+    }
+
+    @Named("storageValueToBookCategory")
+    default BookCategoryDTO mapBookCategory(String category) {
+        return BookCategoryDTO.fromStorageValue(category);
     }
 }

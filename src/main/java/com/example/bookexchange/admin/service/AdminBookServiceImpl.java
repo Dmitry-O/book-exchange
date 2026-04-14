@@ -9,12 +9,15 @@ import com.example.bookexchange.book.mapper.BookMapper;
 import com.example.bookexchange.book.model.Book;
 import com.example.bookexchange.book.model.BookType;
 import com.example.bookexchange.book.repository.BookRepository;
+import com.example.bookexchange.book.search.BookSearchIndexService;
+import com.example.bookexchange.book.search.BookSearchResultPage;
 import com.example.bookexchange.book.specification.BookSpecificationBuilder;
 import com.example.bookexchange.common.audit.model.AuditEvent;
 import com.example.bookexchange.common.audit.model.AuditResult;
 import com.example.bookexchange.common.audit.service.AuditService;
 import com.example.bookexchange.common.audit.service.SoftDeleteFilterHelper;
 import com.example.bookexchange.common.audit.service.VersionedEntityTransitionHelper;
+import com.example.bookexchange.common.result.Failure;
 import com.example.bookexchange.common.dto.PageQueryDTO;
 import com.example.bookexchange.common.dto.SortDirectionDTO;
 import com.example.bookexchange.common.i18n.MessageKey;
@@ -24,6 +27,7 @@ import com.example.bookexchange.common.storage.ImageStorageService;
 import com.example.bookexchange.common.util.ETagUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -34,6 +38,12 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.interceptor.TransactionAspectSupport;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -46,14 +56,21 @@ public class AdminBookServiceImpl implements AdminBookService {
     private final SoftDeleteFilterHelper softDeleteFilterHelper;
     private final VersionedEntityTransitionHelper versionedEntityTransitionHelper;
     private final ImageStorageService imageStorageService;
+    private final BookSearchIndexService bookSearchIndexService;
 
     @Transactional(readOnly = true)
     @Override
     public Result<Page<BookAdminDTO>> findBooks(BookSearchDTO dto, PageQueryDTO queryDTO, BookType bookType) {
         return softDeleteFilterHelper.runWithoutDeletedFilter(() -> {
             BookSearchDTO searchDto = normalizeSearchDto(dto);
-            Specification<Book> specification = BookSpecificationBuilder.build(searchDto, bookType);
             Pageable pageable = createSearchPageable(searchDto, queryDTO.getPageIndex(), queryDTO.getPageSize(), bookType);
+            Optional<Result<Page<BookAdminDTO>>> elasticsearchResult = searchBooksFromIndex(searchDto, queryDTO, pageable, bookType);
+
+            if (elasticsearchResult.isPresent()) {
+                return elasticsearchResult.orElseThrow();
+            }
+
+            Specification<Book> specification = BookSpecificationBuilder.build(searchDto, bookType);
 
             Page<BookAdminDTO> page = bookRepository.findAll(specification, pageable).map(adminMapper::bookToBookAdminDto);
 
@@ -159,6 +176,8 @@ public class AdminBookServiceImpl implements AdminBookService {
                     }
 
                     return updatedBookResult.flatMap(updatedBook -> {
+                        bookSearchIndexService.scheduleUpsert(updatedBook);
+
                         auditService.log(AuditEvent.builder()
                                 .action("ADMIN_BOOK_UPDATE")
                                 .result(AuditResult.SUCCESS)
@@ -217,6 +236,7 @@ public class AdminBookServiceImpl implements AdminBookService {
                                     .flatMap(v -> {
                                         book.setPhotoUrl(null);
                                         Book updatedBook = bookRepository.save(book);
+                                        bookSearchIndexService.scheduleUpsert(updatedBook);
 
                                         auditService.log(AuditEvent.builder()
                                                 .action("ADMIN_BOOK_PHOTO_DELETE")
@@ -264,6 +284,7 @@ public class AdminBookServiceImpl implements AdminBookService {
                     }
 
                     book.setDeletedAt(Instant.now());
+                    bookSearchIndexService.scheduleUpsert(book);
 
                     auditService.log(AuditEvent.builder()
                             .action("ADMIN_BOOK_DELETE")
@@ -310,6 +331,7 @@ public class AdminBookServiceImpl implements AdminBookService {
                             }
 
                             book.setDeletedAt(null);
+                            bookSearchIndexService.scheduleUpsert(book);
 
                             auditService.log(AuditEvent.builder()
                                     .action("ADMIN_BOOK_RESTORE")
@@ -331,6 +353,38 @@ public class AdminBookServiceImpl implements AdminBookService {
         );
     }
 
+    @Transactional(readOnly = true)
+    @Override
+    public Result<Void> reindexSearch(UserDetails adminUser) {
+        return softDeleteFilterHelper.runWithoutDeletedFilter(() -> {
+            List<Book> books = bookRepository.findAll();
+            Result<Void> result = bookSearchIndexService.reindexAll(books);
+
+            if (result.isSuccess()) {
+                auditService.log(AuditEvent.builder()
+                        .action("ADMIN_BOOK_SEARCH_REINDEX")
+                        .result(AuditResult.SUCCESS)
+                        .actorEmail(adminUser.getUsername())
+                        .detail("actorUserRoles", adminUser.getAuthorities())
+                        .detail("bookCount", books.size())
+                        .build()
+                );
+            } else if (result instanceof Failure<Void> failure) {
+                auditService.log(AuditEvent.builder()
+                        .action("ADMIN_BOOK_SEARCH_REINDEX")
+                        .result(AuditResult.FAILURE)
+                        .actorEmail(adminUser.getUsername())
+                        .detail("actorUserRoles", adminUser.getAuthorities())
+                        .detail("bookCount", books.size())
+                        .reason(failure.messageKey().name())
+                        .build()
+                );
+            }
+
+            return result;
+        });
+    }
+
     private Result<Book> applyPhotoChange(Book book, String photoBase64) {
         if (photoBase64 == null || photoBase64.isBlank()) {
             return ResultFactory.ok(bookRepository.save(book));
@@ -346,5 +400,33 @@ public class AdminBookServiceImpl implements AdminBookService {
     private <T> Result<T> rollbackOnFailure(Result<T> result) {
         TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
         return result;
+    }
+
+    private Optional<Result<Page<BookAdminDTO>>> searchBooksFromIndex(
+            BookSearchDTO dto,
+            PageQueryDTO queryDTO,
+            Pageable pageable,
+            BookType bookType
+    ) {
+        return bookSearchIndexService.search(dto, queryDTO, bookType)
+                .map(searchResult -> ResultFactory.ok(buildBookAdminDtoPage(searchResult, pageable)));
+    }
+
+    private Page<BookAdminDTO> buildBookAdminDtoPage(BookSearchResultPage searchResult, Pageable pageable) {
+        if (searchResult.bookIds().isEmpty()) {
+            return Page.empty(pageable);
+        }
+
+        Map<Long, Book> booksById = bookRepository.findAllByIdIn(searchResult.bookIds())
+                .stream()
+                .collect(Collectors.toMap(Book::getId, Function.identity()));
+
+        List<BookAdminDTO> dtos = searchResult.bookIds().stream()
+                .map(booksById::get)
+                .filter(Objects::nonNull)
+                .map(adminMapper::bookToBookAdminDto)
+                .toList();
+
+        return new PageImpl<>(dtos, pageable, searchResult.totalHits());
     }
 }

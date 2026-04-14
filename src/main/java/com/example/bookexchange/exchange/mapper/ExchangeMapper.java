@@ -1,12 +1,15 @@
 package com.example.bookexchange.exchange.mapper;
 
-import com.example.bookexchange.exchange.model.Exchange;
-import com.example.bookexchange.exchange.model.UserExchangeRole;
+import com.example.bookexchange.book.dto.BookCategoryDTO;
+import com.example.bookexchange.book.dto.BookDTO;
+import com.example.bookexchange.book.model.Book;
 import com.example.bookexchange.exchange.dto.ExchangeDTO;
 import com.example.bookexchange.exchange.dto.ExchangeDetailsDTO;
 import com.example.bookexchange.exchange.dto.ExchangeHistoryDTO;
 import com.example.bookexchange.exchange.dto.ExchangeHistoryDetailsDTO;
 import com.example.bookexchange.exchange.dto.ExchangeUnreadUpdateDTO;
+import com.example.bookexchange.exchange.model.Exchange;
+import com.example.bookexchange.exchange.model.UserExchangeRole;
 import org.mapstruct.*;
 
 @Mapper(componentModel = "spring")
@@ -70,6 +73,20 @@ public abstract class ExchangeMapper {
             UserExchangeRole userExchangeRole
     );
 
+    @Mapping(target = "id", source = "id")
+    @Mapping(target = "version", source = "version")
+    @Mapping(target = "name", source = "name")
+    @Mapping(target = "description", source = "description")
+    @Mapping(target = "author", source = "author")
+    @Mapping(target = "category", source = "category", qualifiedByName = "storageValueToBookCategory")
+    @Mapping(target = "publicationYear", source = "publicationYear")
+    @Mapping(target = "photoUrl", source = "photoUrl")
+    @Mapping(target = "city", source = "city")
+    @Mapping(target = "contactDetails", source = "contactDetails")
+    @Mapping(target = "isGift", source = "isGift")
+    @Mapping(target = "isExchanged", source = "isExchanged")
+    protected abstract BookDTO bookToBookDTO(Book book);
+
     @AfterMapping
     protected void setIsRead(
             @MappingTarget ExchangeHistoryDTO dto,
@@ -107,5 +124,10 @@ public abstract class ExchangeMapper {
         return userRole == UserExchangeRole.SENDER
                 ? exchange.getReceiverUser().getId()
                 : exchange.getSenderUser().getId();
+    }
+
+    @Named("storageValueToBookCategory")
+    protected BookCategoryDTO mapBookCategory(String category) {
+        return BookCategoryDTO.fromStorageValue(category);
     }
 }

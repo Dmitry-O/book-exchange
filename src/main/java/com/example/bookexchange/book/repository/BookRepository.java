@@ -1,6 +1,7 @@
 package com.example.bookexchange.book.repository;
 
 import com.example.bookexchange.book.model.Book;
+import org.jspecify.annotations.NullMarked;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -19,11 +20,15 @@ public interface BookRepository extends JpaRepository<Book, Long>, JpaSpecificat
     @EntityGraph(attributePaths = "user")
     Page<Book> findByUserIdAndIsExchanged(Long userId, Boolean isExchanged, Pageable pageable);
 
+    @NullMarked
     @EntityGraph(attributePaths = "user")
     Page<Book> findAll(Specification<Book> specification, Pageable pageable);
 
     @EntityGraph(attributePaths = "user")
     Optional<Book> findByIdAndUserId(Long bookId, Long userId);
+
+    @EntityGraph(attributePaths = "user")
+    List<Book> findAllByIdIn(List<Long> ids);
 
     @EntityGraph(attributePaths = "user")
     @Query("""

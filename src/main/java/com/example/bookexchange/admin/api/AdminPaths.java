@@ -16,6 +16,7 @@ public final class AdminPaths {
 
     public static final String ADMIN_PATH_BOOKS = ADMIN_PATH + "/books";
     public static final String ADMIN_PATH_BOOKS_SEARCH = ADMIN_PATH_BOOKS + "/search";
+    public static final String ADMIN_PATH_BOOKS_SEARCH_REINDEX = ADMIN_PATH_BOOKS + "/search/reindex";
     public static final String ADMIN_PATH_BOOKS_ID = ADMIN_PATH_BOOKS + "/{bookId}";
     public static final String ADMIN_PATH_BOOKS_ID_PHOTO = ADMIN_PATH_BOOKS_ID + "/photo";
     public static final String ADMIN_PATH_BOOKS_ID_RESTORE = ADMIN_PATH_BOOKS_ID + "/restore";

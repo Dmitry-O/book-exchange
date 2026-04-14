@@ -22,4 +22,6 @@ public interface AdminBookService {
     Result<BookAdminDTO> deleteBookById(UserDetails adminUser, Long bookId, Long version);
 
     Result<BookAdminDTO> restoreBookById(UserDetails adminUser, Long bookId, Long version);
+
+    Result<Void> reindexSearch(UserDetails adminUser);
 }

@@ -5,7 +5,9 @@ import com.example.bookexchange.admin.dto.UserAdminDTO;
 import com.example.bookexchange.admin.mapper.AdminMapper;
 import com.example.bookexchange.auth.repository.RefreshTokenRepository;
 import com.example.bookexchange.auth.repository.VerificationTokenRepository;
+import com.example.bookexchange.book.model.Book;
 import com.example.bookexchange.book.repository.BookRepository;
+import com.example.bookexchange.book.search.BookSearchIndexService;
 import com.example.bookexchange.common.audit.model.AuditEvent;
 import com.example.bookexchange.common.audit.model.AuditResult;
 import com.example.bookexchange.common.audit.service.AuditService;
@@ -34,6 +36,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Set;
 
 @Service
@@ -49,6 +52,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     private final SoftDeleteFilterHelper softDeleteFilterHelper;
     private final VersionedEntityTransitionHelper versionedEntityTransitionHelper;
     private final ImageStorageService imageStorageService;
+    private final BookSearchIndexService bookSearchIndexService;
 
     @Transactional(readOnly = true)
     @Override
@@ -380,11 +384,13 @@ public class AdminUserServiceImpl implements AdminUserService {
                     user.setPassword("");
                     user.setDeletedAt(deletedAt);
 
-                    bookRepository.findAllByUserIdAndDeletedAtIsNull(userId)
-                            .forEach(book -> {
-                                book.setDeletedAt(deletedAt);
-                                book.setPhotoUrl(null);
-                            });
+                    List<Book> books = bookRepository.findAllByUserIdAndDeletedAtIsNull(userId);
+                    books.forEach(book -> {
+                        book.setDeletedAt(deletedAt);
+                        book.setPhotoUrl(null);
+                    });
+
+                    bookSearchIndexService.scheduleUpsertAll(books);
 
                     refreshTokenRepository.deleteByUserId(userId);
                     verificationTokenRepository.deleteByUserId(userId);

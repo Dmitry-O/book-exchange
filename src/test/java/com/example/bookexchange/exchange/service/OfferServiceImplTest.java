@@ -1,6 +1,7 @@
 package com.example.bookexchange.exchange.service;
 
 import com.example.bookexchange.book.model.Book;
+import com.example.bookexchange.book.search.BookSearchIndexService;
 import com.example.bookexchange.common.audit.service.AuditService;
 import com.example.bookexchange.common.i18n.MessageKey;
 import com.example.bookexchange.common.result.Result;
@@ -51,6 +52,9 @@ class OfferServiceImplTest {
 
     @Mock
     private ExchangeTransitionHelper exchangeTransitionHelper;
+
+    @Mock
+    private BookSearchIndexService bookSearchIndexService;
 
     @InjectMocks
     private OfferServiceImpl offerService;

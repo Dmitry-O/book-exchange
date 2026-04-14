@@ -1,6 +1,7 @@
 package com.example.bookexchange.exchange.service;
 
 import com.example.bookexchange.book.model.Book;
+import com.example.bookexchange.book.search.BookSearchIndexService;
 import com.example.bookexchange.common.audit.model.AuditEvent;
 import com.example.bookexchange.common.audit.model.AuditResult;
 import com.example.bookexchange.common.audit.service.AuditService;
@@ -37,6 +38,7 @@ public class OfferServiceImpl implements OfferService {
     private final ExchangeMapper exchangeMapper;
     private final AuditService auditService;
     private final ExchangeTransitionHelper exchangeTransitionHelper;
+    private final BookSearchIndexService bookSearchIndexService;
 
     @Transactional(readOnly = true)
     @Override
@@ -123,10 +125,11 @@ public class OfferServiceImpl implements OfferService {
     }
 
     private Result<ExchangeDetailsDTO> approveOffer(Exchange exchange, Long receiverUserId) {
-        markBooksAsExchanged(exchange);
+        List<Book> exchangedBooks = markBooksAsExchanged(exchange);
         exchange.setStatus(ExchangeStatus.APPROVED);
         ExchangeReadStateUtil.markUpdatedByReceiver(exchange);
         exchangeRepository.save(exchange);
+        bookSearchIndexService.scheduleUpsertAll(exchangedBooks);
 
         declineCompetingExchanges(exchange);
         logOfferSuccess("APPROVE_USER_OFFER", receiverUserId, exchange.getReceiverUser().getEmail());
@@ -151,14 +154,19 @@ public class OfferServiceImpl implements OfferService {
         });
     }
 
-    private void markBooksAsExchanged(Exchange exchange) {
+    private List<Book> markBooksAsExchanged(Exchange exchange) {
+        List<Book> exchangedBooks = new ArrayList<>();
         Book senderBook = exchange.getSenderBook();
 
         if (senderBook != null) {
             senderBook.setIsExchanged(true);
+            exchangedBooks.add(senderBook);
         }
 
         exchange.getReceiverBook().setIsExchanged(true);
+        exchangedBooks.add(exchange.getReceiverBook());
+
+        return exchangedBooks;
     }
 
     private void declineCompetingExchanges(Exchange approvedExchange) {

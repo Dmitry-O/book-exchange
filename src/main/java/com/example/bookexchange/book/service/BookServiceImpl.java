@@ -2,6 +2,8 @@ package com.example.bookexchange.book.service;
 
 import com.example.bookexchange.book.mapper.BookMapper;
 import com.example.bookexchange.book.repository.BookRepository;
+import com.example.bookexchange.book.search.BookSearchIndexService;
+import com.example.bookexchange.book.search.BookSearchResultPage;
 import com.example.bookexchange.book.specification.BookSpecificationBuilder;
 import com.example.bookexchange.book.model.Book;
 import com.example.bookexchange.common.audit.model.AuditEvent;
@@ -24,6 +26,7 @@ import com.example.bookexchange.user.repository.UserRepository;
 import com.example.bookexchange.common.util.ETagUtil;
 import lombok.AllArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -33,6 +36,12 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.interceptor.TransactionAspectSupport;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @AllArgsConstructor
@@ -44,6 +53,7 @@ public class BookServiceImpl implements BookService {
     private final AuditService auditService;
     private final VersionedEntityTransitionHelper versionedEntityTransitionHelper;
     private final ImageStorageService imageStorageService;
+    private final BookSearchIndexService bookSearchIndexService;
 
     @Transactional
     @Override
@@ -68,6 +78,8 @@ public class BookServiceImpl implements BookService {
                     }
 
                     return savedBookResult.flatMap(savedBook -> {
+                        bookSearchIndexService.scheduleUpsert(savedBook);
+
                         auditService.log(AuditEvent.builder()
                                 .action("BOOK_CREATE")
                                 .result(AuditResult.SUCCESS)
@@ -135,8 +147,14 @@ public class BookServiceImpl implements BookService {
     @Override
     public Result<Page<BookDTO>> findBooks(BookSearchDTO dto, PageQueryDTO queryDTO) {
         BookSearchDTO searchDto = normalizeSearchDto(dto);
-        Specification<Book> specification = BookSpecificationBuilder.build(searchDto, BookType.ACTIVE);
         Pageable pageable = createSearchPageable(searchDto, queryDTO.getPageIndex(), queryDTO.getPageSize());
+        Optional<Result<Page<BookDTO>>> elasticsearchResult = searchBooksFromIndex(searchDto, queryDTO, pageable);
+
+        if (elasticsearchResult.isPresent()) {
+            return elasticsearchResult.orElseThrow();
+        }
+
+        Specification<Book> specification = BookSpecificationBuilder.build(searchDto, BookType.ACTIVE);
 
         Page<BookDTO> bookPage = bookRepository
                 .findAll(specification, pageable)
@@ -163,6 +181,7 @@ public class BookServiceImpl implements BookService {
                         return versionValidation.map(v -> null);
                     }
                     book.setDeletedAt(Instant.now());
+                    bookSearchIndexService.scheduleUpsert(book);
                     logBookSuccess("BOOK_DELETE", userId, book);
 
                     return ResultFactory.okMessage(MessageKey.BOOK_DELETED);
@@ -187,6 +206,7 @@ public class BookServiceImpl implements BookService {
                     }
 
                     return updatedBookResult.flatMap(updatedBook -> {
+                        bookSearchIndexService.scheduleUpsert(updatedBook);
                         logBookSuccess("BOOK_UPDATE", userId, updatedBook);
 
                         return ResultFactory.updated(
@@ -217,13 +237,14 @@ public class BookServiceImpl implements BookService {
                         );
                     }
 
-                    return imageStorageService.deleteBookImage(userId, bookId)
-                            .flatMap(v -> {
-                                book.setPhotoUrl(null);
-                                Book updatedBook = bookRepository.save(book);
-                                logBookSuccess("BOOK_PHOTO_DELETE", userId, updatedBook);
+                            return imageStorageService.deleteBookImage(userId, bookId)
+                                    .flatMap(v -> {
+                                        book.setPhotoUrl(null);
+                                        Book updatedBook = bookRepository.save(book);
+                                        bookSearchIndexService.scheduleUpsert(updatedBook);
+                                        logBookSuccess("BOOK_PHOTO_DELETE", userId, updatedBook);
 
-                                return ResultFactory.updated(
+                                        return ResultFactory.updated(
                                         bookMapper.bookToBookDto(updatedBook),
                                         MessageKey.BOOK_PHOTO_DELETED,
                                         ETagUtil.form(updatedBook)
@@ -271,11 +292,14 @@ public class BookServiceImpl implements BookService {
     @Transactional
     @Override
     public void softDeleteBooks(User user, Instant deletedAt) {
-        bookRepository.findAllByUserIdAndDeletedAtIsNull(user.getId())
-                .forEach(book -> {
+        List<Book> books = bookRepository.findAllByUserIdAndDeletedAtIsNull(user.getId());
+
+        books.forEach(book -> {
                     book.setDeletedAt(deletedAt);
                     book.setPhotoUrl(null);
                 });
+
+        bookSearchIndexService.scheduleUpsertAll(books);
     }
 
     private void logBookSuccess(String action, Long actorId, Book book) {
@@ -304,6 +328,29 @@ public class BookServiceImpl implements BookService {
     private <T> Result<T> rollbackOnFailure(Result<T> result) {
         TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
         return result;
+    }
+
+    private Optional<Result<Page<BookDTO>>> searchBooksFromIndex(BookSearchDTO dto, PageQueryDTO queryDTO, Pageable pageable) {
+        return bookSearchIndexService.search(dto, queryDTO, BookType.ACTIVE)
+                .map(searchResult -> ResultFactory.ok(buildBookDtoPage(searchResult, pageable)));
+    }
+
+    private Page<BookDTO> buildBookDtoPage(BookSearchResultPage searchResult, Pageable pageable) {
+        if (searchResult.bookIds().isEmpty()) {
+            return Page.empty(pageable);
+        }
+
+        Map<Long, Book> booksById = bookRepository.findAllByIdIn(searchResult.bookIds())
+                .stream()
+                .collect(Collectors.toMap(Book::getId, Function.identity()));
+
+        List<BookDTO> dtos = searchResult.bookIds().stream()
+                .map(booksById::get)
+                .filter(Objects::nonNull)
+                .map(bookMapper::bookToBookDto)
+                .toList();
+
+        return new PageImpl<>(dtos, pageable, searchResult.totalHits());
     }
 
 }

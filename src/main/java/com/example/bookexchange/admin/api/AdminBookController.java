@@ -71,6 +71,21 @@ public class AdminBookController {
     }
 
     @UnauthorizedErrorResponse
+    @ForbiddenErrorResponse
+    @BadRequestErrorResponse
+    @ApiResponse(
+            responseCode = "200",
+            description = "The book search index has been reindexed"
+    )
+    @PostMapping(AdminPaths.ADMIN_PATH_BOOKS_SEARCH_REINDEX)
+    public ResponseEntity<?> adminReindexBookSearch(
+            @AuthenticationPrincipal UserDetails adminUser,
+            HttpServletRequest request
+    ) {
+        return responseMapper.map(adminBookService.reindexSearch(adminUser), request);
+    }
+
+    @UnauthorizedErrorResponse
     @NotFoundErrorResponse
     @ForbiddenErrorResponse
     @ApiResponse(

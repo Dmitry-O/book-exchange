@@ -6,6 +6,7 @@ import com.example.bookexchange.book.dto.BookUpdateDTO;
 import com.example.bookexchange.book.mapper.BookMapper;
 import com.example.bookexchange.book.model.Book;
 import com.example.bookexchange.book.repository.BookRepository;
+import com.example.bookexchange.book.search.BookSearchIndexService;
 import com.example.bookexchange.common.audit.service.AuditService;
 import com.example.bookexchange.common.audit.service.SoftDeleteFilterHelper;
 import com.example.bookexchange.common.audit.service.VersionedEntityTransitionHelper;
@@ -25,11 +26,16 @@ import org.springframework.security.core.userdetails.UserDetails;
 import java.util.Optional;
 import java.util.function.Supplier;
 
+import static com.example.bookexchange.common.i18n.MessageKey.ADMIN_BOOK_SEARCH_DISABLED;
+import static com.example.bookexchange.common.i18n.MessageKey.ADMIN_BOOK_SEARCH_REINDEXED;
 import static com.example.bookexchange.common.i18n.MessageKey.ADMIN_BOOK_DELETED;
 import static com.example.bookexchange.common.i18n.MessageKey.ADMIN_BOOK_PHOTO_DELETED;
 import static com.example.bookexchange.common.i18n.MessageKey.ADMIN_BOOK_RESTORED;
 import static com.example.bookexchange.common.i18n.MessageKey.ADMIN_BOOK_UPDATED;
+import static com.example.bookexchange.common.result.ResultFactory.error;
 import static com.example.bookexchange.common.result.ResultFactory.ok;
+import static com.example.bookexchange.common.result.ResultFactory.okMessage;
+import static com.example.bookexchange.support.unit.ResultAssertions.assertFailure;
 import static com.example.bookexchange.support.unit.ResultAssertions.assertSuccess;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -61,6 +67,9 @@ class AdminBookServiceImplTest {
 
     @Mock
     private ImageStorageService imageStorageService;
+
+    @Mock
+    private BookSearchIndexService bookSearchIndexService;
 
     @InjectMocks
     private AdminBookServiceImpl adminBookService;
@@ -175,5 +184,37 @@ class AdminBookServiceImplTest {
 
         assertSuccess(result, HttpStatus.OK, ADMIN_BOOK_RESTORED);
         assertThat(book.getDeletedAt()).isNull();
+    }
+
+    @Test
+    void shouldReindexBookSearch_whenAdminTriggersManualReindex() {
+        UserDetails admin = UnitTestDataFactory.adminPrincipal("admin@example.com");
+        User owner = UnitTestDataFactory.user(UnitFixtureIds.BOOK_OWNER_ID, "owner@example.com", "book_owner");
+        Book firstBook = UnitTestDataFactory.book(UnitFixtureIds.SENDER_BOOK_ID, "First book", owner);
+        Book secondBook = UnitTestDataFactory.book(UnitFixtureIds.RECEIVER_BOOK_ID, "Second book", owner);
+
+        when(softDeleteFilterHelper.runWithoutDeletedFilter(any())).thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(0)).get());
+        when(bookRepository.findAll()).thenReturn(java.util.List.of(firstBook, secondBook));
+        when(bookSearchIndexService.reindexAll(java.util.List.of(firstBook, secondBook)))
+                .thenReturn(okMessage(ADMIN_BOOK_SEARCH_REINDEXED, 2));
+
+        Result<Void> result = adminBookService.reindexSearch(admin);
+
+        assertSuccess(result, HttpStatus.OK, ADMIN_BOOK_SEARCH_REINDEXED);
+        verify(bookSearchIndexService).reindexAll(java.util.List.of(firstBook, secondBook));
+    }
+
+    @Test
+    void shouldReturnFailure_whenBookSearchReindexIsDisabled() {
+        UserDetails admin = UnitTestDataFactory.adminPrincipal("admin@example.com");
+
+        when(softDeleteFilterHelper.runWithoutDeletedFilter(any())).thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(0)).get());
+        when(bookRepository.findAll()).thenReturn(java.util.List.of());
+        when(bookSearchIndexService.reindexAll(java.util.List.of()))
+                .thenReturn(error(ADMIN_BOOK_SEARCH_DISABLED, HttpStatus.BAD_REQUEST));
+
+        Result<Void> result = adminBookService.reindexSearch(admin);
+
+        assertFailure(result, ADMIN_BOOK_SEARCH_DISABLED, HttpStatus.BAD_REQUEST);
     }
 }
