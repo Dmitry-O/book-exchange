@@ -7,13 +7,12 @@ import com.example.bookexchange.book.service.BookService;
 import com.example.bookexchange.common.result.Failure;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.common.result.Success;
+import com.example.bookexchange.support.TestBookCategories;
 import com.example.bookexchange.support.TestBookStrings;
 import lombok.RequiredArgsConstructor;
 
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Base64;
-import java.util.List;
 import java.util.Optional;
 
 @RequiredArgsConstructor
@@ -27,7 +26,7 @@ public class BookFixtureSupport {
                 .name(TestBookStrings.name(bookNumber))
                 .description(TestBookStrings.description(bookNumber))
                 .author(TestBookStrings.author(bookNumber))
-                .category(TestBookStrings.category(bookNumber))
+                .category(TestBookCategories.category(bookNumber))
                 .publicationYear(2000)
                 .photoBase64(validPhotoBase64(bookNumber))
                 .city(TestBookStrings.city(bookNumber))
@@ -42,20 +41,6 @@ public class BookFixtureSupport {
         BookDTO savedBook = unwrap(bookService.addUserBook(userId, generateBookCreateDTO(bookNumber)));
 
         return savedBook.getId();
-    }
-
-    public List<BookDTO> createSeveralBooks(Long userId, Integer numberOfSameBooks, Integer numberOfDifferentBooks) {
-        List<BookDTO> bookDTOList = new ArrayList<>();
-
-        for (Integer bookNumber = 0; bookNumber < numberOfSameBooks; bookNumber++) {
-            bookDTOList.add(unwrap(bookService.addUserBook(userId, generateBookCreateDTO(1))));
-        }
-
-        for (Integer bookNumber = 2; bookNumber < (2 + numberOfDifferentBooks); bookNumber++) {
-            bookDTOList.add(unwrap(bookService.addUserBook(userId, generateBookCreateDTO(bookNumber))));
-        }
-
-        return bookDTOList;
     }
 
     public void deleteUserBooks(Long userId) {

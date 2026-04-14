@@ -1,5 +1,6 @@
 package com.example.bookexchange.common.api;
 
+import com.example.bookexchange.book.dto.BookCategoryDTO;
 import com.example.bookexchange.book.dto.BookSortFieldDTO;
 import com.example.bookexchange.book.model.BookType;
 import com.example.bookexchange.common.dto.MetadataDTO;
@@ -64,6 +65,9 @@ public class MetadataController {
                         .toList())
                 .bookSortFields(Arrays.stream(BookSortFieldDTO.values())
                         .map(Enum::name)
+                        .toList())
+                .bookCategories(Arrays.stream(BookCategoryDTO.values())
+                        .map(BookCategoryDTO::getProperty)
                         .toList())
                 .build();
 

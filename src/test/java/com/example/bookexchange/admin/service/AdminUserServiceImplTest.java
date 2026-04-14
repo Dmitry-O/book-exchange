@@ -7,6 +7,7 @@ import com.example.bookexchange.auth.repository.RefreshTokenRepository;
 import com.example.bookexchange.auth.repository.VerificationTokenRepository;
 import com.example.bookexchange.book.model.Book;
 import com.example.bookexchange.book.repository.BookRepository;
+import com.example.bookexchange.book.search.BookSearchIndexService;
 import com.example.bookexchange.common.audit.service.AuditService;
 import com.example.bookexchange.common.audit.service.SoftDeleteFilterHelper;
 import com.example.bookexchange.common.audit.service.VersionedEntityTransitionHelper;
@@ -76,6 +77,9 @@ class AdminUserServiceImplTest {
 
     @Mock
     private ImageStorageService imageStorageService;
+
+    @Mock
+    private BookSearchIndexService bookSearchIndexService;
 
     @InjectMocks
     private AdminUserServiceImpl adminUserService;

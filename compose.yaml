@@ -12,5 +12,18 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
 
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.2.5
+    container_name: book-exchange-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+        - elasticsearch_data_v9:/usr/share/elasticsearch/data
+
 volumes:
   mysql_data:
+  elasticsearch_data_v9:

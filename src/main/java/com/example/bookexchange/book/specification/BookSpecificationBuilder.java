@@ -19,7 +19,7 @@ public class BookSpecificationBuilder {
             }
 
             if (dto.getCategory() != null) {
-                predicate = cb.and(predicate, cb.equal(root.get("category"), dto.getCategory()));
+                predicate = cb.and(predicate, cb.equal(root.get("category"), dto.getCategory().getProperty()));
             }
 
             if (dto.getCity() != null) {

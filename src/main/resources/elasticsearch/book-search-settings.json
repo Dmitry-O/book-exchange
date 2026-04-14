@@ -1,0 +1,45 @@
+{
+  "index": {
+    "max_ngram_diff": 12
+  },
+  "analysis": {
+    "tokenizer": {
+      "book_ngram_tokenizer": {
+        "type": "ngram",
+        "min_gram": 3,
+        "max_gram": 15,
+        "token_chars": [
+          "letter",
+          "digit"
+        ]
+      }
+    },
+    "analyzer": {
+      "book_ngram_analyzer": {
+        "type": "custom",
+        "tokenizer": "book_ngram_tokenizer",
+        "filter": [
+          "lowercase",
+          "asciifolding"
+        ]
+      },
+      "book_search_analyzer": {
+        "type": "custom",
+        "tokenizer": "standard",
+        "filter": [
+          "lowercase",
+          "asciifolding"
+        ]
+      }
+    },
+    "normalizer": {
+      "lowercase_normalizer": {
+        "type": "custom",
+        "filter": [
+          "lowercase",
+          "asciifolding"
+        ]
+      }
+    }
+  }
+}

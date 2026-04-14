@@ -9,7 +9,8 @@ import org.mapstruct.*;
 @Mapper(
     componentModel = "spring",
     builder = @Builder(disableBuilder = true),
-    nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE
+    nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE,
+    uses = BookCategoryMapper.class
 )
 public interface BookMapper {
 
@@ -17,7 +18,7 @@ public interface BookMapper {
     @Mapping(target = "name", source = "name")
     @Mapping(target = "description", source = "description")
     @Mapping(target = "author", source = "author")
-    @Mapping(target = "category", source = "category")
+    @Mapping(target = "category", source = "category", qualifiedByName = "bookCategoryToStorageValue")
     @Mapping(target = "publicationYear", source = "publicationYear")
     @Mapping(target = "city", source = "city")
     @Mapping(target = "contactDetails", source = "contactDetails")
@@ -34,7 +35,7 @@ public interface BookMapper {
     @Mapping(target = "name", source = "name")
     @Mapping(target = "description", source = "description")
     @Mapping(target = "author", source = "author")
-    @Mapping(target = "category", source = "category")
+    @Mapping(target = "category", source = "category", qualifiedByName = "storageValueToBookCategory")
     @Mapping(target = "publicationYear", source = "publicationYear")
     @Mapping(target = "photoUrl", source = "photoUrl")
     @Mapping(target = "city", source = "city")
@@ -47,7 +48,7 @@ public interface BookMapper {
     @Mapping(target = "name", source = "dto.name")
     @Mapping(target = "description", source = "dto.description")
     @Mapping(target = "author", source = "dto.author")
-    @Mapping(target = "category", source = "dto.category")
+    @Mapping(target = "category", source = "dto.category", qualifiedByName = "bookCategoryToStorageValue")
     @Mapping(target = "publicationYear", source = "dto.publicationYear")
     @Mapping(target = "city", source = "dto.city")
     @Mapping(target = "contactDetails", source = "dto.contactDetails")

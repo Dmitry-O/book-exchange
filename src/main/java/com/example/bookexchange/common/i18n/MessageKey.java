@@ -72,6 +72,8 @@ public enum MessageKey {
     ADMIN_BOOK_DELETED("admin.book.deleted"),
     ADMIN_BOOK_UPDATED("admin.book.updated"),
     ADMIN_BOOK_PHOTO_DELETED("admin.book.photo.deleted"),
+    ADMIN_BOOK_SEARCH_REINDEXED("admin.book.search.reindexed"),
+    ADMIN_BOOK_SEARCH_DISABLED("admin.book.search.disabled"),
     ADMIN_REPORT_NOT_FOUND("admin.report.not.found"),
     ADMIN_REPORT_RESOLVED("admin.report.resolved"),
     ADMIN_REPORT_REJECTED("admin.report.rejected"),

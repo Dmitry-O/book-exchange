@@ -46,4 +46,8 @@ public class MetadataDTO {
     @Schema(example = "[\"NAME\", \"AUTHOR\", \"CATEGORY\", \"PUBLICATION_YEAR\", \"CITY\", \"CREATED_AT\", \"UPDATED_AT\"]")
     @JsonProperty("bookSortFields")
     private List<String> bookSortFields;
+
+    @Schema(example = "[\"Drama\", \"Fantasy\", \"Science Fiction\", \"History\", \"Other\"]")
+    @JsonProperty("bookCategories")
+    private List<String> bookCategories;
 }

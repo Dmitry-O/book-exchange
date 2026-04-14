@@ -2,6 +2,7 @@ package com.example.bookexchange.support.unit;
 
 import com.example.bookexchange.admin.dto.BanUserDTO;
 import com.example.bookexchange.auth.dto.AuthLoginRequestDTO;
+import com.example.bookexchange.book.dto.BookCategoryDTO;
 import com.example.bookexchange.book.dto.BookCreateDTO;
 import com.example.bookexchange.book.dto.BookUpdateDTO;
 import com.example.bookexchange.book.model.Book;
@@ -26,7 +27,6 @@ import com.example.bookexchange.user.model.UserRole;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.time.Instant;
-import java.time.OffsetDateTime;
 import java.util.Base64;
 
 import static org.springframework.security.core.userdetails.User.withUsername;
@@ -64,7 +64,7 @@ public final class UnitTestDataFactory {
         book.setName(name);
         book.setDescription(name + " description");
         book.setAuthor("Author");
-        book.setCategory("Drama");
+        book.setCategory(BookCategoryDTO.DRAMA.getProperty());
         book.setPublicationYear(2020);
         book.setPhotoUrl(PHOTO_URL);
         book.setCity("Berlin");
@@ -164,7 +164,7 @@ public final class UnitTestDataFactory {
                 .name("Book unit")
                 .description("Book unit description")
                 .author("Author unit")
-                .category("Drama")
+                .category(BookCategoryDTO.DRAMA)
                 .publicationYear(2021)
                 .photoBase64(BASE64_PHOTO)
                 .city("Berlin")
@@ -178,7 +178,7 @@ public final class UnitTestDataFactory {
                 .name("Updated unit book")
                 .description("Updated unit description")
                 .author("Updated author")
-                .category("Novel")
+                .category(BookCategoryDTO.NOVEL)
                 .publicationYear(2022)
                 .photoBase64(BASE64_PHOTO)
                 .city("Hamburg")

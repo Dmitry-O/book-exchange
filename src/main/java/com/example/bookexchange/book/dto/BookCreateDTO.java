@@ -41,10 +41,8 @@ public class BookCreateDTO {
 
     @Schema(example = "Drama")
     @JsonProperty("category")
-    @NotBlank
     @NotNull
-    @Size(min = 3, max = 20)
-    private String category;
+    private BookCategoryDTO category;
 
     @Schema(example = "1765")
     @JsonProperty("publicationYear")

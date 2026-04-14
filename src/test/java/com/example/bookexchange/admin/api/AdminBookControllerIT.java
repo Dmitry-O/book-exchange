@@ -1,6 +1,7 @@
 package com.example.bookexchange.admin.api;
 
 import com.example.bookexchange.support.IntegrationTestSupport;
+import com.example.bookexchange.book.dto.BookCategoryDTO;
 import com.example.bookexchange.book.dto.BookUpdateDTO;
 import com.example.bookexchange.book.model.Book;
 import com.example.bookexchange.book.model.BookType;
@@ -30,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -87,6 +89,24 @@ class AdminBookControllerIT extends IntegrationTestSupport {
         assertThat(content.get(0).path("ownerNickname").asText()).isEqualTo(owner.getNickname());
         assertThat(content.get(0).path("meta").path("deletedAt").isNull()).isTrue();
         assertThat(content.get(0).path("id").asLong()).isNotEqualTo(deletedBookId);
+    }
+
+    @Test
+    void shouldReturnBadRequest_whenAdminReindexesSearchWhileSearchIsDisabled() throws Exception {
+        User admin = userUtil.createAdmin(FixtureNumbers.adminBook(200));
+
+        MvcResult mvcResult = mockMvc.perform(post(AdminPaths.ADMIN_PATH_BOOKS_SEARCH_REINDEX)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(admin))
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andReturn();
+
+        assertErrorResponse(
+                responseBody(mvcResult),
+                400,
+                MessageKey.ADMIN_BOOK_SEARCH_DISABLED,
+                AdminPaths.ADMIN_PATH_BOOKS_SEARCH_REINDEX
+        );
     }
 
     @Test
@@ -233,7 +253,7 @@ class AdminBookControllerIT extends IntegrationTestSupport {
                 .name("Updated admin book")
                 .description("Updated book description for admin flow")
                 .author("Updated admin author")
-                .category("Updated category")
+                .category(BookCategoryDTO.NOVEL)
                 .publicationYear(2021)
                 .photoBase64(validBase64("updated-admin-book"))
                 .city("Berlin")
@@ -349,7 +369,7 @@ class AdminBookControllerIT extends IntegrationTestSupport {
                 .name("Conflict case title")
                 .description("Conflict case description.")
                 .author("Conflict author")
-                .category("Conflict category")
+                .category(BookCategoryDTO.THRILLER)
                 .publicationYear(2022)
                 .photoBase64(validBase64("conflict-admin-book"))
                 .city("Munich")

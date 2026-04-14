@@ -6,6 +6,7 @@ import com.example.bookexchange.book.dto.BookUpdateDTO;
 import com.example.bookexchange.book.mapper.BookMapper;
 import com.example.bookexchange.book.model.Book;
 import com.example.bookexchange.book.repository.BookRepository;
+import com.example.bookexchange.book.search.BookSearchIndexService;
 import com.example.bookexchange.common.audit.service.AuditService;
 import com.example.bookexchange.common.audit.service.VersionedEntityTransitionHelper;
 import com.example.bookexchange.common.result.Result;
@@ -61,6 +62,9 @@ class BookServiceImplTest {
 
     @Mock
     private ImageStorageService imageStorageService;
+
+    @Mock
+    private BookSearchIndexService bookSearchIndexService;
 
     @InjectMocks
     private BookServiceImpl bookService;

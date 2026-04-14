@@ -48,7 +48,7 @@ public class BookDTO {
 
     @Schema(example = "Drama")
     @JsonProperty("category")
-    private String category;
+    private BookCategoryDTO category;
 
     @Schema(example = "1765")
     @JsonProperty("publicationYear")

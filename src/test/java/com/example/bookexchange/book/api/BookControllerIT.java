@@ -10,6 +10,7 @@ import com.example.bookexchange.exchange.model.Exchange;
 import com.example.bookexchange.exchange.model.ExchangeStatus;
 import com.example.bookexchange.exchange.repository.ExchangeRepository;
 import com.example.bookexchange.support.FixtureNumbers;
+import com.example.bookexchange.support.TestBookCategories;
 import com.example.bookexchange.support.TestBookStrings;
 import com.example.bookexchange.user.model.User;
 import com.example.bookexchange.user.repository.UserRepository;
@@ -124,7 +125,7 @@ class BookControllerIT extends IntegrationTestSupport {
         assertThat(savedBook.getName()).isEqualTo(bookCreateDTO.getName());
         assertThat(savedBook.getDescription()).isEqualTo(bookCreateDTO.getDescription());
         assertThat(savedBook.getAuthor()).isEqualTo(bookCreateDTO.getAuthor());
-        assertThat(savedBook.getCategory()).isEqualTo(bookCreateDTO.getCategory());
+        assertThat(savedBook.getCategory()).isEqualTo(bookCreateDTO.getCategory().getProperty());
         assertThat(savedBook.getPublicationYear()).isEqualTo(bookCreateDTO.getPublicationYear());
         assertThat(savedBook.getPhotoUrl()).isEqualTo(expectedBookPhotoUrl(user.getId(), savedId));
         assertThat(body.path("data").path("photoUrl").asText()).isEqualTo(expectedBookPhotoUrl(user.getId(), savedId));
@@ -357,7 +358,7 @@ class BookControllerIT extends IntegrationTestSupport {
                         .queryParam("pageIndex", PAGE_INDEX.toString())
                         .queryParam("pageSize", PAGE_SIZE.toString())
                         .queryParam("author", TestBookStrings.author(1))
-                        .queryParam("category", TestBookStrings.category(1))
+                        .queryParam("category", TestBookCategories.category(1).getProperty())
                         .queryParam("publicationYear", "2000")
                         .queryParam("city", TestBookStrings.city(1))
                         .queryParam("isGift", "false")
@@ -483,7 +484,7 @@ class BookControllerIT extends IntegrationTestSupport {
         assertThat(updatedBook.getName()).isEqualTo(bookUpdateDTO.getName());
         assertThat(updatedBook.getDescription()).isEqualTo(bookUpdateDTO.getDescription());
         assertThat(updatedBook.getAuthor()).isEqualTo(bookUpdateDTO.getAuthor());
-        assertThat(updatedBook.getCategory()).isEqualTo(bookUpdateDTO.getCategory());
+        assertThat(updatedBook.getCategory()).isEqualTo(bookUpdateDTO.getCategory().getProperty());
         assertThat(updatedBook.getPublicationYear()).isEqualTo(bookUpdateDTO.getPublicationYear());
         assertThat(updatedBook.getPhotoUrl()).isEqualTo(expectedBookPhotoUrl(user.getId(), bookToUpdateId));
         assertThat(body.path("data").path("photoUrl").asText()).isEqualTo(expectedBookPhotoUrl(user.getId(), bookToUpdateId));
@@ -592,7 +593,7 @@ class BookControllerIT extends IntegrationTestSupport {
                 .name(TestBookStrings.name(bookNumber))
                 .description(TestBookStrings.description(bookNumber))
                 .author(TestBookStrings.author(bookNumber))
-                .category(TestBookStrings.category(bookNumber))
+                .category(TestBookCategories.category(bookNumber))
                 .publicationYear(2000)
                 .photoBase64(validPhotoBase64("photo-" + bookNumber))
                 .city(TestBookStrings.city(bookNumber))
@@ -606,7 +607,7 @@ class BookControllerIT extends IntegrationTestSupport {
                 .name(TestBookStrings.updatedName(bookNumber))
                 .description(TestBookStrings.updatedDescription(bookNumber))
                 .author(TestBookStrings.updatedAuthor(bookNumber))
-                .category(TestBookStrings.updatedCategory(bookNumber))
+                .category(TestBookCategories.updatedCategory(bookNumber))
                 .publicationYear(2010)
                 .photoBase64(validPhotoBase64("updated-photo-" + bookNumber))
                 .city(TestBookStrings.updatedCity(bookNumber))
