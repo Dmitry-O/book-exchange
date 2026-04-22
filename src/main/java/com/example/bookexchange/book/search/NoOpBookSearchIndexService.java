@@ -19,7 +19,7 @@ import java.util.Optional;
 public class NoOpBookSearchIndexService implements BookSearchIndexService {
 
     @Override
-    public Optional<BookSearchResultPage> search(BookSearchDTO dto, PageQueryDTO queryDTO, BookType bookType) {
+    public Optional<BookSearchResultPage> search(Long currentUserId, BookSearchDTO dto, PageQueryDTO queryDTO, BookType bookType) {
         return Optional.empty();
     }
 

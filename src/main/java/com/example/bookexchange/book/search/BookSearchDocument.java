@@ -56,6 +56,9 @@ public record BookSearchDocument(
         @Field(type = FieldType.Boolean)
         Boolean deleted,
 
+        @Field(type = FieldType.Long)
+        Long ownerUserId,
+
         @Field(type = FieldType.Date, format = DateFormat.date_time)
         Instant createdAt,
 
@@ -82,6 +85,7 @@ public record BookSearchDocument(
                 Boolean.TRUE.equals(book.getIsGift()),
                 Boolean.TRUE.equals(book.getIsExchanged()),
                 book.getDeletedAt() != null,
+                book.getUser().getId(),
                 book.getCreatedAt(),
                 book.getUpdatedAt(),
                 book.getDeletedAt()

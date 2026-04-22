@@ -19,7 +19,7 @@ public interface BookService {
 
     Result<Page<BookDTO>> findExchangedUserBooks(Long userId, PageQueryDTO queryDTO);
 
-    Result<Page<BookDTO>> findBooks(BookSearchDTO dto, PageQueryDTO queryDTO);
+    Result<Page<BookDTO>> findBooks(Long currentUserId, BookSearchDTO dto, PageQueryDTO queryDTO);
 
     Result<BookDTO> findBookById(Long bookId);
 
