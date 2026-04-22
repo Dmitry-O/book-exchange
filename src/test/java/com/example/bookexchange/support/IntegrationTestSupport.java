@@ -67,6 +67,8 @@ public abstract class IntegrationTestSupport {
         registry.add("spring.mvc.servlet.path", () -> "/");
         registry.add("app.base-api-path", () -> "/");
         registry.add("spring.task.scheduling.enabled", () -> false);
+        registry.add("app.search.books.enabled", () -> false);
+        registry.add("app.search.books.reindex-on-startup", () -> false);
     }
 
     protected MockMvc buildMockMvc() {
