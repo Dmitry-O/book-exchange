@@ -342,6 +342,46 @@ class AdminUserControllerIT extends IntegrationTestSupport {
     }
 
     @Test
+    void shouldClearBannedUntil_whenAdminBansUserPermanently() throws Exception {
+        User admin = userUtil.createAdmin(FixtureNumbers.adminUser(38));
+        User targetUser = userUtil.createUser(FixtureNumbers.adminUser(39));
+        targetUser.setBannedUntil(OffsetDateTime.parse("2026-05-01T12:00:00Z").toInstant());
+        targetUser.setBanReason(TestReportStrings.banReason("Old temporary ban"));
+        userRepository.saveAndFlush(targetUser);
+
+        clearPersistenceContext();
+
+        User persistedUser = userRepository.findById(targetUser.getId()).orElseThrow();
+        BanUserDTO dto = BanUserDTO.builder()
+                .bannedPermanently(true)
+                .bannedUntil(OffsetDateTime.parse("2026-06-01T12:00:00Z"))
+                .banReason(TestReportStrings.banReason("Permanent ban"))
+                .build();
+
+        MvcResult mvcResult = mockMvc.perform(patch(AdminPaths.ADMIN_PATH_USERS_ID_BAN, persistedUser.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(admin))
+                        .header(HttpHeaders.IF_MATCH, ifMatch(persistedUser.getVersion()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isOk())
+                .andExpect(header().exists(HttpHeaders.ETAG))
+                .andReturn();
+
+        clearPersistenceContext();
+
+        JsonNode body = responseBody(mvcResult);
+        User bannedUser = userRepository.findById(targetUser.getId()).orElseThrow();
+
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(body.path("data").path("bannedPermanently").asBoolean()).isTrue();
+        assertThat(body.path("data").path("bannedUntil").isNull()).isTrue();
+        assertThat(bannedUser.isBannedPermanently()).isTrue();
+        assertThat(bannedUser.getBannedUntil()).isNull();
+        assertThat(bannedUser.getBanReason()).isEqualTo(dto.getBanReason());
+    }
+
+    @Test
     void shouldReturnBadRequest_whenAdminTriesToBanThemself() throws Exception {
         User admin = userUtil.createAdmin(FixtureNumbers.adminUser(14));
         BanUserDTO dto = BanUserDTO.builder()
