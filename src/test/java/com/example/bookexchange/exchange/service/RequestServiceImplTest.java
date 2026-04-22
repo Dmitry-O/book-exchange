@@ -31,6 +31,7 @@ import static com.example.bookexchange.common.i18n.MessageKey.BOOK_EXCHANGE_ALRE
 import static com.example.bookexchange.common.i18n.MessageKey.EXCHANGE_CANT_BE_WITH_YOURSELF;
 import static com.example.bookexchange.common.i18n.MessageKey.EXCHANGE_CREATED;
 import static com.example.bookexchange.common.i18n.MessageKey.EXCHANGE_DECLINED;
+import static com.example.bookexchange.common.i18n.MessageKey.EXCHANGE_SENDER_BOOK_REQUIRED;
 import static com.example.bookexchange.common.result.ResultFactory.ok;
 import static com.example.bookexchange.support.unit.ResultAssertions.assertFailure;
 import static com.example.bookexchange.support.unit.ResultAssertions.assertSuccess;
@@ -109,7 +110,6 @@ class RequestServiceImplTest {
         RequestCreateDTO dto = UnitTestDataFactory.requestCreateDto(sender.getId(), senderBook.getId(), receiverBook.getId());
 
         when(bookRepository.findByIdAndUserId(receiverBook.getId(), sender.getId())).thenReturn(Optional.of(receiverBook));
-        when(bookRepository.findByIdAndUserId(senderBook.getId(), sender.getId())).thenReturn(Optional.of(senderBook));
 
         Result<ExchangeDetailsDTO> result = requestService.createRequest(sender.getId(), dto);
 
@@ -129,6 +129,53 @@ class RequestServiceImplTest {
         Result<ExchangeDetailsDTO> result = requestService.createRequest(sender.getId(), dto);
 
         assertFailure(result, BOOK_CANT_EXCHANGE_SAME_BOOK, HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void shouldReturnBadRequest_whenCreateRequestOmitsSenderBookForNonGiftBook() {
+        User sender = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, "sender@example.com", "sender_one");
+        User receiver = UnitTestDataFactory.user(UnitFixtureIds.RECEIVER_USER_ID, "receiver@example.com", "receiver_one");
+        Book receiverBook = UnitTestDataFactory.book(UnitFixtureIds.RECEIVER_BOOK_ID, "Receiver book", receiver);
+        RequestCreateDTO dto = UnitTestDataFactory.requestCreateDto(receiver.getId(), null, receiverBook.getId());
+
+        when(bookRepository.findByIdAndUserId(receiverBook.getId(), receiver.getId())).thenReturn(Optional.of(receiverBook));
+
+        Result<ExchangeDetailsDTO> result = requestService.createRequest(sender.getId(), dto);
+
+        assertFailure(result, EXCHANGE_SENDER_BOOK_REQUIRED, HttpStatus.BAD_REQUEST);
+        verify(auditService).log(any());
+    }
+
+    @Test
+    void shouldCreateGiftExchangeWithoutSenderBook_whenReceiverBookIsGift() {
+        User sender = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, "sender@example.com", "sender_one");
+        User receiver = UnitTestDataFactory.user(UnitFixtureIds.RECEIVER_USER_ID, "receiver@example.com", "receiver_one");
+        Book receiverBook = UnitTestDataFactory.book(UnitFixtureIds.RECEIVER_BOOK_ID, "Receiver book", receiver);
+        receiverBook.setIsGift(true);
+        RequestCreateDTO dto = UnitTestDataFactory.requestCreateDto(receiver.getId(), null, receiverBook.getId());
+        ExchangeDetailsDTO detailsDto = mock(ExchangeDetailsDTO.class);
+
+        when(bookRepository.findByIdAndUserId(receiverBook.getId(), receiver.getId())).thenReturn(Optional.of(receiverBook));
+        when(exchangeRepository.findBySenderUserIdAndReceiverUserIdAndReceiverBookIdAndStatusNot(
+                sender.getId(),
+                receiver.getId(),
+                receiverBook.getId(),
+                ExchangeStatus.DECLINED
+        )).thenReturn(Optional.empty());
+        when(userRepository.findById(sender.getId())).thenReturn(Optional.of(sender));
+        when(userRepository.findById(receiver.getId())).thenReturn(Optional.of(receiver));
+        when(exchangeRepository.save(any(Exchange.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(exchangeMapper.exchangeToExchangeDetailsDto(any(Exchange.class), any(Long.class), any(String.class))).thenReturn(detailsDto);
+
+        Result<ExchangeDetailsDTO> result = requestService.createRequest(sender.getId(), dto);
+        ArgumentCaptor<Exchange> exchangeCaptor = ArgumentCaptor.forClass(Exchange.class);
+
+        assertSuccess(result, HttpStatus.CREATED, EXCHANGE_CREATED);
+        verify(exchangeRepository).save(exchangeCaptor.capture());
+        assertThat(exchangeCaptor.getValue().getSenderBook()).isNull();
+        assertThat(exchangeCaptor.getValue().getReceiverBook()).isSameAs(receiverBook);
+        assertThat(exchangeCaptor.getValue().getIsReadBySender()).isTrue();
+        assertThat(exchangeCaptor.getValue().getIsReadByReceiver()).isFalse();
     }
 
     @Test

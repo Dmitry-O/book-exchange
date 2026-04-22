@@ -89,6 +89,9 @@ class OfferControllerIT extends IntegrationTestSupport {
         assertThat(body.path("data").path("totalElements").asLong()).isEqualTo(1);
         assertThat(content.size()).isEqualTo(1);
         assertThat(content.get(0).path("id").asLong()).isEqualTo(pendingFixture.exchangeId());
+        assertThat(content.get(0).path("status").asText()).isEqualTo(ExchangeStatus.PENDING.name());
+        assertThat(content.get(0).path("userNickname").asText()).isEqualTo(pendingFixture.sender().getNickname());
+        assertThat(content.get(0).path("otherUserId").asLong()).isEqualTo(pendingFixture.sender().getId());
         assertHasVersion(content.get(0));
     }
 
@@ -110,6 +113,35 @@ class OfferControllerIT extends IntegrationTestSupport {
         assertThat(body.path("data").path("status").asText()).isEqualTo(ExchangeStatus.PENDING.name());
         assertThat(body.path("data").path("userNickname").asText()).isEqualTo(fixture.sender().getNickname());
         assertThat(body.path("data").path("otherUserId").asLong()).isEqualTo(fixture.sender().getId());
+    }
+
+    @Test
+    void shouldReturnGiftOfferInReceiverListWithNullSenderBookFields() throws Exception {
+        User sender = userUtil.createUser(FixtureNumbers.offer(514));
+        User receiver = userUtil.createUser(FixtureNumbers.offer(515));
+        Long receiverBookId = bookUtil.createBook(receiver.getId(), FixtureNumbers.offer(515));
+        Book receiverBook = bookRepository.findById(receiverBookId).orElseThrow();
+        receiverBook.setIsGift(true);
+        bookRepository.save(receiverBook);
+        Long exchangeId = exchangeUtilIT.createExchange(sender.getId(), receiver.getId(), null, receiverBookId);
+
+        MvcResult mvcResult = mockMvc.perform(get(ExchangePaths.OFFER_PATH)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(receiver))
+                        .queryParam("pageIndex", PageTestDefaults.PAGE_INDEX.toString())
+                        .queryParam("pageSize", PageTestDefaults.PAGE_SIZE.toString())
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode content = responseBody(mvcResult).path("data").path("content");
+
+        assertThat(content).hasSize(1);
+        assertThat(content.get(0).path("id").asLong()).isEqualTo(exchangeId);
+        assertThat(content.get(0).path("status").asText()).isEqualTo(ExchangeStatus.PENDING.name());
+        assertThat(content.get(0).path("userNickname").asText()).isEqualTo(sender.getNickname());
+        assertThat(content.get(0).path("otherUserId").asLong()).isEqualTo(sender.getId());
+        assertThat(content.get(0).get("senderBookName").isNull()).isTrue();
+        assertThat(content.get(0).get("senderBookPhotoUrl").isNull()).isTrue();
     }
 
     @Test
@@ -175,6 +207,40 @@ class OfferControllerIT extends IntegrationTestSupport {
         assertThat(persistedCompetingExchange.getStatus()).isEqualTo(ExchangeStatus.DECLINED);
         assertThat(persistedReceiverBook.getIsExchanged()).isTrue();
         assertThat(persistedSenderBook.getIsExchanged()).isTrue();
+        assertThat(eTagVersion(mvcResult)).isEqualTo(persistedApprovedExchange.getVersion());
+    }
+
+    @Test
+    void shouldApproveGiftOfferWithoutSenderBook_whenReceiverApprovesGiftRequest() throws Exception {
+        User sender = userUtil.createUser(FixtureNumbers.offer(512));
+        User receiver = userUtil.createUser(FixtureNumbers.offer(513));
+        Long receiverBookId = bookUtil.createBook(receiver.getId(), FixtureNumbers.offer(513));
+        Book receiverBook = bookRepository.findById(receiverBookId).orElseThrow();
+        receiverBook.setIsGift(true);
+        bookRepository.save(receiverBook);
+        Long approvedExchangeId = exchangeUtilIT.createExchange(sender.getId(), receiver.getId(), null, receiverBookId);
+        Exchange approvedExchange = exchangeRepository.findById(approvedExchangeId).orElseThrow();
+
+        MvcResult mvcResult = mockMvc.perform(patch(ExchangePaths.OFFER_PATH_APPROVE_OFFER, approvedExchangeId)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(receiver))
+                        .header(HttpHeaders.IF_MATCH, ifMatch(approvedExchange.getVersion()))
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(header().exists(HttpHeaders.ETAG))
+                .andReturn();
+
+        clearPersistenceContext();
+
+        Exchange persistedApprovedExchange = exchangeRepository.findById(approvedExchangeId).orElseThrow();
+        Book persistedReceiverBook = bookRepository.findById(receiverBookId).orElseThrow();
+        JsonNode body = responseBody(mvcResult);
+
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(body.path("data").path("status").asText()).isEqualTo(ExchangeStatus.APPROVED.name());
+        assertThat(body.path("data").path("senderBook").isNull()).isTrue();
+        assertThat(persistedApprovedExchange.getStatus()).isEqualTo(ExchangeStatus.APPROVED);
+        assertThat(persistedApprovedExchange.getSenderBook()).isNull();
+        assertThat(persistedReceiverBook.getIsExchanged()).isTrue();
         assertThat(eTagVersion(mvcResult)).isEqualTo(persistedApprovedExchange.getVersion());
     }
 

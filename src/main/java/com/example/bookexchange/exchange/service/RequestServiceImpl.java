@@ -16,6 +16,7 @@ import com.example.bookexchange.exchange.mapper.ExchangeMapper;
 import com.example.bookexchange.exchange.model.Exchange;
 import com.example.bookexchange.exchange.model.ExchangeContext;
 import com.example.bookexchange.exchange.model.ExchangeStatus;
+import com.example.bookexchange.exchange.model.UserExchangeRole;
 import com.example.bookexchange.exchange.repository.ExchangeRepository;
 import com.example.bookexchange.exchange.util.ExchangeReadStateUtil;
 import com.example.bookexchange.user.repository.UserRepository;
@@ -53,8 +54,8 @@ public class RequestServiceImpl implements RequestService {
         return ResultFactory.ok(ctx)
                 .flatMap(this::loadReceiverBook)
                 .flatMap(this::validateReceiverBook)
-                .flatMap(this::loadSenderBook)
-                .flatMap(this::validateSenderBook)
+                .flatMap(this::validateParticipants)
+                .flatMap(this::loadAndValidateSenderBookIfRequired)
                 .flatMap(this::loadUsers)
                 .flatMap(this::createExchange)
                 .flatMap(this::formExchangeDetailsResponse);
@@ -93,7 +94,9 @@ public class RequestServiceImpl implements RequestService {
 
         Page<Exchange> pendingExchangesPage = exchangeRepository.findBySenderUserIdAndStatus(senderUserId, ExchangeStatus.PENDING, pageable);
 
-        Page<ExchangeDTO> page = pendingExchangesPage.map(exchangeMapper::exchangeToExchangeDto);
+        Page<ExchangeDTO> page = pendingExchangesPage.map(exchange ->
+                exchangeMapper.exchangeToExchangeDto(exchange, UserExchangeRole.SENDER)
+        );
 
         return ResultFactory.ok(page);
     }
@@ -179,6 +182,46 @@ public class RequestServiceImpl implements RequestService {
         });
     }
 
+    private Result<ExchangeContext> validateParticipants(ExchangeContext ctx) {
+        if (ctx.getSenderUserId().equals(ctx.getReceiverUserId())) {
+            auditService.log(AuditEvent.builder()
+                    .action("CREATE_USER_REQUEST")
+                    .result(AuditResult.FAILURE)
+                    .actorId(ctx.getSenderUserId())
+                    .reason("EXCHANGE_CANT_BE_WITH_YOURSELF")
+                    .build()
+            );
+
+            return ResultFactory.error(MessageKey.EXCHANGE_CANT_BE_WITH_YOURSELF, HttpStatus.BAD_REQUEST);
+        }
+
+        return ResultFactory.ok(ctx);
+    }
+
+    private Result<ExchangeContext> loadAndValidateSenderBookIfRequired(ExchangeContext ctx) {
+        if (canCreateGiftRequestWithoutSenderBook(ctx)) {
+            return ResultFactory.ok(ctx);
+        }
+
+        if (ctx.getSenderBookId() == null) {
+            auditService.log(AuditEvent.builder()
+                    .action("CREATE_USER_REQUEST")
+                    .result(AuditResult.FAILURE)
+                    .actorId(ctx.getSenderUserId())
+                    .reason("EXCHANGE_SENDER_BOOK_REQUIRED")
+                    .build()
+            );
+
+            return ResultFactory.error(MessageKey.EXCHANGE_SENDER_BOOK_REQUIRED, HttpStatus.BAD_REQUEST);
+        }
+
+        return loadSenderBook(ctx).flatMap(this::validateSenderBook);
+    }
+
+    private boolean canCreateGiftRequestWithoutSenderBook(ExchangeContext ctx) {
+        return Boolean.TRUE.equals(ctx.getReceiverBook().getIsGift()) && ctx.getSenderBookId() == null;
+    }
+
     private Result<ExchangeContext> validateSenderBook(ExchangeContext ctx) {
         Book senderBook = ctx.getSenderBook();
         Book receiverBook = ctx.getReceiverBook();
@@ -193,18 +236,6 @@ public class RequestServiceImpl implements RequestService {
             );
 
             return ResultFactory.error(MessageKey.BOOK_ALREADY_EXCHANGED, HttpStatus.BAD_REQUEST);
-        }
-
-        if (ctx.getSenderUserId().equals(ctx.getReceiverUserId())) {
-            auditService.log(AuditEvent.builder()
-                    .action("CREATE_USER_REQUEST")
-                    .result(AuditResult.FAILURE)
-                    .actorId(ctx.getSenderUserId())
-                    .reason("EXCHANGE_CANT_BE_WITH_YOURSELF")
-                    .build()
-            );
-
-            return ResultFactory.error(MessageKey.EXCHANGE_CANT_BE_WITH_YOURSELF, HttpStatus.BAD_REQUEST);
         }
 
         if (senderBook.getId().equals(receiverBook.getId())) {

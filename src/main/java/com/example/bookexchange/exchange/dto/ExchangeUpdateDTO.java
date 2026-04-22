@@ -9,11 +9,15 @@ import lombok.Data;
 import java.time.Instant;
 
 @Data
-public class ExchangeUnreadUpdateDTO {
+public class ExchangeUpdateDTO {
 
     @Schema(example = "1")
     @JsonProperty("id")
     private Long id;
+
+    @Schema(example = "1")
+    @JsonProperty("exchangeId")
+    private Long exchangeId;
 
     @Schema(example = "3")
     @JsonProperty("version")
@@ -26,6 +30,10 @@ public class ExchangeUnreadUpdateDTO {
     @Schema(example = "RECEIVER")
     @JsonProperty("userExchangeRole")
     private UserExchangeRole userExchangeRole;
+
+    @Schema(example = "false")
+    @JsonProperty("isRead")
+    private Boolean isRead;
 
     @Schema(example = "2")
     @JsonProperty("otherBookId")

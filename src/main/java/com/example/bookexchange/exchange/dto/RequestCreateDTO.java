@@ -17,7 +17,10 @@ public class RequestCreateDTO {
     @NotNull
     private Long receiverUserId;
 
-    @Schema(example = "1")
+    @Schema(
+            example = "1",
+            description = "Required for regular exchanges. Optional only when the requested receiver book is marked as a gift."
+    )
     @JsonProperty("senderBookId")
     private Long senderBookId;
 

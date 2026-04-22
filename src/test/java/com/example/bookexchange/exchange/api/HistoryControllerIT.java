@@ -1,6 +1,8 @@
 package com.example.bookexchange.exchange.api;
 
 import com.example.bookexchange.support.IntegrationTestSupport;
+import com.example.bookexchange.book.model.Book;
+import com.example.bookexchange.book.repository.BookRepository;
 import com.example.bookexchange.exchange.model.Exchange;
 import com.example.bookexchange.exchange.model.ExchangeStatus;
 import com.example.bookexchange.exchange.repository.ExchangeRepository;
@@ -38,6 +40,9 @@ class HistoryControllerIT extends IntegrationTestSupport {
 
     @Autowired
     ExchangeRepository exchangeRepository;
+
+    @Autowired
+    BookRepository bookRepository;
 
     @Autowired
     UserFixtureSupport userUtil;
@@ -91,6 +96,9 @@ class HistoryControllerIT extends IntegrationTestSupport {
         assertThat(content.size()).isEqualTo(2);
         assertThat(returnedIds).contains(approvedFixture.exchangeId(), declinedFixture.exchangeId());
         assertThat(returnedIds).doesNotContain(pendingFixture.exchangeId());
+        assertThat(content.get(0).path("status").asText()).isIn(ExchangeStatus.APPROVED.name(), ExchangeStatus.DECLINED.name());
+        assertThat(content.get(0).path("userNickname").asText()).isNotBlank();
+        assertThat(content.get(0).path("otherUserId").asLong()).isPositive();
         assertHasVersion(content.get(0));
     }
 
@@ -169,10 +177,11 @@ class HistoryControllerIT extends IntegrationTestSupport {
     void shouldReturnUnreadUpdates_whenReceiverGetsNewExchangeRequest() throws Exception {
         ExchangeFixture fixture = createPendingExchange(620);
 
-        MvcResult mvcResult = mockMvc.perform(get(ExchangePaths.UPDATES_PATH_UNREAD)
+        MvcResult mvcResult = mockMvc.perform(get(ExchangePaths.UPDATES_PATH)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(fixture.receiver()))
                         .queryParam("pageIndex", PageTestDefaults.PAGE_INDEX.toString())
                         .queryParam("pageSize", PageTestDefaults.PAGE_SIZE.toString())
+                        .queryParam("readState", "UNREAD")
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andReturn();
@@ -184,11 +193,108 @@ class HistoryControllerIT extends IntegrationTestSupport {
         assertThat(body.path("data").path("totalElements").asLong()).isEqualTo(1);
         assertThat(content).hasSize(1);
         assertThat(content.get(0).path("id").asLong()).isEqualTo(fixture.exchangeId());
+        assertThat(content.get(0).path("exchangeId").asLong()).isEqualTo(fixture.exchangeId());
         assertThat(content.get(0).path("userExchangeRole").asText()).isEqualTo("RECEIVER");
+        assertThat(content.get(0).path("isRead").asBoolean()).isFalse();
         assertThat(content.get(0).path("otherBookName").asText()).isNotBlank();
         assertThat(content.get(0).path("otherUserId").asLong()).isEqualTo(fixture.sender().getId());
         assertThat(content.get(0).path("otherUserNickname").asText()).isEqualTo(fixture.sender().getNickname());
         assertHasVersion(content.get(0));
+    }
+
+    @Test
+    void shouldReturnGiftUnreadUpdatesWithNullOtherBook_whenReceiverGetsGiftRequest() throws Exception {
+        User sender = userUtil.createUser(FixtureNumbers.history(621));
+        User receiver = userUtil.createUser(FixtureNumbers.history(622));
+        Long receiverBookId = bookUtil.createBook(receiver.getId(), FixtureNumbers.history(622));
+        Exchange exchange = createGiftExchange(sender, receiver, receiverBookId);
+
+        MvcResult mvcResult = mockMvc.perform(get(ExchangePaths.UPDATES_PATH)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(receiver))
+                        .queryParam("pageIndex", PageTestDefaults.PAGE_INDEX.toString())
+                        .queryParam("pageSize", PageTestDefaults.PAGE_SIZE.toString())
+                        .queryParam("readState", "UNREAD")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode content = responseBody(mvcResult).path("data").path("content");
+
+        assertThat(content).hasSize(1);
+        assertThat(content.get(0).path("id").asLong()).isEqualTo(exchange.getId());
+        assertThat(content.get(0).path("exchangeId").asLong()).isEqualTo(exchange.getId());
+        assertThat(content.get(0).path("userExchangeRole").asText()).isEqualTo("RECEIVER");
+        assertThat(content.get(0).path("isRead").asBoolean()).isFalse();
+        assertThat(content.get(0).get("otherBookId").isNull()).isTrue();
+        assertThat(content.get(0).get("otherBookName").isNull()).isTrue();
+        assertThat(content.get(0).path("otherUserId").asLong()).isEqualTo(sender.getId());
+        assertThat(content.get(0).path("otherUserNickname").asText()).isEqualTo(sender.getNickname());
+    }
+
+    @Test
+    void shouldReturnAllExchangeUpdatesInChronologicalOrderAndKeepReadState() throws Exception {
+        User receiver = userUtil.createUser(FixtureNumbers.history(628));
+        User firstSender = userUtil.createUser(FixtureNumbers.history(629));
+        User secondSender = userUtil.createUser(FixtureNumbers.history(630));
+        Long receiverBookId = bookUtil.createBook(receiver.getId(), FixtureNumbers.history(628));
+        Long firstSenderBookId = bookUtil.createBook(firstSender.getId(), FixtureNumbers.history(629));
+        Long secondSenderBookId = bookUtil.createBook(secondSender.getId(), FixtureNumbers.history(630));
+        Long firstExchangeId = exchangeUtilIT.createExchange(firstSender.getId(), receiver.getId(), firstSenderBookId, receiverBookId);
+        Long secondExchangeId = exchangeUtilIT.createExchange(secondSender.getId(), receiver.getId(), secondSenderBookId, receiverBookId);
+
+        mockMvc.perform(get(ExchangePaths.OFFER_PATH_EXCHANGE_ID, secondExchangeId)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(receiver))
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk());
+
+        MvcResult allUpdatesResult = mockMvc.perform(get(ExchangePaths.UPDATES_PATH)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(receiver))
+                        .queryParam("pageIndex", PageTestDefaults.PAGE_INDEX.toString())
+                        .queryParam("pageSize", PageTestDefaults.PAGE_SIZE.toString())
+                        .queryParam("readState", "ALL")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode allContent = responseBody(allUpdatesResult).path("data").path("content");
+
+        assertThat(allContent).hasSize(2);
+        assertThat(allContent.get(0).path("exchangeId").asLong()).isEqualTo(secondExchangeId);
+        assertThat(allContent.get(0).path("isRead").asBoolean()).isTrue();
+        assertThat(allContent.get(1).path("exchangeId").asLong()).isEqualTo(firstExchangeId);
+        assertThat(allContent.get(1).path("isRead").asBoolean()).isFalse();
+        assertThat(allContent.get(0).path("updatedAt").asText())
+                .isGreaterThanOrEqualTo(allContent.get(1).path("updatedAt").asText());
+
+        MvcResult readUpdatesResult = mockMvc.perform(get(ExchangePaths.UPDATES_PATH)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(receiver))
+                        .queryParam("pageIndex", PageTestDefaults.PAGE_INDEX.toString())
+                        .queryParam("pageSize", PageTestDefaults.PAGE_SIZE.toString())
+                        .queryParam("readState", "READ")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode readContent = responseBody(readUpdatesResult).path("data").path("content");
+
+        assertThat(readContent).hasSize(1);
+        assertThat(readContent.get(0).path("exchangeId").asLong()).isEqualTo(secondExchangeId);
+        assertThat(readContent.get(0).path("isRead").asBoolean()).isTrue();
+
+        MvcResult unreadUpdatesResult = mockMvc.perform(get(ExchangePaths.UPDATES_PATH)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(receiver))
+                        .queryParam("pageIndex", PageTestDefaults.PAGE_INDEX.toString())
+                        .queryParam("pageSize", PageTestDefaults.PAGE_SIZE.toString())
+                        .queryParam("readState", "UNREAD")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode unreadContent = responseBody(unreadUpdatesResult).path("data").path("content");
+
+        assertThat(unreadContent).hasSize(1);
+        assertThat(unreadContent.get(0).path("exchangeId").asLong()).isEqualTo(firstExchangeId);
+        assertThat(unreadContent.get(0).path("isRead").asBoolean()).isFalse();
     }
 
     @Test
@@ -205,10 +311,11 @@ class HistoryControllerIT extends IntegrationTestSupport {
         Exchange readExchange = exchangeRepository.findById(fixture.exchangeId()).orElseThrow();
         assertThat(readExchange.getIsReadByReceiver()).isTrue();
 
-        MvcResult noUnreadResult = mockMvc.perform(get(ExchangePaths.UPDATES_PATH_UNREAD)
+        MvcResult noUnreadResult = mockMvc.perform(get(ExchangePaths.UPDATES_PATH)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(fixture.receiver()))
                         .queryParam("pageIndex", PageTestDefaults.PAGE_INDEX.toString())
                         .queryParam("pageSize", PageTestDefaults.PAGE_SIZE.toString())
+                        .queryParam("readState", "UNREAD")
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andReturn();
@@ -228,10 +335,11 @@ class HistoryControllerIT extends IntegrationTestSupport {
         assertThat(declinedExchange.getIsReadBySender()).isTrue();
         assertThat(declinedExchange.getIsReadByReceiver()).isFalse();
 
-        MvcResult unreadAgainResult = mockMvc.perform(get(ExchangePaths.UPDATES_PATH_UNREAD)
+        MvcResult unreadAgainResult = mockMvc.perform(get(ExchangePaths.UPDATES_PATH)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(fixture.receiver()))
                         .queryParam("pageIndex", PageTestDefaults.PAGE_INDEX.toString())
                         .queryParam("pageSize", PageTestDefaults.PAGE_SIZE.toString())
+                        .queryParam("readState", "UNREAD")
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andReturn();
@@ -240,8 +348,10 @@ class HistoryControllerIT extends IntegrationTestSupport {
 
         assertThat(unreadContent).hasSize(1);
         assertThat(unreadContent.get(0).path("id").asLong()).isEqualTo(fixture.exchangeId());
+        assertThat(unreadContent.get(0).path("exchangeId").asLong()).isEqualTo(fixture.exchangeId());
         assertThat(unreadContent.get(0).path("status").asText()).isEqualTo(ExchangeStatus.DECLINED.name());
         assertThat(unreadContent.get(0).path("userExchangeRole").asText()).isEqualTo("RECEIVER");
+        assertThat(unreadContent.get(0).path("isRead").asBoolean()).isFalse();
     }
 
     @Test
@@ -262,10 +372,11 @@ class HistoryControllerIT extends IntegrationTestSupport {
         assertThat(declinedExchange.getIsReadBySender()).isFalse();
         assertThat(declinedExchange.getIsReadByReceiver()).isTrue();
 
-        MvcResult mvcResult = mockMvc.perform(get(ExchangePaths.UPDATES_PATH_UNREAD)
+        MvcResult mvcResult = mockMvc.perform(get(ExchangePaths.UPDATES_PATH)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(fixture.sender()))
                         .queryParam("pageIndex", PageTestDefaults.PAGE_INDEX.toString())
                         .queryParam("pageSize", PageTestDefaults.PAGE_SIZE.toString())
+                        .queryParam("readState", "UNREAD")
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andReturn();
@@ -274,8 +385,10 @@ class HistoryControllerIT extends IntegrationTestSupport {
 
         assertThat(content).hasSize(1);
         assertThat(content.get(0).path("id").asLong()).isEqualTo(fixture.exchangeId());
+        assertThat(content.get(0).path("exchangeId").asLong()).isEqualTo(fixture.exchangeId());
         assertThat(content.get(0).path("status").asText()).isEqualTo(ExchangeStatus.DECLINED.name());
         assertThat(content.get(0).path("userExchangeRole").asText()).isEqualTo("SENDER");
+        assertThat(content.get(0).path("isRead").asBoolean()).isFalse();
         assertThat(content.get(0).path("otherUserId").asLong()).isEqualTo(fixture.receiver().getId());
         assertThat(content.get(0).path("otherUserNickname").asText()).isEqualTo(fixture.receiver().getNickname());
     }
@@ -297,6 +410,72 @@ class HistoryControllerIT extends IntegrationTestSupport {
                 MessageKey.EXCHANGE_NOT_FOUND,
                 historyPath(fixture.exchangeId())
         );
+    }
+
+    @Test
+    void shouldReturnGiftHistoryDetailsWithNullSenderBook_whenReceiverGetsGiftExchangeHistoryDetails() throws Exception {
+        User sender = userUtil.createUser(FixtureNumbers.history(623));
+        User receiver = userUtil.createUser(FixtureNumbers.history(624));
+        Long receiverBookId = bookUtil.createBook(receiver.getId(), FixtureNumbers.history(624));
+        Exchange exchange = createGiftExchange(sender, receiver, receiverBookId);
+        exchange.setStatus(ExchangeStatus.APPROVED);
+        exchangeRepository.save(exchange);
+
+        MvcResult mvcResult = mockMvc.perform(get(ExchangePaths.HISTORY_PATH_EXCHANGE_ID, exchange.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(receiver))
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        clearPersistenceContext();
+
+        Exchange persistedExchange = exchangeRepository.findById(exchange.getId()).orElseThrow();
+        JsonNode body = responseBody(mvcResult);
+
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(body.path("data").path("userExchangeRole").asText()).isEqualTo("RECEIVER");
+        assertThat(body.path("data").path("userNickname").asText()).isEqualTo(sender.getNickname());
+        assertThat(body.path("data").path("otherUserId").asLong()).isEqualTo(sender.getId());
+        assertThat(body.path("data").path("senderBook").isNull()).isTrue();
+        assertThat(body.path("data").path("contactDetails").isNull()).isTrue();
+        assertVersion(body.path("data"), persistedExchange.getVersion());
+        assertThat(persistedExchange.getIsReadByReceiver()).isTrue();
+    }
+
+    @Test
+    void shouldHideContactDetails_whenSenderGetsDeclinedExchangeHistoryDetails() throws Exception {
+        ExchangeFixture fixture = createCompletedExchange(625, ExchangeStatus.DECLINED);
+
+        MvcResult mvcResult = mockMvc.perform(get(ExchangePaths.HISTORY_PATH_EXCHANGE_ID, fixture.exchangeId())
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(fixture.sender()))
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode body = responseBody(mvcResult);
+
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(body.path("data").path("status").asText()).isEqualTo(ExchangeStatus.DECLINED.name());
+        assertThat(body.path("data").path("userExchangeRole").asText()).isEqualTo("SENDER");
+        assertThat(body.path("data").path("contactDetails").isNull()).isTrue();
+    }
+
+    @Test
+    void shouldHideContactDetails_whenReceiverGetsDeclinedExchangeHistoryDetails() throws Exception {
+        ExchangeFixture fixture = createCompletedExchange(627, ExchangeStatus.DECLINED);
+
+        MvcResult mvcResult = mockMvc.perform(get(ExchangePaths.HISTORY_PATH_EXCHANGE_ID, fixture.exchangeId())
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(fixture.receiver()))
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode body = responseBody(mvcResult);
+
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(body.path("data").path("status").asText()).isEqualTo(ExchangeStatus.DECLINED.name());
+        assertThat(body.path("data").path("userExchangeRole").asText()).isEqualTo("RECEIVER");
+        assertThat(body.path("data").path("contactDetails").isNull()).isTrue();
     }
 
     private ExchangeFixture createExchangeForSender(User sender, int base) {
@@ -347,6 +526,16 @@ class HistoryControllerIT extends IntegrationTestSupport {
 
     private String historyPath(Long exchangeId) {
         return ExchangePaths.HISTORY_PATH + "/" + exchangeId;
+    }
+
+    private Exchange createGiftExchange(User sender, User receiver, Long receiverBookId) {
+        Book receiverBook = bookRepository.findById(receiverBookId).orElseThrow();
+        receiverBook.setIsGift(true);
+        bookRepository.save(receiverBook);
+
+        Long exchangeId = exchangeUtilIT.createExchange(sender.getId(), receiver.getId(), null, receiverBookId);
+
+        return exchangeRepository.findById(exchangeId).orElseThrow();
     }
 
     private record ExchangeFixture(

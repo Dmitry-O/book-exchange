@@ -1,12 +1,15 @@
 package com.example.bookexchange.exchange.service;
 
+import com.example.bookexchange.book.model.Book;
 import com.example.bookexchange.common.dto.PageQueryDTO;
+import com.example.bookexchange.common.i18n.MessageKey;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.common.result.ResultFactory;
-import com.example.bookexchange.common.i18n.MessageKey;
 import com.example.bookexchange.exchange.dto.ExchangeHistoryDTO;
 import com.example.bookexchange.exchange.dto.ExchangeHistoryDetailsDTO;
-import com.example.bookexchange.exchange.dto.ExchangeUnreadUpdateDTO;
+import com.example.bookexchange.exchange.dto.ExchangeUpdateDTO;
+import com.example.bookexchange.exchange.dto.ExchangeUpdateQueryDTO;
+import com.example.bookexchange.exchange.dto.ExchangeUpdateReadStateDTO;
 import com.example.bookexchange.exchange.mapper.ExchangeMapper;
 import com.example.bookexchange.exchange.model.Exchange;
 import com.example.bookexchange.exchange.model.ExchangeStatus;
@@ -51,21 +54,32 @@ public class HistoryServiceImpl implements HistoryService {
 
     @Transactional(readOnly = true)
     @Override
-    public Result<Page<ExchangeUnreadUpdateDTO>> getUnreadExchangeUpdates(Long userId, PageQueryDTO queryDTO) {
+    public Result<Page<ExchangeUpdateDTO>> getExchangeUpdates(Long userId, ExchangeUpdateQueryDTO queryDTO) {
         Pageable pageable = PageRequest.of(
                 queryDTO.getPageIndex(),
                 queryDTO.getPageSize(),
                 Sort.by(Sort.Direction.DESC, "updatedAt")
+                        .and(Sort.by(Sort.Direction.DESC, "id"))
         );
 
-        Page<ExchangeUnreadUpdateDTO> page = exchangeRepository
-                .findUnreadUpdatesForUser(userId, pageable)
-                .map(exchange -> exchangeMapper.exchangeToExchangeUnreadUpdateDto(
+        Page<ExchangeUpdateDTO> page = loadExchangeUpdates(userId, queryDTO.getReadState(), pageable)
+                .map(exchange -> exchangeMapper.exchangeToExchangeUpdateDto(
                         exchange,
                         resolveUserExchangeRole(exchange, userId)
                 ));
 
         return ResultFactory.ok(page);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public Result<Page<ExchangeUpdateDTO>> getUnreadExchangeUpdates(Long userId, PageQueryDTO queryDTO) {
+        ExchangeUpdateQueryDTO updatesQueryDTO = new ExchangeUpdateQueryDTO();
+        updatesQueryDTO.setPageIndex(queryDTO.getPageIndex());
+        updatesQueryDTO.setPageSize(queryDTO.getPageSize());
+        updatesQueryDTO.setReadState(ExchangeUpdateReadStateDTO.UNREAD);
+
+        return getExchangeUpdates(userId, updatesQueryDTO);
     }
 
     @Transactional
@@ -96,6 +110,18 @@ public class HistoryServiceImpl implements HistoryService {
                 : UserExchangeRole.RECEIVER;
     }
 
+    private Page<Exchange> loadExchangeUpdates(Long userId, ExchangeUpdateReadStateDTO readState, Pageable pageable) {
+        if (readState == null || readState == ExchangeUpdateReadStateDTO.ALL) {
+            return exchangeRepository.findUpdatesForUser(userId, pageable);
+        }
+
+        if (readState == ExchangeUpdateReadStateDTO.READ) {
+            return exchangeRepository.findUpdatesForUserByReadState(userId, true, pageable);
+        }
+
+        return exchangeRepository.findUpdatesForUserByReadState(userId, false, pageable);
+    }
+
     private Exchange markAsReadBySender(Exchange exchange) {
         if (!exchange.getIsReadBySender()) {
             ExchangeReadStateUtil.markReadBySender(exchange);
@@ -122,16 +148,31 @@ public class HistoryServiceImpl implements HistoryService {
                     exchange,
                     exchange.getReceiverUser().getId(),
                     exchange.getReceiverUser().getNickname(),
-                    exchange.getReceiverBook().getContactDetails(),
+                    resolveContactDetails(exchange, userRole),
                     userRole
             );
             case RECEIVER -> exchangeMapper.exchangeToExchangeHistoryDetailsDto(
                     exchange,
                     exchange.getSenderUser().getId(),
                     exchange.getSenderUser().getNickname(),
-                    exchange.getSenderBook().getContactDetails(),
+                    resolveContactDetails(exchange, userRole),
                     userRole
             );
         };
+    }
+
+    private String resolveContactDetails(Exchange exchange, UserExchangeRole userRole) {
+        if (exchange.getStatus() != ExchangeStatus.APPROVED) {
+            return null;
+        }
+
+        return switch (userRole) {
+            case SENDER -> exchange.getReceiverBook().getContactDetails();
+            case RECEIVER -> resolveContactDetails(exchange.getSenderBook());
+        };
+    }
+
+    private String resolveContactDetails(Book book) {
+        return book != null ? book.getContactDetails() : null;
     }
 }

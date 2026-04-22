@@ -13,6 +13,7 @@ import com.example.bookexchange.exchange.model.Exchange;
 import com.example.bookexchange.exchange.mapper.ExchangeMapper;
 import com.example.bookexchange.exchange.repository.ExchangeRepository;
 import com.example.bookexchange.exchange.model.ExchangeStatus;
+import com.example.bookexchange.exchange.model.UserExchangeRole;
 import com.example.bookexchange.exchange.dto.ExchangeDTO;
 import com.example.bookexchange.exchange.dto.ExchangeDetailsDTO;
 import com.example.bookexchange.user.repository.UserRepository;
@@ -51,7 +52,9 @@ public class OfferServiceImpl implements OfferService {
 
         Page<Exchange> exchangesPage = exchangeRepository.findByReceiverUserIdAndStatus(receiverUserId, ExchangeStatus.PENDING, pageable);
 
-        Page<ExchangeDTO> page = exchangesPage.map(exchangeMapper::exchangeToExchangeDto);
+        Page<ExchangeDTO> page = exchangesPage.map(exchange ->
+                exchangeMapper.exchangeToExchangeDto(exchange, UserExchangeRole.RECEIVER)
+        );
 
         return ResultFactory.ok(page);
     }

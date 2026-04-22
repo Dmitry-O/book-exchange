@@ -187,7 +187,7 @@ public final class UnitTestDataFactory {
                 .build();
     }
 
-    public static RequestCreateDTO requestCreateDto(long receiverUserId, long senderBookId, long receiverBookId) {
+    public static RequestCreateDTO requestCreateDto(long receiverUserId, Long senderBookId, long receiverBookId) {
         return RequestCreateDTO.builder()
                 .receiverUserId(receiverUserId)
                 .senderBookId(senderBookId)

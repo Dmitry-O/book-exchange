@@ -47,6 +47,7 @@ public enum MessageKey {
     EXCHANGE_DECLINED("exchange.declined"),
     EXCHANGE_APPROVED("exchange.approved"),
     EXCHANGE_CANT_BE_WITH_YOURSELF("exchange.cant.be.with.yourself"),
+    EXCHANGE_SENDER_BOOK_REQUIRED("exchange.sender.book.required"),
     EXCHANGE_BETWEEN_BOOKS_EXISTS("exchange.between.books.exists"),
     EXCHANGE_CREATED("exchange.created"),
 
