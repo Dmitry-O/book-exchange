@@ -161,6 +161,7 @@ class AdminUserServiceImplTest {
     @Test
     void shouldPersistPermanentBanAndDeleteRefreshTokens_whenAdminBansUser() {
         User user = UnitTestDataFactory.user(UnitFixtureIds.TARGET_USER_ID, "target@example.com", "target_one");
+        user.setBannedUntil(UnitTestDataFactory.futureInstant());
         BanUserDTO dto = UnitTestDataFactory.permanentBanDto();
         UserAdminDTO adminDto = mock(UserAdminDTO.class);
         UserDetails admin = UnitTestDataFactory.adminPrincipal("admin@example.com");
@@ -174,6 +175,7 @@ class AdminUserServiceImplTest {
 
         assertSuccess(result, HttpStatus.OK, ADMIN_USER_BANNED);
         assertThat(user.isBannedPermanently()).isTrue();
+        assertThat(user.getBannedUntil()).isNull();
         assertThat(user.getBanReason()).isEqualTo(dto.getBanReason());
         verify(refreshTokenRepository).deleteByUserId(user.getId());
     }

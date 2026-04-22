@@ -254,7 +254,9 @@ public class AdminUserServiceImpl implements AdminUserService {
 
                     if (banUserDTO.isBannedPermanently()) {
                         user.setBannedPermanently(true);
+                        user.setBannedUntil(null);
                     } else if (banUserDTO.getBannedUntil() != null) {
+                        user.setBannedPermanently(false);
                         user.setBannedUntil(banUserDTO.getBannedUntil().toInstant());
                     } else {
                         auditService.log(AuditEvent.builder()
