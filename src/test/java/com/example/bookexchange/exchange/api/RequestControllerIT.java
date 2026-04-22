@@ -81,6 +81,7 @@ class RequestControllerIT extends IntegrationTestSupport {
         assertThat(body.path("success").asBoolean()).isTrue();
         assertThat(body.path("data").path("status").asText()).isEqualTo(ExchangeStatus.PENDING.name());
         assertThat(body.path("data").path("userNickname").asText()).isEqualTo(fixture.receiver().getNickname());
+        assertThat(body.path("data").path("otherUserId").asLong()).isEqualTo(fixture.receiver().getId());
         assertThat(exchange.getSenderUser().getId()).isEqualTo(fixture.sender().getId());
         assertThat(exchange.getReceiverUser().getId()).isEqualTo(fixture.receiver().getId());
         assertThat(exchange.getSenderBook().getId()).isEqualTo(fixture.senderBookId());
@@ -183,6 +184,43 @@ class RequestControllerIT extends IntegrationTestSupport {
     }
 
     @Test
+    void shouldCreateGiftRequestWithoutSenderBook_whenReceiverBookIsGift() throws Exception {
+        User sender = userUtil.createUser(FixtureNumbers.request(416));
+        User receiver = userUtil.createUser(FixtureNumbers.request(417));
+        Long receiverBookId = bookUtil.createBook(receiver.getId(), FixtureNumbers.request(417));
+        Book receiverBook = bookRepository.findById(receiverBookId).orElseThrow();
+        receiverBook.setIsGift(true);
+        bookRepository.save(receiverBook);
+        RequestCreateDTO dto = RequestCreateDTO.builder()
+                .receiverUserId(receiver.getId())
+                .senderBookId(null)
+                .receiverBookId(receiverBookId)
+                .build();
+
+        MvcResult mvcResult = mockMvc.perform(post(ExchangePaths.REQUEST_PATH)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(sender))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isCreated())
+                .andExpect(header().exists(HttpHeaders.ETAG))
+                .andReturn();
+
+        JsonNode body = responseBody(mvcResult);
+        Long exchangeId = body.path("data").path("id").asLong();
+        Exchange exchange = exchangeRepository.findById(exchangeId).orElseThrow();
+
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(body.path("data").path("senderBook").isNull()).isTrue();
+        assertThat(body.path("data").path("receiverBook").path("id").asLong()).isEqualTo(receiverBookId);
+        assertThat(body.path("data").path("userNickname").asText()).isEqualTo(receiver.getNickname());
+        assertThat(body.path("data").path("otherUserId").asLong()).isEqualTo(receiver.getId());
+        assertThat(exchange.getSenderBook()).isNull();
+        assertThat(exchange.getReceiverBook().getId()).isEqualTo(receiverBookId);
+        assertThat(eTagVersion(mvcResult)).isEqualTo(exchange.getVersion());
+    }
+
+    @Test
     void shouldReturnRequestDetails_whenSenderGetsRequestDetails() throws Exception {
         ExchangeFixture fixture = createPendingExchange(406);
 
@@ -252,7 +290,39 @@ class RequestControllerIT extends IntegrationTestSupport {
         assertThat(body.path("data").path("totalElements").asLong()).isEqualTo(1);
         assertThat(content.size()).isEqualTo(1);
         assertThat(content.get(0).path("id").asLong()).isEqualTo(pendingFixture.exchangeId());
+        assertThat(content.get(0).path("status").asText()).isEqualTo(ExchangeStatus.PENDING.name());
+        assertThat(content.get(0).path("userNickname").asText()).isEqualTo(pendingFixture.receiver().getNickname());
+        assertThat(content.get(0).path("otherUserId").asLong()).isEqualTo(pendingFixture.receiver().getId());
         assertHasVersion(content.get(0));
+    }
+
+    @Test
+    void shouldReturnGiftRequestInSenderListWithNullSenderBookFields() throws Exception {
+        User sender = userUtil.createUser(FixtureNumbers.request(418));
+        User receiver = userUtil.createUser(FixtureNumbers.request(419));
+        Long receiverBookId = bookUtil.createBook(receiver.getId(), FixtureNumbers.request(419));
+        Book receiverBook = bookRepository.findById(receiverBookId).orElseThrow();
+        receiverBook.setIsGift(true);
+        bookRepository.save(receiverBook);
+        Long exchangeId = exchangeUtilIT.createExchange(sender.getId(), receiver.getId(), null, receiverBookId);
+
+        MvcResult mvcResult = mockMvc.perform(get(ExchangePaths.REQUEST_PATH)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(sender))
+                        .queryParam("pageIndex", PageTestDefaults.PAGE_INDEX.toString())
+                        .queryParam("pageSize", PageTestDefaults.PAGE_SIZE.toString())
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode content = responseBody(mvcResult).path("data").path("content");
+
+        assertThat(content).hasSize(1);
+        assertThat(content.get(0).path("id").asLong()).isEqualTo(exchangeId);
+        assertThat(content.get(0).path("status").asText()).isEqualTo(ExchangeStatus.PENDING.name());
+        assertThat(content.get(0).path("userNickname").asText()).isEqualTo(receiver.getNickname());
+        assertThat(content.get(0).path("otherUserId").asLong()).isEqualTo(receiver.getId());
+        assertThat(content.get(0).get("senderBookName").isNull()).isTrue();
+        assertThat(content.get(0).get("senderBookPhotoUrl").isNull()).isTrue();
     }
 
     @Test

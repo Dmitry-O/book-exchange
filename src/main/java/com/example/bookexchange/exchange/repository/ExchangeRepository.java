@@ -83,12 +83,32 @@ public interface ExchangeRepository extends JpaRepository<Exchange, Long>, JpaSp
     @Query("""
             SELECT e
             FROM Exchange e
-            WHERE (e.senderUser.id = :userId AND e.isReadBySender = false)
-                OR (e.receiverUser.id = :userId AND e.isReadByReceiver = false)
+            WHERE e.senderUser.id = :userId
+                OR e.receiverUser.id = :userId
             """
     )
-    Page<Exchange> findUnreadUpdatesForUser(
+    Page<Exchange> findUpdatesForUser(
             @Param("userId") Long userId,
+            Pageable pageable
+    );
+
+    @EntityGraph(attributePaths = {
+            "senderUser",
+            "receiverUser",
+            "senderBook",
+            "receiverBook",
+            "declinerUser"
+    })
+    @Query("""
+            SELECT e
+            FROM Exchange e
+            WHERE (e.senderUser.id = :userId AND e.isReadBySender = :isRead)
+                OR (e.receiverUser.id = :userId AND e.isReadByReceiver = :isRead)
+            """
+    )
+    Page<Exchange> findUpdatesForUserByReadState(
+            @Param("userId") Long userId,
+            @Param("isRead") boolean isRead,
             Pageable pageable
     );
 

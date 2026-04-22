@@ -4,10 +4,11 @@ import com.example.bookexchange.common.dto.PageQueryDTO;
 import com.example.bookexchange.security.auth.CurrentUser;
 import com.example.bookexchange.common.swagger.error_response.NotFoundErrorResponse;
 import com.example.bookexchange.common.swagger.error_response.UnauthorizedErrorResponse;
-import com.example.bookexchange.common.swagger.page_data_response.ExchangeUnreadUpdatePageData;
+import com.example.bookexchange.common.swagger.page_data_response.ExchangeUpdatePageData;
 import com.example.bookexchange.common.swagger.page_data_response.HistoryPageData;
 import com.example.bookexchange.common.web.ResultResponseMapper;
 import com.example.bookexchange.exchange.dto.ExchangeHistoryDetailsDTO;
+import com.example.bookexchange.exchange.dto.ExchangeUpdateQueryDTO;
 import com.example.bookexchange.exchange.service.HistoryService;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -32,10 +33,32 @@ public class HistoryController {
     @UnauthorizedErrorResponse
     @ApiResponse(
             responseCode = "200",
+            description = "A chronological list of exchange updates for the current user",
+            content = @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ExchangeUpdatePageData.class)
+            )
+    )
+    @GetMapping(ExchangePaths.UPDATES_PATH)
+    public ResponseEntity<?> getExchangeUpdates(
+            @Parameter(description = "User ID", example = "1")
+            @CurrentUser Long userId,
+
+            @ParameterObject
+            @Validated @ModelAttribute ExchangeUpdateQueryDTO queryDTO,
+
+            HttpServletRequest request
+    ) {
+        return responseMapper.map(historyService.getExchangeUpdates(userId, queryDTO), request);
+    }
+
+    @UnauthorizedErrorResponse
+    @ApiResponse(
+            responseCode = "200",
             description = "A list of unread exchange updates for the current user",
             content = @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = ExchangeUnreadUpdatePageData.class)
+                    schema = @Schema(implementation = ExchangeUpdatePageData.class)
             )
     )
     @GetMapping(ExchangePaths.UPDATES_PATH_UNREAD)

@@ -30,7 +30,9 @@ import static com.example.bookexchange.common.i18n.MessageKey.EXCHANGE_DECLINED;
 import static com.example.bookexchange.common.result.ResultFactory.ok;
 import static com.example.bookexchange.support.unit.ResultAssertions.assertSuccess;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -182,5 +184,54 @@ class OfferServiceImplTest {
         assertSuccess(result, HttpStatus.OK);
         assertThat(exchange.getIsReadByReceiver()).isTrue();
         assertThat(exchange.getIsReadBySender()).isFalse();
+    }
+
+    @Test
+    void shouldApproveGiftExchangeWithoutSenderBook_whenReceiverApprovesOffer() {
+        User sender = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, "sender@example.com", "sender_one");
+        User receiver = UnitTestDataFactory.user(UnitFixtureIds.RECEIVER_USER_ID, "receiver@example.com", "receiver_one");
+        Book receiverBook = UnitTestDataFactory.book(UnitFixtureIds.RECEIVER_BOOK_ID, "Receiver book", receiver);
+        receiverBook.setIsGift(true);
+        Exchange approvedExchange = UnitTestDataFactory.exchange(
+                UnitFixtureIds.EXCHANGE_ID,
+                sender,
+                receiver,
+                null,
+                receiverBook,
+                ExchangeStatus.PENDING
+        );
+        ExchangeDetailsDTO detailsDto = mock(ExchangeDetailsDTO.class);
+        ArgumentCaptor<List<Book>> booksCaptor = ArgumentCaptor.forClass(List.class);
+
+        when(exchangeRepository.findByIdAndReceiverUserId(approvedExchange.getId(), receiver.getId())).thenReturn(Optional.of(approvedExchange));
+        when(exchangeTransitionHelper.requirePendingVersion(
+                approvedExchange,
+                approvedExchange.getVersion(),
+                "APPROVE_USER_OFFER",
+                receiver.getId(),
+                receiver.getEmail(),
+                MessageKey.EXCHANGE_CANT_BE_APPROVED,
+                "EXCHANGE_CANT_BE_APPROVED"
+        )).thenReturn(ok(approvedExchange));
+        when(exchangeRepository.save(approvedExchange)).thenReturn(approvedExchange);
+        when(exchangeRepository.findByIdNotAndReceiverBookIdAndStatus(
+                approvedExchange.getId(),
+                receiverBook.getId(),
+                ExchangeStatus.PENDING
+        )).thenReturn(List.of());
+        when(exchangeMapper.exchangeToExchangeDetailsDto(approvedExchange, sender.getId(), sender.getNickname())).thenReturn(detailsDto);
+
+        Result<ExchangeDetailsDTO> result = offerService.approveUserOffer(
+                receiver.getId(),
+                approvedExchange.getId(),
+                approvedExchange.getVersion()
+        );
+
+        assertSuccess(result, HttpStatus.OK, EXCHANGE_APPROVED);
+        assertThat(approvedExchange.getStatus()).isEqualTo(ExchangeStatus.APPROVED);
+        assertThat(receiverBook.getIsExchanged()).isTrue();
+        verify(exchangeRepository, never()).findByIdNotAndSenderBookIdAndStatus(any(Long.class), any(Long.class), any(ExchangeStatus.class));
+        verify(bookSearchIndexService).scheduleUpsertAll(booksCaptor.capture());
+        assertThat(booksCaptor.getValue()).containsExactly(receiverBook);
     }
 }
