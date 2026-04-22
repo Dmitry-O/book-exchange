@@ -1,6 +1,7 @@
 package com.example.bookexchange.report.service;
 
 import com.example.bookexchange.book.repository.BookRepository;
+import com.example.bookexchange.common.audit.service.SoftDeleteFilterHelper;
 import com.example.bookexchange.common.dto.PageQueryDTO;
 import com.example.bookexchange.common.audit.model.AuditEvent;
 import com.example.bookexchange.common.audit.model.AuditResult;
@@ -9,6 +10,8 @@ import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.common.result.ResultFactory;
 import com.example.bookexchange.common.i18n.MessageKey;
 import com.example.bookexchange.report.dto.ReportDTO;
+import com.example.bookexchange.report.dto.ReportTargetBookDTO;
+import com.example.bookexchange.report.dto.ReportTargetUserDTO;
 import com.example.bookexchange.report.mapper.ReportMapper;
 import com.example.bookexchange.report.model.Report;
 import com.example.bookexchange.report.dto.ReportCreateDTO;
@@ -26,6 +29,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
 @Service
 @AllArgsConstructor
 public class ReportServiceImpl implements ReportService {
@@ -35,6 +43,7 @@ public class ReportServiceImpl implements ReportService {
     private final BookRepository bookRepository;
     private final AuditService auditService;
     private final ReportMapper reportMapper;
+    private final SoftDeleteFilterHelper softDeleteFilterHelper;
 
     @Transactional
     @Override
@@ -53,10 +62,12 @@ public class ReportServiceImpl implements ReportService {
                 Sort.by(Sort.Direction.DESC, "createdAt")
         );
 
-        Page<ReportDTO> reportPage = reportRepository.findByReporterId(reporterId, pageable)
-                .map(reportMapper::reportToUserReportDto);
+        Page<Report> reportPage = reportRepository.findByReporterId(reporterId, pageable);
+        Map<Long, ReportTargetUserDTO> targetUsers = loadTargetUsers(reportPage.getContent());
+        Map<Long, ReportTargetBookDTO> targetBooks = loadTargetBooks(reportPage.getContent());
+        Page<ReportDTO> responsePage = reportPage.map(report -> enrichUserReportDto(report, targetUsers, targetBooks));
 
-        return ResultFactory.ok(reportPage);
+        return ResultFactory.ok(responsePage);
     }
 
     private Result<User> validateTarget(Long reporterId, Long targetId, ReportCreateDTO reportCreateDTO) {
@@ -145,5 +156,67 @@ public class ReportServiceImpl implements ReportService {
         }
 
         return ResultFactory.ok(reporter);
+    }
+
+    private ReportDTO enrichUserReportDto(
+            Report report,
+            Map<Long, ReportTargetUserDTO> targetUsers,
+            Map<Long, ReportTargetBookDTO> targetBooks
+    ) {
+        ReportDTO dto = reportMapper.reportToUserReportDto(report);
+
+        if (report.getTargetType() == TargetType.USER) {
+            dto.setTargetUser(targetUsers.get(report.getTargetId()));
+        }
+
+        if (report.getTargetType() == TargetType.BOOK) {
+            dto.setTargetBook(targetBooks.get(report.getTargetId()));
+        }
+
+        return dto;
+    }
+
+    private Map<Long, ReportTargetUserDTO> loadTargetUsers(List<Report> reports) {
+        List<Long> targetUserIds = reports.stream()
+                .filter(report -> report.getTargetType() == TargetType.USER)
+                .map(Report::getTargetId)
+                .distinct()
+                .toList();
+
+        if (targetUserIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return softDeleteFilterHelper.runWithoutDeletedFilter(() ->
+                userRepository.findAllById(targetUserIds).stream()
+                        .map(reportMapper::userToReportTargetUserDto)
+                        .collect(Collectors.toMap(
+                                ReportTargetUserDTO::getId,
+                                Function.identity(),
+                                (left, right) -> left
+                        ))
+        );
+    }
+
+    private Map<Long, ReportTargetBookDTO> loadTargetBooks(List<Report> reports) {
+        List<Long> targetBookIds = reports.stream()
+                .filter(report -> report.getTargetType() == TargetType.BOOK)
+                .map(Report::getTargetId)
+                .distinct()
+                .toList();
+
+        if (targetBookIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return softDeleteFilterHelper.runWithoutDeletedFilter(() ->
+                bookRepository.findAllByIdIn(targetBookIds).stream()
+                        .map(reportMapper::bookToReportTargetBookDto)
+                        .collect(Collectors.toMap(
+                                ReportTargetBookDTO::getId,
+                                Function.identity(),
+                                (left, right) -> left
+                        ))
+        );
     }
 }

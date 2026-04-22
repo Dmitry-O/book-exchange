@@ -34,6 +34,12 @@ public class ReportDTO {
     @JsonProperty("targetId")
     private Long targetId;
 
+    @JsonProperty("targetUser")
+    private ReportTargetUserDTO targetUser;
+
+    @JsonProperty("targetBook")
+    private ReportTargetBookDTO targetBook;
+
     @Schema(example = "SPAM")
     @JsonProperty("reason")
     private ReportReason reason;
