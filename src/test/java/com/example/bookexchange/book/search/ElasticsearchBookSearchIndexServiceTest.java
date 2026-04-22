@@ -96,7 +96,7 @@ class ElasticsearchBookSearchIndexServiceTest {
         when(elasticsearchOperations.search(any(StringQuery.class), eq(BookSearchDocument.class), any(IndexCoordinates.class)))
                 .thenReturn(searchHits);
 
-        Optional<BookSearchResultPage> result = service.search(dto, queryDTO, BookType.ACTIVE);
+        Optional<BookSearchResultPage> result = service.search(null, dto, queryDTO, BookType.ACTIVE);
 
         assertThat(result).isPresent();
         assertThat(result.orElseThrow().bookIds()).containsExactly(10L, 11L);
@@ -121,8 +121,34 @@ class ElasticsearchBookSearchIndexServiceTest {
         when(elasticsearchOperations.search(any(StringQuery.class), eq(BookSearchDocument.class), any(IndexCoordinates.class)))
                 .thenThrow(new RuntimeException("cluster unavailable"));
 
-        Optional<BookSearchResultPage> result = service.search(dto, queryDTO, BookType.ACTIVE);
+        Optional<BookSearchResultPage> result = service.search(null, dto, queryDTO, BookType.ACTIVE);
 
         assertThat(result).isEmpty();
+    }
+
+    @Test
+    void shouldExcludeCurrentUserBooks_whenCurrentUserIdProvided() {
+        BookSearchDTO dto = BookSearchDTO.builder()
+                .searchText("char")
+                .build();
+        PageQueryDTO queryDTO = new PageQueryDTO();
+
+        @SuppressWarnings("unchecked")
+        SearchHits<BookSearchDocument> searchHits = mock(SearchHits.class);
+
+        when(elasticsearchOperations.indexOps(BookSearchDocument.class)).thenReturn(indexOperations);
+        when(indexOperations.exists()).thenReturn(true);
+        when(searchHits.getSearchHits()).thenReturn(List.of());
+        when(searchHits.getTotalHits()).thenReturn(0L);
+        when(elasticsearchOperations.search(any(StringQuery.class), eq(BookSearchDocument.class), any(IndexCoordinates.class)))
+                .thenReturn(searchHits);
+
+        Optional<BookSearchResultPage> result = service.search(42L, dto, queryDTO, BookType.ACTIVE);
+
+        assertThat(result).isPresent();
+
+        ArgumentCaptor<StringQuery> queryCaptor = ArgumentCaptor.forClass(StringQuery.class);
+        verify(elasticsearchOperations).search(queryCaptor.capture(), eq(BookSearchDocument.class), any(IndexCoordinates.class));
+        assertThat(queryCaptor.getValue().getSource()).contains("\"must_not\":[{\"term\":{\"ownerUserId\":42}}]");
     }
 }

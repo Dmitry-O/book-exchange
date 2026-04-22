@@ -11,7 +11,7 @@ import java.util.Optional;
 
 public interface BookSearchIndexService {
 
-    Optional<BookSearchResultPage> search(BookSearchDTO dto, PageQueryDTO queryDTO, BookType bookType);
+    Optional<BookSearchResultPage> search(Long currentUserId, BookSearchDTO dto, PageQueryDTO queryDTO, BookType bookType);
 
     void scheduleUpsert(Book book);
 

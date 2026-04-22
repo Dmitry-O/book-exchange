@@ -202,6 +202,8 @@ public class BookController {
     )
     @GetMapping(BookPaths.BOOK_PATH_SEARCH)
     public ResponseEntity<?> getBooks(
+            @CurrentUser Long currentUserId,
+
             @ParameterObject
             @Validated @ModelAttribute PageQueryDTO queryDTO,
 
@@ -210,7 +212,7 @@ public class BookController {
 
             HttpServletRequest request
     ) {
-        return responseMapper.map(bookService.findBooks(dto, queryDTO), request);
+        return responseMapper.map(bookService.findBooks(currentUserId, dto, queryDTO), request);
     }
 
     @UnauthorizedErrorResponse

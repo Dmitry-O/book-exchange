@@ -145,16 +145,16 @@ public class BookServiceImpl implements BookService {
 
     @Transactional(readOnly = true)
     @Override
-    public Result<Page<BookDTO>> findBooks(BookSearchDTO dto, PageQueryDTO queryDTO) {
+    public Result<Page<BookDTO>> findBooks(Long currentUserId, BookSearchDTO dto, PageQueryDTO queryDTO) {
         BookSearchDTO searchDto = normalizeSearchDto(dto);
         Pageable pageable = createSearchPageable(searchDto, queryDTO.getPageIndex(), queryDTO.getPageSize());
-        Optional<Result<Page<BookDTO>>> elasticsearchResult = searchBooksFromIndex(searchDto, queryDTO, pageable);
+        Optional<Result<Page<BookDTO>>> elasticsearchResult = searchBooksFromIndex(currentUserId, searchDto, queryDTO, pageable);
 
         if (elasticsearchResult.isPresent()) {
             return elasticsearchResult.orElseThrow();
         }
 
-        Specification<Book> specification = BookSpecificationBuilder.build(searchDto, BookType.ACTIVE);
+        Specification<Book> specification = BookSpecificationBuilder.build(searchDto, BookType.ACTIVE, currentUserId);
 
         Page<BookDTO> bookPage = bookRepository
                 .findAll(specification, pageable)
@@ -330,19 +330,33 @@ public class BookServiceImpl implements BookService {
         return result;
     }
 
-    private Optional<Result<Page<BookDTO>>> searchBooksFromIndex(BookSearchDTO dto, PageQueryDTO queryDTO, Pageable pageable) {
-        return bookSearchIndexService.search(dto, queryDTO, BookType.ACTIVE)
-                .map(searchResult -> ResultFactory.ok(buildBookDtoPage(searchResult, pageable)));
+    private Optional<Result<Page<BookDTO>>> searchBooksFromIndex(
+            Long currentUserId,
+            BookSearchDTO dto,
+            PageQueryDTO queryDTO,
+            Pageable pageable
+    ) {
+        return bookSearchIndexService.search(currentUserId, dto, queryDTO, BookType.ACTIVE)
+                .flatMap(searchResult -> buildBookDtoPageFromIndex(currentUserId, searchResult, pageable)
+                        .map(ResultFactory::ok));
     }
 
-    private Page<BookDTO> buildBookDtoPage(BookSearchResultPage searchResult, Pageable pageable) {
+    private Optional<Page<BookDTO>> buildBookDtoPageFromIndex(
+            Long currentUserId,
+            BookSearchResultPage searchResult,
+            Pageable pageable
+    ) {
         if (searchResult.bookIds().isEmpty()) {
-            return Page.empty(pageable);
+            return Optional.of(Page.empty(pageable));
         }
 
         Map<Long, Book> booksById = bookRepository.findAllByIdIn(searchResult.bookIds())
                 .stream()
                 .collect(Collectors.toMap(Book::getId, Function.identity()));
+
+        if (currentUserId != null && containsCurrentUserBooks(currentUserId, booksById.values())) {
+            return Optional.empty();
+        }
 
         List<BookDTO> dtos = searchResult.bookIds().stream()
                 .map(booksById::get)
@@ -350,7 +364,17 @@ public class BookServiceImpl implements BookService {
                 .map(bookMapper::bookToBookDto)
                 .toList();
 
-        return new PageImpl<>(dtos, pageable, searchResult.totalHits());
+        return Optional.of(new PageImpl<>(dtos, pageable, searchResult.totalHits()));
+    }
+
+    private boolean containsCurrentUserBooks(Long currentUserId, Iterable<Book> books) {
+        for (Book book : books) {
+            if (book != null && book.getUser() != null && Objects.equals(book.getUser().getId(), currentUserId)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
 }

@@ -9,10 +9,18 @@ import org.springframework.data.jpa.domain.Specification;
 public class BookSpecificationBuilder {
 
     public static Specification<Book> build(BookSearchDTO dto, BookType bookType) {
+        return build(dto, bookType, null);
+    }
+
+    public static Specification<Book> build(BookSearchDTO dto, BookType bookType, Long excludedUserId) {
         return (root, query, cb) -> {
             Predicate predicate = cb.conjunction();
 
             predicate = cb.and(predicate, cb.equal(root.get("isExchanged"), false));
+
+            if (excludedUserId != null) {
+                predicate = cb.and(predicate, cb.notEqual(root.get("user").get("id"), excludedUserId));
+            }
 
             if (dto.getAuthor() != null) {
                 predicate = cb.and(predicate, cb.equal(root.get("author"), dto.getAuthor()));

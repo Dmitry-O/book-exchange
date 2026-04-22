@@ -408,7 +408,7 @@ public class AdminBookServiceImpl implements AdminBookService {
             Pageable pageable,
             BookType bookType
     ) {
-        return bookSearchIndexService.search(dto, queryDTO, bookType)
+        return bookSearchIndexService.search(null, dto, queryDTO, bookType)
                 .map(searchResult -> ResultFactory.ok(buildBookAdminDtoPage(searchResult, pageable)));
     }
 

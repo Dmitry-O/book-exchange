@@ -48,7 +48,7 @@ public class ElasticsearchBookSearchIndexService implements BookSearchIndexServi
     private final BookSearchProperties bookSearchProperties;
 
     @Override
-    public Optional<BookSearchResultPage> search(BookSearchDTO dto, PageQueryDTO queryDTO, BookType bookType) {
+    public Optional<BookSearchResultPage> search(Long currentUserId, BookSearchDTO dto, PageQueryDTO queryDTO, BookType bookType) {
         if (!supports(dto)) {
             return Optional.empty();
         }
@@ -56,7 +56,7 @@ public class ElasticsearchBookSearchIndexService implements BookSearchIndexServi
         try {
             ensureIndexExists();
 
-            StringQuery query = createQuery(dto, queryDTO, bookType);
+            StringQuery query = createQuery(currentUserId, dto, queryDTO, bookType);
             SearchHits<BookSearchDocument> searchHits = elasticsearchOperations.search(query, BookSearchDocument.class, INDEX_COORDINATES);
 
             List<Long> ids = searchHits.getSearchHits().stream()
@@ -67,9 +67,9 @@ public class ElasticsearchBookSearchIndexService implements BookSearchIndexServi
         } catch (Exception ex) {
             log.warn(
                     "Book Elasticsearch search failed. Falling back to JPA search. reason={}",
-                    ex.getMessage(),
-                    ex
+                    ex.getMessage()
             );
+            log.debug("Book Elasticsearch search fallback cause", ex);
 
             return Optional.empty();
         }
@@ -105,9 +105,9 @@ public class ElasticsearchBookSearchIndexService implements BookSearchIndexServi
         } catch (Exception ex) {
             log.warn(
                     "Book Elasticsearch reindex failed. reason={}",
-                    ex.getMessage(),
-                    ex
+                    ex.getMessage()
             );
+            log.debug("Book Elasticsearch reindex failure cause", ex);
             return ResultFactory.error(MessageKey.SYSTEM_UNEXPECTED_ERROR, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -126,8 +126,8 @@ public class ElasticsearchBookSearchIndexService implements BookSearchIndexServi
         }
     }
 
-    private StringQuery createQuery(BookSearchDTO dto, PageQueryDTO queryDTO, BookType bookType) throws JsonProcessingException {
-        String source = objectMapper.writeValueAsString(buildQuerySource(dto, bookType));
+    private StringQuery createQuery(Long currentUserId, BookSearchDTO dto, PageQueryDTO queryDTO, BookType bookType) throws JsonProcessingException {
+        String source = objectMapper.writeValueAsString(buildQuerySource(currentUserId, dto, bookType));
         Sort sort = mapSort(dto);
 
         if (sort == null) {
@@ -137,7 +137,7 @@ public class ElasticsearchBookSearchIndexService implements BookSearchIndexServi
         return new StringQuery(source, PageRequest.of(queryDTO.getPageIndex(), queryDTO.getPageSize()), sort);
     }
 
-    private Map<String, Object> buildQuerySource(BookSearchDTO dto, BookType bookType) {
+    private Map<String, Object> buildQuerySource(Long currentUserId, BookSearchDTO dto, BookType bookType) {
         List<Object> shouldClauses = List.of(
                 Map.of(
                         "multi_match",
@@ -195,6 +195,10 @@ public class ElasticsearchBookSearchIndexService implements BookSearchIndexServi
         );
         bool.put("filter", filters);
 
+        if (currentUserId != null) {
+            bool.put("must_not", List.of(term("ownerUserId", currentUserId)));
+        }
+
         return Map.of("bool", bool);
     }
 
@@ -242,9 +246,9 @@ public class ElasticsearchBookSearchIndexService implements BookSearchIndexServi
             log.warn(
                     "Failed to upsert book document in Elasticsearch. bookId={}, reason={}",
                     book.getId(),
-                    ex.getMessage(),
-                    ex
+                    ex.getMessage()
             );
+            log.debug("Book Elasticsearch single-document upsert failure cause", ex);
         }
     }
 
@@ -264,9 +268,9 @@ public class ElasticsearchBookSearchIndexService implements BookSearchIndexServi
             log.warn(
                     "Failed to upsert book documents in Elasticsearch. bookCount={}, reason={}",
                     books.size(),
-                    ex.getMessage(),
-                    ex
+                    ex.getMessage()
             );
+            log.debug("Book Elasticsearch bulk upsert failure cause", ex);
         }
     }
 

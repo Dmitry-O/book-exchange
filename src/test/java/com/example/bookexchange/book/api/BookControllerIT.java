@@ -396,6 +396,23 @@ class BookControllerIT extends IntegrationTestSupport {
     }
 
     @Test
+    void shouldExcludeOwnBooks_whenAuthenticatedUserSearchesPublicBooks() throws Exception {
+        MvcResult mvcResult = mockMvc.perform(get(BookPaths.BOOK_PATH_SEARCH)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
+                        .queryParam("pageIndex", PAGE_INDEX.toString())
+                        .queryParam("pageSize", PAGE_SIZE.toString())
+                        .queryParam("searchText", TestBookStrings.name(1)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode body = responseBody(mvcResult);
+
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(body.path("data").path("totalElements").asLong()).isZero();
+        assertThat(body.path("data").path("content").size()).isZero();
+    }
+
+    @Test
     void shouldDeleteBook_whenUserDeletesBookById() throws Exception {
         Long bookToDeleteId = bookUtil.createBook(user.getId(), FixtureNumbers.book(40));
 
