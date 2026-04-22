@@ -3,10 +3,12 @@ package com.example.bookexchange.report.service;
 import com.example.bookexchange.book.model.Book;
 import com.example.bookexchange.book.repository.BookRepository;
 import com.example.bookexchange.common.audit.service.AuditService;
+import com.example.bookexchange.common.audit.service.SoftDeleteFilterHelper;
 import com.example.bookexchange.common.dto.PageQueryDTO;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.report.dto.ReportCreateDTO;
 import com.example.bookexchange.report.dto.ReportDTO;
+import com.example.bookexchange.report.dto.ReportTargetUserDTO;
 import com.example.bookexchange.report.mapper.ReportMapper;
 import com.example.bookexchange.report.model.Report;
 import com.example.bookexchange.report.model.ReportStatus;
@@ -27,7 +29,9 @@ import org.springframework.http.HttpStatus;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Supplier;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static com.example.bookexchange.common.i18n.MessageKey.BOOK_NOT_FOUND;
 import static com.example.bookexchange.common.i18n.MessageKey.REPORT_ALREADY_EXISTS;
 import static com.example.bookexchange.common.i18n.MessageKey.REPORT_CANNOT_REPORT_YOUR_BOOK;
@@ -58,6 +62,9 @@ class ReportServiceImplTest {
 
     @Mock
     private ReportMapper reportMapper;
+
+    @Mock
+    private SoftDeleteFilterHelper softDeleteFilterHelper;
 
     @InjectMocks
     private ReportServiceImpl reportService;
@@ -151,16 +158,33 @@ class ReportServiceImplTest {
     @Test
     void shouldReturnOnlyCurrentUserReports_whenFindUserReportsIsCalled() {
         User reporter = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, "reporter@example.com", "reporter_one");
+        User targetUser = UnitTestDataFactory.user(UnitFixtureIds.TARGET_USER_ID, "target@example.com", "target_one");
+        targetUser.setPhotoUrl("https://cdn.example.com/users/200/profile.jpg");
         Report report = UnitTestDataFactory.report(1L, reporter, TargetType.USER, UnitFixtureIds.TARGET_USER_ID, ReportStatus.OPEN);
-        ReportDTO reportDto = ReportDTO.builder().id(report.getId()).version(report.getVersion()).build();
+        ReportDTO reportDto = ReportDTO.builder()
+                .id(report.getId())
+                .version(report.getVersion())
+                .targetType(TargetType.USER)
+                .targetId(targetUser.getId())
+                .build();
+        ReportTargetUserDTO targetUserDto = ReportTargetUserDTO.builder()
+                .id(targetUser.getId())
+                .nickname(targetUser.getNickname())
+                .photoUrl(targetUser.getPhotoUrl())
+                .build();
         PageQueryDTO queryDTO = UnitTestDataFactory.pageQuery(0, 20);
 
+        when(softDeleteFilterHelper.runWithoutDeletedFilter(any()))
+                .thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(0)).get());
         when(reportRepository.findByReporterId(eq(reporter.getId()), any()))
                 .thenReturn(new PageImpl<>(List.of(report)));
+        when(userRepository.findAllById(List.of(targetUser.getId()))).thenReturn(List.of(targetUser));
         when(reportMapper.reportToUserReportDto(report)).thenReturn(reportDto);
+        when(reportMapper.userToReportTargetUserDto(targetUser)).thenReturn(targetUserDto);
 
         Result<Page<ReportDTO>> result = reportService.findUserReports(reporter.getId(), queryDTO);
 
-        assertSuccess(result, HttpStatus.OK);
+        ReportDTO content = assertSuccess(result, HttpStatus.OK).body().getContent().getFirst();
+        assertThat(content.getTargetUser()).isEqualTo(targetUserDto);
     }
 }

@@ -11,6 +11,7 @@ import com.example.bookexchange.report.model.Report;
 import com.example.bookexchange.support.FixtureNumbers;
 import com.example.bookexchange.support.TestReportStrings;
 import com.example.bookexchange.user.model.User;
+import com.example.bookexchange.user.repository.UserRepository;
 import com.example.bookexchange.support.fixture.BookFixtureSupport;
 import com.example.bookexchange.support.fixture.UserFixtureSupport;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -43,6 +44,9 @@ class ReportControllerIT extends IntegrationTestSupport {
 
     @Autowired
     BookFixtureSupport bookUtil;
+
+    @Autowired
+    UserRepository userRepository;
 
     private MockMvc mockMvc;
 
@@ -147,6 +151,8 @@ class ReportControllerIT extends IntegrationTestSupport {
     void shouldReturnCurrentUserReports_whenUserGetsOwnReports() throws Exception {
         User reporter = userUtil.createUser(FixtureNumbers.report(720));
         User targetUser = userUtil.createUser(FixtureNumbers.report(721));
+        targetUser.setPhotoUrl("https://cdn.example.com/users/721/profile.jpg");
+        userRepository.save(targetUser);
         User anotherReporter = userUtil.createUser(FixtureNumbers.report(722));
         Long targetBookId = bookUtil.createBook(targetUser.getId(), FixtureNumbers.report(723));
 
@@ -193,7 +199,21 @@ class ReportControllerIT extends IntegrationTestSupport {
         assertThat(body.path("data").path("totalElements").asLong()).isEqualTo(2);
         assertThat(content).hasSize(2);
         assertHasVersion(content.get(0));
-        assertThat(content.get(0).path("status").asText()).isIn(ReportStatus.OPEN.name(), ReportStatus.RESOLVED.name());
+        JsonNode userReport = findReportByTargetType(content, TargetType.USER);
+        JsonNode bookReport = findReportByTargetType(content, TargetType.BOOK);
+
+        assertThat(userReport.path("targetUser").path("id").asLong()).isEqualTo(targetUser.getId());
+        assertThat(userReport.path("targetUser").path("nickname").asText()).isEqualTo(targetUser.getNickname());
+        assertThat(userReport.path("targetUser").path("photoUrl").asText()).isEqualTo(targetUser.getPhotoUrl());
+        assertThat(userReport.path("targetBook").isNull()).isTrue();
+
+        assertThat(bookReport.path("targetBook").path("id").asLong()).isEqualTo(targetBookId);
+        assertThat(bookReport.path("targetBook").path("name").asText()).isNotBlank();
+        assertThat(bookReport.path("targetBook").path("photoUrl").asText()).isNotBlank();
+        assertThat(bookReport.path("targetBook").path("ownerUserId").asLong()).isEqualTo(targetUser.getId());
+        assertThat(bookReport.path("targetBook").path("ownerNickname").asText()).isEqualTo(targetUser.getNickname());
+        assertThat(bookReport.path("targetBook").path("ownerPhotoUrl").asText()).isEqualTo(targetUser.getPhotoUrl());
+        assertThat(bookReport.path("targetUser").isNull()).isTrue();
     }
 
     @Test
@@ -295,5 +315,15 @@ class ReportControllerIT extends IntegrationTestSupport {
 
     private String reportPath(Long targetId) {
         return ReportPaths.REPORT_PATH + "/" + targetId;
+    }
+
+    private JsonNode findReportByTargetType(JsonNode content, TargetType targetType) {
+        for (JsonNode item : content) {
+            if (item.path("targetType").asText().equals(targetType.name())) {
+                return item;
+            }
+        }
+
+        throw new IllegalStateException("Report with targetType=" + targetType + " was not found in response");
     }
 }
