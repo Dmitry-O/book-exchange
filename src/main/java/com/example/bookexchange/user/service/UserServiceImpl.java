@@ -9,9 +9,14 @@ import com.example.bookexchange.common.audit.model.AuditResult;
 import com.example.bookexchange.common.audit.service.AuditService;
 import com.example.bookexchange.common.audit.service.VersionedEntityTransitionHelper;
 import com.example.bookexchange.common.i18n.MessageKey;
+import com.example.bookexchange.common.notification.NotificationDispatchService;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.common.result.ResultFactory;
 import com.example.bookexchange.common.storage.ImageStorageService;
+import com.example.bookexchange.exchange.model.Exchange;
+import com.example.bookexchange.exchange.model.ExchangeStatus;
+import com.example.bookexchange.exchange.repository.ExchangeRepository;
+import com.example.bookexchange.exchange.util.ExchangeReadStateUtil;
 import com.example.bookexchange.user.dto.*;
 import com.example.bookexchange.common.util.ETagUtil;
 import com.example.bookexchange.user.mapper.UserMapper;
@@ -25,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.interceptor.TransactionAspectSupport;
 
 import java.time.Instant;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -39,6 +45,8 @@ public class UserServiceImpl implements UserService {
     private final BookService bookService;
     private final VersionedEntityTransitionHelper versionedEntityTransitionHelper;
     private final ImageStorageService imageStorageService;
+    private final NotificationDispatchService notificationDispatchService;
+    private final ExchangeRepository exchangeRepository;
 
     @Transactional(readOnly = true)
     @Override
@@ -149,23 +157,39 @@ public class UserServiceImpl implements UserService {
                         return versionValidation.map(v -> null);
                     }
 
-                    Result<Void> deletedImagesResult = imageStorageService.deleteAllUserImages(user.getId());
-
-                    if (deletedImagesResult.isFailure()) {
-                        return deletedImagesResult.map(v -> null);
-                    }
-
-                    bookService.softDeleteBooks(user, Instant.now());
+                    Instant deletedAt = Instant.now();
+                    user.setDeletedAt(deletedAt);
+                    bookService.softDeleteBooks(user, deletedAt);
+                    cancelPendingUserExchanges(user);
 
                     return ResultFactory.ok(user);
                 })
                 .flatMap(refreshTokenService::deleteUserTokens)
                 .flatMap(verificationTokenService::deleteUserTokens)
                 .flatMap(user -> {
-                    String oldUserEmail = user.getEmail();
+                    Result<Void> profileImageDeleteResult = deleteUserProfileImageIfPresent(user);
 
-                    anonymizeUser(user, Instant.now());
+                    if (profileImageDeleteResult.isFailure()) {
+                        return rollbackOnFailure(profileImageDeleteResult.map(v -> user));
+                    }
+
+                    return ResultFactory.ok(user);
+                })
+                .flatMap(user -> {
+                    String oldUserEmail = user.getEmail();
+                    String oldUserNickname = user.getNickname();
+                    String oldUserLocale = user.getLocale();
+                    Instant deletedAt = user.getDeletedAt() != null ? user.getDeletedAt() : Instant.now();
+
+                    anonymizeUser(user, deletedAt);
                     logUserSuccess("USER_DELETE", userId, oldUserEmail);
+                    notificationDispatchService.sendUserSelfDeletedNotification(
+                            userId,
+                            oldUserEmail,
+                            oldUserNickname,
+                            oldUserLocale,
+                            deletedAt
+                    );
 
                     return ResultFactory.okMessage(MessageKey.USER_ACCOUNT_DELETED);
                 });
@@ -198,6 +222,7 @@ public class UserServiceImpl implements UserService {
                     userRepository.save(user);
 
                     logUserSuccess("RESET_PASSWORD", userId, user.getEmail());
+                    notificationDispatchService.sendPasswordChangedNotification(user);
 
                     return ResultFactory.okMessage(MessageKey.AUTH_PASSWORD_CHANGED);
                 });
@@ -227,6 +252,32 @@ public class UserServiceImpl implements UserService {
         user.setPhotoUrl(null);
         user.setPassword("");
         user.setDeletedAt(deletedAt);
+    }
+
+    private Result<Void> deleteUserProfileImageIfPresent(User user) {
+        if (user.getPhotoUrl() == null || user.getPhotoUrl().isBlank()) {
+            return ResultFactory.successVoid();
+        }
+
+        return imageStorageService.deleteUserProfileImage(user.getId());
+    }
+
+    private void cancelPendingUserExchanges(User user) {
+        List<Exchange> pendingExchanges = exchangeRepository.findByStatusAndParticipantUserId(ExchangeStatus.PENDING, user.getId());
+
+        if (pendingExchanges.isEmpty()) {
+            return;
+        }
+
+        pendingExchanges.forEach(exchange -> {
+            exchange.setStatus(ExchangeStatus.DECLINED);
+            exchange.setDeclinerUser(null);
+            exchange.setAutoDeclined(Boolean.TRUE);
+            ExchangeReadStateUtil.markUpdatedForBoth(exchange);
+            exchangeRepository.save(exchange);
+        });
+
+        notificationDispatchService.sendExchangeAutoDeclinedNotifications(pendingExchanges);
     }
 
     private Result<User> applyPhotoChange(User user, String photoBase64) {

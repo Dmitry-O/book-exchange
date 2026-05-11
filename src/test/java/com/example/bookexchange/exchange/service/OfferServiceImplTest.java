@@ -4,6 +4,7 @@ import com.example.bookexchange.book.model.Book;
 import com.example.bookexchange.book.search.BookSearchIndexService;
 import com.example.bookexchange.common.audit.service.AuditService;
 import com.example.bookexchange.common.i18n.MessageKey;
+import com.example.bookexchange.common.notification.NotificationDispatchService;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.exchange.dto.ExchangeDetailsDTO;
 import com.example.bookexchange.exchange.mapper.ExchangeMapper;
@@ -57,6 +58,9 @@ class OfferServiceImplTest {
 
     @Mock
     private BookSearchIndexService bookSearchIndexService;
+
+    @Mock
+    private NotificationDispatchService notificationDispatchService;
 
     @InjectMocks
     private OfferServiceImpl offerService;
@@ -118,6 +122,8 @@ class OfferServiceImplTest {
         verify(exchangeRepository, times(2)).save(savedExchangeCaptor.capture());
         assertThat(savedExchangeCaptor.getAllValues().stream().anyMatch(exchange -> exchange == approvedExchange)).isTrue();
         assertThat(savedExchangeCaptor.getAllValues().stream().anyMatch(exchange -> exchange == competingBySenderBook)).isTrue();
+        verify(notificationDispatchService).sendExchangeApprovedNotifications(approvedExchange);
+        verify(notificationDispatchService).sendExchangeAutoDeclinedNotifications(List.of(competingBySenderBook));
     }
 
     @Test
@@ -157,6 +163,7 @@ class OfferServiceImplTest {
         assertThat(exchange.getDeclinerUser()).isSameAs(receiver);
         assertThat(exchange.getIsReadBySender()).isFalse();
         assertThat(exchange.getIsReadByReceiver()).isTrue();
+        verify(notificationDispatchService).sendExchangeDeclinedByReceiverNotifications(exchange);
     }
 
     @Test
@@ -233,5 +240,7 @@ class OfferServiceImplTest {
         verify(exchangeRepository, never()).findByIdNotAndSenderBookIdAndStatus(any(Long.class), any(Long.class), any(ExchangeStatus.class));
         verify(bookSearchIndexService).scheduleUpsertAll(booksCaptor.capture());
         assertThat(booksCaptor.getValue()).containsExactly(receiverBook);
+        verify(notificationDispatchService).sendExchangeApprovedNotifications(approvedExchange);
+        verify(notificationDispatchService).sendExchangeAutoDeclinedNotifications(List.of());
     }
 }

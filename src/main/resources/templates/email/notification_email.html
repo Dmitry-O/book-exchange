@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en" th:lang="${#locale.language}" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title th:text="${title}">Book Exchange</title>
+    <style>
+        @media only screen and (max-width: 640px) {
+            .email-shell {
+                padding: 22px 12px !important;
+            }
+
+            .panel-padding,
+            .event-card-padding {
+                padding: 22px !important;
+            }
+
+            .stack-column,
+            .swap-column,
+            .media-column,
+            .copy-column {
+                display: block !important;
+                width: 100% !important;
+                padding-left: 0 !important;
+                padding-right: 0 !important;
+            }
+
+            .swap-column {
+                padding: 16px 0 !important;
+            }
+        }
+    </style>
+</head>
+<body style="margin:0;padding:0;background-color:#f7f3ea;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;color:#12202b;">
+<span style="display:none!important;visibility:hidden;opacity:0;color:transparent;height:0;width:0;overflow:hidden;" th:text="${preheader}">
+    Book Exchange
+</span>
+
+<table cellpadding="0" cellspacing="0" class="email-shell" role="presentation" style="width:100%;background:
+    radial-gradient(circle at top left, rgba(227,154,76,0.15), transparent 30%),
+    radial-gradient(circle at top right, rgba(31,107,88,0.14), transparent 30%),
+    linear-gradient(180deg, #f7f3ea 0%, #efe9dd 100%);padding:34px 16px;">
+    <tr>
+        <td align="center">
+            <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;max-width:720px;">
+                <tr>
+                    <td style="padding:0 0 18px;text-align:left;font-size:13px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#1f6b58;" th:text="${brandName}">
+                        Book Exchange
+                    </td>
+                </tr>
+                <tr>
+                    <td class="panel-padding" style="border:1px solid rgba(18,32,43,0.08);border-radius:30px;background:rgba(255,255,255,0.95);box-shadow:0 24px 70px rgba(30,47,61,0.13);padding:34px;">
+                        <div style="display:inline-block;padding:8px 14px;border-radius:999px;background:#ddebe5;color:#174f42;font-size:12px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;" th:if="${eyebrow != null and !#strings.isEmpty(eyebrow)}" th:text="${eyebrow}">
+                            Notification
+                        </div>
+
+                        <h1 style="margin:18px 0 12px;font-size:34px;line-height:1.05;letter-spacing:-0.05em;color:#12202b;" th:text="${title}">
+                            Notification
+                        </h1>
+
+                        <p style="margin:0 0 14px;font-size:17px;line-height:1.6;color:#536676;" th:text="${greeting}">
+                            Hello
+                        </p>
+
+                        <p style="margin:0;font-size:16px;line-height:1.7;color:#536676;" th:if="${intro != null and !#strings.isEmpty(intro)}" th:text="${intro}">
+                            Here is your update.
+                        </p>
+
+                        <div style="margin-top:14px;font-size:13px;line-height:1.6;color:#7a8a96;" th:if="${exchange == null and eventTime != null and !#strings.isEmpty(eventTime)}" th:text="${eventTime}">
+                            24 Apr 2026, 16:19
+                        </div>
+
+                        <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;margin-top:22px;border:1px solid rgba(18,32,43,0.06);border-radius:24px;background:
+                            radial-gradient(circle at top left, rgba(227,154,76,0.10), transparent 42%),
+                            linear-gradient(180deg, rgba(31,107,88,0.08), rgba(31,107,88,0.03));" th:if="${summary != null and !#strings.isEmpty(summary)}">
+                            <tr>
+                                <td style="padding:20px 22px;">
+                                    <p style="margin:0;font-size:15px;line-height:1.75;color:#334957;" th:text="${summary}">
+                                        Summary
+                                    </p>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;margin-top:24px;border:1px solid rgba(18,32,43,0.08);border-radius:26px;background:#ffffff;" th:if="${exchange != null}">
+                            <tr>
+                                <td class="event-card-padding" style="padding:24px;">
+                                    <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;">
+                                        <tr>
+                                            <td style="font-size:12px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#1f6b58;" th:text="${exchangeSectionTitle}">
+                                                Exchange overview
+                                            </td>
+                                            <td align="right" th:if="${exchange.status != null}">
+                                                <span th:with="tone=${exchange.status.tone}"
+                                                      th:style="'display:inline-block;padding:8px 12px;border-radius:999px;font-size:12px;font-weight:800;background:' +
+                                                      (${tone} == 'success' ? '#e8f4eb' : (${tone} == 'danger' ? '#fbe7e4' : (${tone} == 'warning' ? '#f6ead7' : '#eef0ee'))) +
+                                                      ';color:' +
+                                                      (${tone} == 'success' ? '#1d5a39' : (${tone} == 'danger' ? '#7f2d25' : (${tone} == 'warning' ? '#8a5418' : '#536676')))"
+                                                      th:text="${exchange.status.value}">
+                                                    Approved
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    </table>
+
+                                    <div style="margin-top:8px;font-size:13px;line-height:1.7;color:#7a8a96;" th:if="${exchange.changedAt != null and !#strings.isEmpty(exchange.changedAt)}" th:text="${exchange.changedAt}">
+                                        24 Apr 2026, 16:19
+                                    </div>
+
+                                    <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;margin-top:18px;">
+                                        <tr>
+                                            <td class="stack-column" style="width:43%;padding-right:10px;vertical-align:top;">
+                                                <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;height:252px;border:1px solid rgba(18,32,43,0.08);border-radius:22px;background:#fdfdfb;">
+                                                    <tr>
+                                                        <td style="height:252px;padding:18px;vertical-align:top;">
+                                                            <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;">
+                                                                <tr>
+                                                                    <td class="media-column" style="width:96px;vertical-align:top;">
+                                                                        <th:block th:if="${exchange.leftBook != null}">
+                                                                            <th:block th:if="${!exchange.leftBook.placeholder and exchange.leftBook.photoUrl != null and !#strings.isEmpty(exchange.leftBook.photoUrl)}">
+                                                                                <img alt="" style="display:block;width:84px;height:126px;border:1px solid #d5dee7;border-radius:20px;object-fit:cover;background:#eef4f9;" th:src="${exchange.leftBook.photoUrl}">
+                                                                            </th:block>
+                                                                            <th:block th:if="${!exchange.leftBook.placeholder and (exchange.leftBook.photoUrl == null or #strings.isEmpty(exchange.leftBook.photoUrl))}">
+                                                                                 <table cellpadding="0" cellspacing="0" role="presentation" style="width:84px;height:126px;border-radius:20px;background:#e8eef4;border:1px solid #d5dee7;overflow:hidden;">
+                                                                                    <tr>
+                                                                                        <td style="width:18px;background:linear-gradient(180deg,#b8c4d0,#a5b3c0);"></td>
+                                                                                        <td style="padding:0 14px;background:linear-gradient(180deg,#eef4f9,#dee7ef);">
+                                                                                            <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;margin-top:36px;">
+                                                                                                <tr><td style="height:8px;border-radius:999px;background:#c4ced8;"></td></tr>
+                                                                                                <tr><td style="height:12px;"></td></tr>
+                                                                                                <tr><td style="width:72%;height:8px;border-radius:999px;background:#c4ced8;"></td></tr>
+                                                                                                <tr><td style="height:12px;"></td></tr>
+                                                                                                <tr><td style="width:54%;height:8px;border-radius:999px;background:#c4ced8;"></td></tr>
+                                                                                            </table>
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                </table>
+                                                                            </th:block>
+                                                                    <th:block th:if="${exchange.leftBook.placeholder}">
+                                                                         <table cellpadding="0" cellspacing="0" role="presentation" style="width:84px;height:126px;border-radius:20px;background:linear-gradient(180deg,#f3f8f5,#e4eee9);border:1px solid rgba(31,107,88,0.12);">
+                                                                            <tr>
+                                                                                <td align="center" style="padding:0 10px;color:#174f42;">
+                                                                                    <svg aria-hidden="true" height="46" viewBox="0 0 24 24" width="46">
+                                                                                        <path d="M8.2 3.9h7.6v6.5H8.2z" fill="none" stroke="#1f6b58" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.25"/>
+                                                                                        <path d="M12 3.9v6.5M7.4 6.6h9.2" fill="none" stroke="#1f6b58" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.25"/>
+                                                                                        <path d="M9.5 3.9s-1.2-.7-1.2-1.7a1.2 1.2 0 0 1 2.2-.5L12 3.9M14.5 3.9s1.2-.7 1.2-1.7a1.2 1.2 0 0 0-2.2-.5L12 3.9" fill="none" stroke="#1f6b58" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.15"/>
+                                                                                        <path d="M4.2 14.7h3.4l2.2 1.8h4.5c1 0 1.7-.7 1.7-1.7h-4.4" fill="none" stroke="#1f6b58" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.25"/>
+                                                                                        <path d="M4.2 14.7c1.9-.9 3.5-.7 5.2.6l.7.6M7.5 17.2c1.4 2.1 3.1 3 5.8 3h2.1c1.4 0 2.8-.5 3.9-1.5l1.1-1a1.25 1.25 0 0 0-1.6-1.9l-3 2.1" fill="none" stroke="#1f6b58" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.25"/>
+                                                                                    </svg>
+                                                                                    <div style="margin-top:10px;font-size:11px;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;" th:text="${exchange.leftBook.placeholderTitle}">
+                                                                                        Gift request
+                                                                                    </div>
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                </table>
+                                                                            </th:block>
+                                                                        </th:block>
+                                                                    </td>
+                                                                    <td class="copy-column" style="padding-left:14px;vertical-align:top;">
+                                                                        <div style="font-size:11px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#6b7b87;" th:text="${exchange.leftBook.title}">
+                                                                            Your book
+                                                                        </div>
+                                                                        <div style="margin-top:8px;font-size:20px;line-height:1.2;font-weight:800;color:#12202b;" th:if="${exchange.leftBook != null and !exchange.leftBook.placeholder}" th:text="${exchange.leftBook.name}">
+                                                                            Book title
+                                                                        </div>
+                                                                        <div style="margin-top:8px;font-size:15px;line-height:1.6;color:#334957;" th:if="${exchange.leftBook != null and exchange.leftBook.placeholder}" th:text="${exchange.leftBook.placeholderText}">
+                                                                            Gift flow details
+                                                                        </div>
+                                                                        <div style="margin-top:10px;font-size:13px;line-height:1.6;color:#536676;" th:if="${exchange.leftBook != null and !exchange.leftBook.placeholder and exchange.leftBook.subtitle != null and !#strings.isEmpty(exchange.leftBook.subtitle)}" th:text="${exchange.leftBook.subtitle}">
+                                                                            Author, 2026
+                                                                        </div>
+                                                                        <div style="margin-top:6px;font-size:13px;line-height:1.6;color:#536676;" th:if="${exchange.leftBook != null and !exchange.leftBook.placeholder and exchange.leftBook.meta != null and !#strings.isEmpty(exchange.leftBook.meta)}" th:text="${exchange.leftBook.meta}">
+                                                                            Category, City
+                                                                        </div>
+                                                                        <div style="margin-top:10px;" th:if="${exchange.leftBook != null and exchange.leftBook.gift and !exchange.leftBook.placeholder}">
+                                                                            <span style="display:inline-block;padding:7px 11px;border-radius:999px;background:#e8f4eb;color:#1d5a39;font-size:11px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;" th:text="${giftBadgeText}">
+                                                                                Gift
+                                                                            </span>
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            </table>
+                                                        </td>
+                                                    </tr>
+                                                </table>
+
+                                                <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;height:108px;margin-top:12px;border:1px solid rgba(18,32,43,0.06);border-radius:18px;background:rgba(247,250,248,0.88);" th:if="${exchange.leftUser != null}">
+                                                    <tr>
+                                                        <td style="height:108px;padding:14px 16px;">
+                                                            <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;">
+                                                                <tr>
+                                                                    <td style="width:52px;vertical-align:middle;">
+                                                                        <img alt="" style="display:block;width:44px;height:44px;border-radius:999px;object-fit:cover;border:1px solid rgba(18,32,43,0.08);background:#eef4f9;" th:if="${exchange.leftUser.photoUrl != null and !#strings.isEmpty(exchange.leftUser.photoUrl)}" th:src="${exchange.leftUser.photoUrl}">
+                                                                        <div style="width:44px;height:44px;line-height:44px;border-radius:999px;background:#e8efe8;color:#174f42;font-size:18px;font-weight:800;text-align:center;" th:if="${exchange.leftUser.photoUrl == null or #strings.isEmpty(exchange.leftUser.photoUrl)}" th:text="${exchange.leftUser.initial}">
+                                                                            A
+                                                                        </div>
+                                                                    </td>
+                                                                    <td style="vertical-align:middle;">
+                                                                        <div style="font-size:11px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#6b7b87;" th:text="${exchange.leftUser.title}">
+                                                                            You
+                                                                        </div>
+                                                                        <div style="margin-top:4px;font-size:15px;font-weight:800;color:#12202b;" th:text="${exchange.leftUser.name}">
+                                                                            user_one
+                                                                        </div>
+                                                                        <div style="margin-top:4px;font-size:13px;line-height:1.6;color:#536676;" th:if="${exchange.leftUser.meta != null and !#strings.isEmpty(exchange.leftUser.meta)}" th:text="${exchange.leftUser.meta}">
+                                                                            user@example.com
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            </table>
+                                                        </td>
+                                                    </tr>
+                                                </table>
+                                            </td>
+
+                                            <td class="swap-column" align="center" style="width:14%;padding:0 8px;vertical-align:middle;">
+                                                <div style="display:inline-block;width:54px;height:54px;line-height:54px;border-radius:18px;background:rgba(31,107,88,0.10);color:#174f42;font-size:24px;font-weight:800;text-align:center;">
+                                                    &#8644;
+                                                </div>
+                                            </td>
+
+                                            <td class="stack-column" style="width:43%;padding-left:10px;vertical-align:top;">
+                                                <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;height:252px;border:1px solid rgba(18,32,43,0.08);border-radius:22px;background:#fdfdfb;">
+                                                    <tr>
+                                                        <td style="height:252px;padding:18px;vertical-align:top;">
+                                                            <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;">
+                                                                <tr>
+                                                                    <td class="media-column" style="width:96px;vertical-align:top;">
+                                                                        <th:block th:if="${exchange.rightBook != null}">
+                                                                            <th:block th:if="${!exchange.rightBook.placeholder and exchange.rightBook.photoUrl != null and !#strings.isEmpty(exchange.rightBook.photoUrl)}">
+                                                                                <img alt="" style="display:block;width:84px;height:126px;border:1px solid #d5dee7;border-radius:20px;object-fit:cover;background:#eef4f9;" th:src="${exchange.rightBook.photoUrl}">
+                                                                            </th:block>
+                                                                            <th:block th:if="${!exchange.rightBook.placeholder and (exchange.rightBook.photoUrl == null or #strings.isEmpty(exchange.rightBook.photoUrl))}">
+                                                                                 <table cellpadding="0" cellspacing="0" role="presentation" style="width:84px;height:126px;border-radius:20px;background:#e8eef4;border:1px solid #d5dee7;overflow:hidden;">
+                                                                                    <tr>
+                                                                                        <td style="width:18px;background:linear-gradient(180deg,#b8c4d0,#a5b3c0);"></td>
+                                                                                        <td style="padding:0 14px;background:linear-gradient(180deg,#eef4f9,#dee7ef);">
+                                                                                            <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;margin-top:36px;">
+                                                                                                <tr><td style="height:8px;border-radius:999px;background:#c4ced8;"></td></tr>
+                                                                                                <tr><td style="height:12px;"></td></tr>
+                                                                                                <tr><td style="width:72%;height:8px;border-radius:999px;background:#c4ced8;"></td></tr>
+                                                                                                <tr><td style="height:12px;"></td></tr>
+                                                                                                <tr><td style="width:54%;height:8px;border-radius:999px;background:#c4ced8;"></td></tr>
+                                                                                            </table>
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                </table>
+                                                                            </th:block>
+                                                                        </th:block>
+                                                                    </td>
+                                                                    <td class="copy-column" style="padding-left:14px;vertical-align:top;">
+                                                                        <div style="font-size:11px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#6b7b87;" th:text="${exchange.rightBook.title}">
+                                                                            Requested book
+                                                                        </div>
+                                                                        <div style="margin-top:8px;font-size:20px;line-height:1.2;font-weight:800;color:#12202b;" th:text="${exchange.rightBook.name}">
+                                                                            Book title
+                                                                        </div>
+                                                                        <div style="margin-top:10px;font-size:13px;line-height:1.6;color:#536676;" th:if="${exchange.rightBook.subtitle != null and !#strings.isEmpty(exchange.rightBook.subtitle)}" th:text="${exchange.rightBook.subtitle}">
+                                                                            Author, 2026
+                                                                        </div>
+                                                                        <div style="margin-top:6px;font-size:13px;line-height:1.6;color:#536676;" th:if="${exchange.rightBook.meta != null and !#strings.isEmpty(exchange.rightBook.meta)}" th:text="${exchange.rightBook.meta}">
+                                                                            Category, City
+                                                                        </div>
+                                                                        <div style="margin-top:10px;" th:if="${exchange.rightBook.gift}">
+                                                                            <span style="display:inline-block;padding:7px 11px;border-radius:999px;background:#e8f4eb;color:#1d5a39;font-size:11px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;" th:text="${giftBadgeText}">
+                                                                                Gift
+                                                                            </span>
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            </table>
+                                                        </td>
+                                                    </tr>
+                                                </table>
+
+                                                <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;height:108px;margin-top:12px;border:1px solid rgba(18,32,43,0.06);border-radius:18px;background:rgba(247,250,248,0.88);" th:if="${exchange.rightUser != null}">
+                                                    <tr>
+                                                        <td style="height:108px;padding:14px 16px;">
+                                                            <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;">
+                                                                <tr>
+                                                                    <td style="width:52px;vertical-align:middle;">
+                                                                        <img alt="" style="display:block;width:44px;height:44px;border-radius:999px;object-fit:cover;border:1px solid rgba(18,32,43,0.08);background:#eef4f9;" th:if="${exchange.rightUser.photoUrl != null and !#strings.isEmpty(exchange.rightUser.photoUrl)}" th:src="${exchange.rightUser.photoUrl}">
+                                                                        <div style="width:44px;height:44px;line-height:44px;border-radius:999px;background:#e8efe8;color:#174f42;font-size:18px;font-weight:800;text-align:center;" th:if="${exchange.rightUser.photoUrl == null or #strings.isEmpty(exchange.rightUser.photoUrl)}" th:text="${exchange.rightUser.initial}">
+                                                                            B
+                                                                        </div>
+                                                                    </td>
+                                                                    <td style="vertical-align:middle;">
+                                                                        <div style="font-size:11px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#6b7b87;" th:text="${exchange.rightUser.title}">
+                                                                            Book owner
+                                                                        </div>
+                                                                        <div style="margin-top:4px;font-size:15px;font-weight:800;color:#12202b;" th:text="${exchange.rightUser.name}">
+                                                                            user_two
+                                                                        </div>
+                                                                        <div style="margin-top:4px;font-size:13px;line-height:1.6;color:#536676;" th:if="${exchange.rightUser.meta != null and !#strings.isEmpty(exchange.rightUser.meta)}" th:text="${exchange.rightUser.meta}">
+                                                                            user@example.com
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            </table>
+                                                        </td>
+                                                    </tr>
+                                                </table>
+                                            </td>
+                                        </tr>
+                                    </table>
+
+                                </td>
+                            </tr>
+                        </table>
+
+                        <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;margin-top:24px;border:1px solid rgba(18,32,43,0.08);border-radius:26px;background:#ffffff;" th:if="${book != null}">
+                            <tr>
+                                <td class="event-card-padding" style="padding:24px;">
+                                    <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;">
+                                        <tr>
+                                            <td style="font-size:12px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#1f6b58;" th:text="${bookSectionTitle}">
+                                                Book overview
+                                            </td>
+                                            <td align="right" th:if="${book.status != null}">
+                                                <span th:with="tone=${book.status.tone}"
+                                                      th:style="'display:inline-block;padding:8px 12px;border-radius:999px;font-size:12px;font-weight:800;background:' +
+                                                      (${tone} == 'success' ? '#e8f4eb' : (${tone} == 'danger' ? '#fbe7e4' : (${tone} == 'warning' ? '#f6ead7' : '#eef0ee'))) +
+                                                      ';color:' +
+                                                      (${tone} == 'success' ? '#1d5a39' : (${tone} == 'danger' ? '#7f2d25' : (${tone} == 'warning' ? '#8a5418' : '#536676')))"
+                                                      th:text="${book.status.value}">
+                                                    Active
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                    <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;margin-top:16px;">
+                                        <tr>
+                                            <td class="media-column" style="width:132px;vertical-align:top;">
+                                                <img alt="" style="display:block;width:112px;height:168px;border:1px solid #d5dee7;border-radius:24px;object-fit:cover;background:#eef4f9;" th:if="${book.photoUrl != null and !#strings.isEmpty(book.photoUrl)}" th:src="${book.photoUrl}">
+                                                <table cellpadding="0" cellspacing="0" role="presentation" style="width:112px;height:168px;border-radius:24px;background:#e8eef4;border:1px solid #d5dee7;overflow:hidden;" th:if="${book.photoUrl == null or #strings.isEmpty(book.photoUrl)}">
+                                                    <tr>
+                                                        <td style="width:22px;background:linear-gradient(180deg,#b8c4d0,#a5b3c0);"></td>
+                                                        <td style="padding:0 16px;background:linear-gradient(180deg,#eef4f9,#dee7ef);">
+                                                            <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;margin-top:52px;">
+                                                                <tr><td style="height:8px;border-radius:999px;background:#c4ced8;"></td></tr>
+                                                                <tr><td style="height:14px;"></td></tr>
+                                                                <tr><td style="width:74%;height:8px;border-radius:999px;background:#c4ced8;"></td></tr>
+                                                                <tr><td style="height:14px;"></td></tr>
+                                                                <tr><td style="width:56%;height:8px;border-radius:999px;background:#c4ced8;"></td></tr>
+                                                            </table>
+                                                        </td>
+                                                    </tr>
+                                                </table>
+                                            </td>
+                                            <td class="copy-column" style="padding-left:18px;vertical-align:top;">
+                                                <div style="font-size:11px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#6b7b87;" th:text="${book.title}">
+                                                    Your book listing
+                                                </div>
+                                                <div style="margin-top:10px;font-size:26px;line-height:1.16;font-weight:800;color:#12202b;" th:text="${book.name}">
+                                                    Book title
+                                                </div>
+                                                <div style="margin-top:12px;font-size:14px;line-height:1.7;color:#536676;" th:if="${book.subtitle != null and !#strings.isEmpty(book.subtitle)}" th:text="${book.subtitle}">
+                                                    Author, 2026
+                                                </div>
+                                                <div style="margin-top:6px;font-size:14px;line-height:1.7;color:#536676;" th:if="${book.meta != null and !#strings.isEmpty(book.meta)}" th:text="${book.meta}">
+                                                    Category, City
+                                                </div>
+                                                <div style="margin-top:12px;" th:if="${book.gift}">
+                                                    <span style="display:inline-block;padding:8px 12px;border-radius:999px;background:#e8f4eb;color:#1d5a39;font-size:11px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;" th:text="${giftListingBadgeText}">
+                                                        Gift listing
+                                                    </span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;margin-top:24px;border:1px solid rgba(18,32,43,0.08);border-radius:26px;background:#ffffff;" th:if="${user != null}">
+                            <tr>
+                                <td class="event-card-padding" style="padding:24px;">
+                                    <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;">
+                                        <tr>
+                                            <td style="font-size:12px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#1f6b58;" th:text="${accountSectionTitle}">
+                                                Account overview
+                                            </td>
+                                            <td align="right" th:if="${user.status != null}">
+                                                <span th:with="tone=${user.status.tone}"
+                                                      th:style="'display:inline-block;padding:8px 12px;border-radius:999px;font-size:12px;font-weight:800;background:' +
+                                                      (${tone} == 'success' ? '#e8f4eb' : (${tone} == 'danger' ? '#fbe7e4' : (${tone} == 'warning' ? '#f6ead7' : '#eef0ee'))) +
+                                                      ';color:' +
+                                                      (${tone} == 'success' ? '#1d5a39' : (${tone} == 'danger' ? '#7f2d25' : (${tone} == 'warning' ? '#8a5418' : '#536676')))"
+                                                      th:text="${user.status.value}">
+                                                    Status
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                    <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;margin-top:16px;">
+                                        <tr>
+                                            <td style="width:78px;vertical-align:middle;">
+                                                <img alt="" style="display:block;width:62px;height:62px;border-radius:999px;object-fit:cover;border:1px solid rgba(18,32,43,0.08);background:#eef4f9;" th:if="${user.photoUrl != null and !#strings.isEmpty(user.photoUrl)}" th:src="${user.photoUrl}">
+                                                <div style="width:62px;height:62px;line-height:62px;border-radius:999px;background:#e8efe8;color:#174f42;font-size:24px;font-weight:800;text-align:center;" th:if="${user.photoUrl == null or #strings.isEmpty(user.photoUrl)}" th:text="${user.initial}">
+                                                    U
+                                                </div>
+                                            </td>
+                                            <td style="vertical-align:middle;">
+                                                <div style="font-size:11px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#6b7b87;" th:text="${user.title}">
+                                                    Your account
+                                                </div>
+                                                <div style="margin-top:6px;font-size:24px;line-height:1.15;font-weight:800;color:#12202b;" th:text="${user.name}">
+                                                    user_one
+                                                </div>
+                                                <div style="margin-top:8px;font-size:14px;line-height:1.7;color:#536676;" th:if="${user.meta != null and !#strings.isEmpty(user.meta)}" th:text="${user.meta}">
+                                                    user@example.com
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                    <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;margin-top:18px;border-collapse:collapse;" th:if="${details != null and !#lists.isEmpty(details)}">
+                                        <tr th:each="detail : ${details}">
+                                            <td style="padding:8px 0;border-top:1px solid rgba(18,32,43,0.06);font-size:13px;font-weight:800;color:#174f42;vertical-align:top;" th:text="${detail.label}">
+                                                Label
+                                            </td>
+                                            <td align="right" style="padding:8px 0 8px 12px;border-top:1px solid rgba(18,32,43,0.06);font-size:13px;line-height:1.6;color:#334957;vertical-align:top;word-break:break-word;" th:text="${detail.value}">
+                                                Value
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;margin-top:24px;border:1px solid rgba(18,32,43,0.08);border-radius:26px;background:#ffffff;" th:if="${report != null}">
+                            <tr>
+                                <td class="event-card-padding" style="padding:24px;">
+                                    <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;">
+                                        <tr>
+                                            <td style="width:58px;vertical-align:top;">
+                                                <div style="width:48px;height:48px;line-height:48px;border-radius:16px;background:rgba(161,62,52,0.10);color:#7f2d25;font-size:23px;font-weight:800;text-align:center;">
+                                                    &#9873;
+                                                </div>
+                                            </td>
+                                            <td style="vertical-align:top;">
+                                                <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;">
+                                                    <tr>
+                                                        <td style="font-size:12px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#6b7b87;" th:text="${report.title}">
+                                                            Your moderation report
+                                                        </td>
+                                                        <td align="right" th:if="${report.status != null}">
+                                                            <span th:with="tone=${report.status.tone}"
+                                                                  th:style="'display:inline-block;padding:8px 12px;border-radius:999px;font-size:12px;font-weight:800;background:' +
+                                                                  (${tone} == 'success' ? '#e8f4eb' : (${tone} == 'danger' ? '#fbe7e4' : (${tone} == 'warning' ? '#f6ead7' : '#eef0ee'))) +
+                                                                  ';color:' +
+                                                                  (${tone} == 'success' ? '#1d5a39' : (${tone} == 'danger' ? '#7f2d25' : (${tone} == 'warning' ? '#8a5418' : '#536676')))"
+                                                                  th:text="${report.status.value}">
+                                                                Resolved
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                </table>
+
+                                                <div style="margin-top:12px;font-size:13px;line-height:1.7;color:#7a8a96;" th:if="${eventTime != null and !#strings.isEmpty(eventTime)}" th:text="${eventTime}">
+                                                    24 Apr 2026, 16:19
+                                                </div>
+
+                                                <div style="margin-top:14px;padding:14px 16px;border:1px solid rgba(127,45,37,0.10);border-radius:18px;background:rgba(251,231,228,0.72);font-size:13px;line-height:1.7;color:#7f2d25;"
+                                                     th:if="${report.targetStateText != null and !#strings.isEmpty(report.targetStateText)}"
+                                                     th:text="${report.targetStateText}">
+                                                    The reported target was deleted.
+                                                </div>
+                                                <div style="margin-top:14px;padding:14px 16px;border:1px solid rgba(138,84,24,0.12);border-radius:18px;background:rgba(246,234,215,0.76);font-size:13px;line-height:1.7;color:#8a5418;"
+                                                     th:if="${report.targetModerationText != null and !#strings.isEmpty(report.targetModerationText)}"
+                                                     th:text="${report.targetModerationText}">
+                                                    The reported user account is restricted.
+                                                </div>
+
+                                                <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;margin-top:14px;border:1px solid rgba(18,32,43,0.06);border-radius:18px;background:#fdfdfb;" th:if="${report.targetBook != null}">
+                                                    <tr>
+                                                        <td style="padding:14px 16px;">
+                                                            <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;">
+                                                                <tr>
+                                                                    <td style="width:78px;vertical-align:top;">
+                                                                        <img alt="" style="display:block;width:64px;height:96px;border:1px solid #d5dee7;border-radius:16px;object-fit:cover;background:#eef4f9;" th:if="${report.targetBook.photoUrl != null and !#strings.isEmpty(report.targetBook.photoUrl)}" th:src="${report.targetBook.photoUrl}">
+                                                                        <table cellpadding="0" cellspacing="0" role="presentation" style="width:64px;height:96px;border-radius:16px;background:#e8eef4;border:1px solid #d5dee7;overflow:hidden;" th:if="${report.targetBook.photoUrl == null or #strings.isEmpty(report.targetBook.photoUrl)}">
+                                                                            <tr>
+                                                                                <td style="width:14px;background:linear-gradient(180deg,#b8c4d0,#a5b3c0);"></td>
+                                                                                <td style="padding:0 10px;background:linear-gradient(180deg,#eef4f9,#dee7ef);">
+                                                                                    <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;margin-top:28px;">
+                                                                                        <tr><td style="height:7px;border-radius:999px;background:#c4ced8;"></td></tr>
+                                                                                        <tr><td style="height:10px;"></td></tr>
+                                                                                        <tr><td style="width:72%;height:7px;border-radius:999px;background:#c4ced8;"></td></tr>
+                                                                                        <tr><td style="height:10px;"></td></tr>
+                                                                                        <tr><td style="width:54%;height:7px;border-radius:999px;background:#c4ced8;"></td></tr>
+                                                                                    </table>
+                                                                                </td>
+                                                                            </tr>
+                                                                        </table>
+                                                                    </td>
+                                                                    <td style="vertical-align:top;">
+                                                                        <div style="font-size:11px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#6b7b87;" th:text="${report.targetBook.title}">
+                                                                            Reported book
+                                                                        </div>
+                                                                        <div style="margin-top:6px;font-size:18px;line-height:1.3;font-weight:800;color:#12202b;" th:text="${report.targetBook.name}">
+                                                                            Book title
+                                                                        </div>
+                                                                        <div style="margin-top:6px;font-size:13px;line-height:1.6;color:#536676;" th:if="${report.targetBook.subtitle != null and !#strings.isEmpty(report.targetBook.subtitle)}" th:text="${report.targetBook.subtitle}">
+                                                                            Book #15
+                                                                        </div>
+                                                                        <div style="margin-top:4px;font-size:13px;line-height:1.6;color:#536676;" th:if="${report.targetBook.meta != null and !#strings.isEmpty(report.targetBook.meta)}" th:text="${report.targetBook.meta}">
+                                                                            Owner: nickname
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            </table>
+                                                        </td>
+                                                    </tr>
+                                                </table>
+
+                                                <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;margin-top:14px;border:1px solid rgba(18,32,43,0.06);border-radius:18px;background:#fdfdfb;" th:if="${report.targetUser != null}">
+                                                    <tr>
+                                                        <td style="padding:14px 16px;">
+                                                            <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;">
+                                                                <tr>
+                                                                    <td style="width:62px;vertical-align:middle;">
+                                                                        <img alt="" style="display:block;width:48px;height:48px;border-radius:999px;object-fit:cover;border:1px solid rgba(18,32,43,0.08);background:#eef4f9;" th:if="${report.targetUser.photoUrl != null and !#strings.isEmpty(report.targetUser.photoUrl)}" th:src="${report.targetUser.photoUrl}">
+                                                                        <div style="width:48px;height:48px;line-height:48px;border-radius:999px;background:#e8efe8;color:#174f42;font-size:20px;font-weight:800;text-align:center;" th:if="${report.targetUser.photoUrl == null or #strings.isEmpty(report.targetUser.photoUrl)}" th:text="${report.targetUser.initial}">
+                                                                            U
+                                                                        </div>
+                                                                    </td>
+                                                                    <td style="vertical-align:middle;">
+                                                                        <div style="font-size:11px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#6b7b87;" th:text="${report.targetUser.title}">
+                                                                            Reported user
+                                                                        </div>
+                                                                        <div style="margin-top:6px;font-size:18px;line-height:1.3;font-weight:800;color:#12202b;" th:text="${report.targetUser.name}">
+                                                                            user_12345
+                                                                        </div>
+                                                                        <div style="margin-top:4px;font-size:13px;line-height:1.6;color:#536676;" th:if="${report.targetUser.meta != null and !#strings.isEmpty(report.targetUser.meta)}" th:text="${report.targetUser.meta}">
+                                                                            User #42
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            </table>
+                                                        </td>
+                                                    </tr>
+                                                </table>
+
+                                                <div style="margin-top:12px;font-size:18px;line-height:1.35;font-weight:800;color:#12202b;" th:if="${report.targetBook == null and report.targetUser == null}" th:text="${report.targetText}">
+                                                    USER #1104
+                                                </div>
+
+                                                <div style="margin-top:16px;">
+                                                    <strong style="color:#12202b;font-size:13px;line-height:1.7;" th:text="${reportReasonLabel}">Reason:</strong>
+                                                    <span style="display:inline-block;padding:7px 11px;border-radius:999px;background:#f6ead7;color:#8a5418;font-size:12px;font-weight:800;" th:text="${report.reason}">
+                                                        Spam
+                                                    </span>
+                                                </div>
+                                                <div style="margin-top:12px;padding:14px 16px;border-radius:18px;background:#f7faf8;border:1px solid rgba(18,32,43,0.06);font-size:13px;line-height:1.7;color:#334957;" th:if="${report.comment != null and !#strings.isEmpty(report.comment)}">
+                                                    <strong style="color:#12202b;" th:text="${reportCommentLabel}">Comment:</strong>
+                                                    <span th:text="${report.comment}">Comment text</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;margin-top:24px;" th:if="${ctaLabel != null and !#strings.isEmpty(ctaLabel) and ctaUrl != null and !#strings.isEmpty(ctaUrl)}">
+                            <tr>
+                                <td>
+                                    <a style="display:inline-block;padding:13px 18px;border-radius:16px;background:#1f6b58;color:#ffffff;font-size:14px;font-weight:800;line-height:1;text-decoration:none;" th:href="${ctaUrl}" th:text="${ctaLabel}">
+                                        Open
+                                    </a>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <div style="margin-top:26px;padding-top:18px;border-top:1px solid rgba(18,32,43,0.08);font-size:12px;line-height:1.7;color:#7a8a96;" th:text="${signature}">
+                            This email was sent automatically by Book Exchange.
+                        </div>
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+</body>
+</html>

@@ -2,6 +2,8 @@ package com.example.bookexchange.config;
 
 import com.example.bookexchange.common.audit.service.AuditService;
 import com.example.bookexchange.common.email.EmailService;
+import com.example.bookexchange.common.email.EmailType;
+import com.example.bookexchange.common.email.NotificationEmailRequest;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.common.result.ResultFactory;
 import com.example.bookexchange.common.storage.ImageStorageService;
@@ -12,6 +14,7 @@ import com.example.bookexchange.user.repository.UserRepository;
 import com.example.bookexchange.book.service.BookService;
 import com.example.bookexchange.exchange.service.RequestService;
 import com.example.bookexchange.security.filter.RateLimitFilter;
+import com.example.bookexchange.user.model.User;
 import com.example.bookexchange.user.service.UserService;
 import com.example.bookexchange.support.fixture.BookFixtureSupport;
 import com.example.bookexchange.support.fixture.ExchangeFixtureSupport;
@@ -48,7 +51,17 @@ public class TestUserConfig {
     @Bean
     @Primary
     public EmailService testEmailService() {
-        return (user, token, emailType) -> ResultFactory.successVoid();
+        return new EmailService() {
+            @Override
+            public Result<Void> buildAndSendEmail(User user, String token, EmailType emailType) {
+                return ResultFactory.successVoid();
+            }
+
+            @Override
+            public Result<Void> sendNotificationEmail(NotificationEmailRequest request) {
+                return ResultFactory.successVoid();
+            }
+        };
     }
 
     @Bean

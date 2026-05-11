@@ -4,6 +4,7 @@ import com.example.bookexchange.book.model.Book;
 import com.example.bookexchange.book.repository.BookRepository;
 import com.example.bookexchange.common.audit.service.AuditService;
 import com.example.bookexchange.common.i18n.MessageKey;
+import com.example.bookexchange.common.notification.NotificationDispatchService;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.exchange.dto.ExchangeDetailsDTO;
 import com.example.bookexchange.exchange.dto.RequestCreateDTO;
@@ -28,6 +29,8 @@ import java.util.Optional;
 import static com.example.bookexchange.common.i18n.MessageKey.BOOK_ALREADY_EXCHANGED;
 import static com.example.bookexchange.common.i18n.MessageKey.BOOK_CANT_EXCHANGE_SAME_BOOK;
 import static com.example.bookexchange.common.i18n.MessageKey.BOOK_EXCHANGE_ALREADY_EXISTS;
+import static com.example.bookexchange.common.i18n.MessageKey.BOOK_GIFT_CANT_BE_USED_FOR_EXCHANGE;
+import static com.example.bookexchange.common.i18n.MessageKey.EXCHANGE_BETWEEN_BOOKS_EXISTS;
 import static com.example.bookexchange.common.i18n.MessageKey.EXCHANGE_CANT_BE_WITH_YOURSELF;
 import static com.example.bookexchange.common.i18n.MessageKey.EXCHANGE_CREATED;
 import static com.example.bookexchange.common.i18n.MessageKey.EXCHANGE_DECLINED;
@@ -61,6 +64,9 @@ class RequestServiceImplTest {
 
     @Mock
     private ExchangeTransitionHelper exchangeTransitionHelper;
+
+    @Mock
+    private NotificationDispatchService notificationDispatchService;
 
     @InjectMocks
     private RequestServiceImpl requestService;
@@ -174,8 +180,49 @@ class RequestServiceImplTest {
         verify(exchangeRepository).save(exchangeCaptor.capture());
         assertThat(exchangeCaptor.getValue().getSenderBook()).isNull();
         assertThat(exchangeCaptor.getValue().getReceiverBook()).isSameAs(receiverBook);
-        assertThat(exchangeCaptor.getValue().getIsReadBySender()).isTrue();
+        assertThat(exchangeCaptor.getValue().getIsReadBySender()).isFalse();
         assertThat(exchangeCaptor.getValue().getIsReadByReceiver()).isFalse();
+        verify(notificationDispatchService).sendExchangeCreatedNotifications(exchangeCaptor.getValue());
+    }
+
+    @Test
+    void shouldReturnConflict_whenCreateRequestBetweenSameBooksAlreadyExists() {
+        User sender = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, "sender@example.com", "sender_one");
+        User receiver = UnitTestDataFactory.user(UnitFixtureIds.RECEIVER_USER_ID, "receiver@example.com", "receiver_one");
+        Book senderBook = UnitTestDataFactory.book(UnitFixtureIds.SENDER_BOOK_ID, "Sender book", sender);
+        Book receiverBook = UnitTestDataFactory.book(UnitFixtureIds.RECEIVER_BOOK_ID, "Receiver book", receiver);
+        RequestCreateDTO dto = UnitTestDataFactory.requestCreateDto(receiver.getId(), senderBook.getId(), receiverBook.getId());
+
+        when(bookRepository.findByIdAndUserId(receiverBook.getId(), receiver.getId())).thenReturn(Optional.of(receiverBook));
+        when(bookRepository.findByIdAndUserId(senderBook.getId(), sender.getId())).thenReturn(Optional.of(senderBook));
+        when(exchangeRepository.findBySenderUserIdAndReceiverUserIdAndSenderBookIdAndReceiverBookIdAndStatusNot(
+                sender.getId(),
+                receiver.getId(),
+                senderBook.getId(),
+                receiverBook.getId(),
+                ExchangeStatus.DECLINED
+        )).thenReturn(Optional.of(new Exchange()));
+
+        Result<ExchangeDetailsDTO> result = requestService.createRequest(sender.getId(), dto);
+
+        assertFailure(result, EXCHANGE_BETWEEN_BOOKS_EXISTS, HttpStatus.CONFLICT);
+    }
+
+    @Test
+    void shouldReturnBadRequest_whenCreateRequestUsesGiftSenderBook() {
+        User sender = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, "sender@example.com", "sender_one");
+        User receiver = UnitTestDataFactory.user(UnitFixtureIds.RECEIVER_USER_ID, "receiver@example.com", "receiver_one");
+        Book senderBook = UnitTestDataFactory.book(UnitFixtureIds.SENDER_BOOK_ID, "Sender book", sender);
+        Book receiverBook = UnitTestDataFactory.book(UnitFixtureIds.RECEIVER_BOOK_ID, "Receiver book", receiver);
+        senderBook.setIsGift(true);
+        RequestCreateDTO dto = UnitTestDataFactory.requestCreateDto(receiver.getId(), senderBook.getId(), receiverBook.getId());
+
+        when(bookRepository.findByIdAndUserId(receiverBook.getId(), receiver.getId())).thenReturn(Optional.of(receiverBook));
+        when(bookRepository.findByIdAndUserId(senderBook.getId(), sender.getId())).thenReturn(Optional.of(senderBook));
+
+        Result<ExchangeDetailsDTO> result = requestService.createRequest(sender.getId(), dto);
+
+        assertFailure(result, BOOK_GIFT_CANT_BE_USED_FOR_EXCHANGE, HttpStatus.BAD_REQUEST);
     }
 
     @Test
@@ -199,9 +246,10 @@ class RequestServiceImplTest {
 
         assertSuccess(result, HttpStatus.CREATED, EXCHANGE_CREATED);
         verify(exchangeRepository).save(exchangeCaptor.capture());
-        assertThat(exchangeCaptor.getValue().getIsReadBySender()).isTrue();
+        assertThat(exchangeCaptor.getValue().getIsReadBySender()).isFalse();
         assertThat(exchangeCaptor.getValue().getIsReadByReceiver()).isFalse();
         assertThat(result.isSuccess()).isTrue();
+        verify(notificationDispatchService).sendExchangeCreatedNotifications(exchangeCaptor.getValue());
     }
 
     @Test
@@ -241,5 +289,6 @@ class RequestServiceImplTest {
         assertThat(exchange.getDeclinerUser()).isSameAs(sender);
         assertThat(exchange.getIsReadBySender()).isTrue();
         assertThat(exchange.getIsReadByReceiver()).isFalse();
+        verify(notificationDispatchService).sendExchangeDeclinedBySenderNotifications(exchange);
     }
 }

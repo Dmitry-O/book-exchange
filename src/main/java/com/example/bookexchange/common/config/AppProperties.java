@@ -18,4 +18,18 @@ public class AppProperties {
     private String baseApiPath = "/api/v1";
     private int accessTokenTimeToLive = 54000;
     private List<String> corsAllowedOrigins = List.of("http://localhost:5173");
+    private ReportSettings report = new ReportSettings();
+    private NotificationSettings notification = new NotificationSettings();
+
+    @Getter
+    @Setter
+    public static class ReportSettings {
+        private int snapshotRetentionDays = 180;
+    }
+
+    @Getter
+    @Setter
+    public static class NotificationSettings {
+        private long emailBatchDelayMillis = 0;
+    }
 }

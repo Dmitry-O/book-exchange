@@ -8,6 +8,7 @@ import com.example.bookexchange.common.audit.service.AuditService;
 import com.example.bookexchange.common.email.EmailService;
 import com.example.bookexchange.common.email.EmailType;
 import com.example.bookexchange.common.i18n.MessageKey;
+import com.example.bookexchange.common.notification.NotificationDispatchService;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.security.auth.JwtService;
 import com.example.bookexchange.support.TestReportStrings;
@@ -17,6 +18,7 @@ import com.example.bookexchange.user.dto.UserCreateDTO;
 import com.example.bookexchange.user.dto.UserForgotPasswordDTO;
 import com.example.bookexchange.user.dto.UserInitiateDeleteAccountDTO;
 import com.example.bookexchange.user.dto.UserResendEmailConfirmationDTO;
+import com.example.bookexchange.user.dto.UserResetForgottenPasswordDTO;
 import com.example.bookexchange.user.mapper.UserMapper;
 import com.example.bookexchange.user.model.User;
 import com.example.bookexchange.user.repository.UserRepository;
@@ -71,6 +73,9 @@ class AuthServiceImplTest {
 
     @Mock
     private AuditService auditService;
+
+    @Mock
+    private NotificationDispatchService notificationDispatchService;
 
     @InjectMocks
     private AuthServiceImpl authService;
@@ -267,5 +272,27 @@ class AuthServiceImplTest {
 
         assertSuccess(result, HttpStatus.OK, MessageKey.USER_ACCOUNT_DELETED);
         verify(userService).deleteUser(user.getId(), user.getVersion());
+    }
+
+    @Test
+    void shouldNotifyUser_whenForgottenPasswordIsReset() {
+        User user = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, "reader@example.com", "reader_one");
+        VerificationToken verificationToken = new VerificationToken();
+        verificationToken.setUser(user);
+        UserResetForgottenPasswordDTO dto = UserResetForgottenPasswordDTO.builder()
+                .newPassword("NewPassword-123")
+                .build();
+
+        when(verificationTokenService.validateToken("reset-token", TokenType.RESET_PASSWORD, "RESET_FORGOTTEN_PASSWORD"))
+                .thenReturn(ok(verificationToken));
+        when(passwordEncoder.encode(dto.getNewPassword())).thenReturn("new-encoded-password");
+        when(userRepository.save(user)).thenReturn(user);
+
+        Result<Void> result = authService.resetForgottenPassword("reset-token", dto);
+
+        assertSuccess(result, HttpStatus.OK, MessageKey.AUTH_PASSWORD_CHANGED);
+        assertThat(user.getPassword()).isEqualTo("new-encoded-password");
+        verify(verificationTokenService).deleteToken(verificationToken);
+        verify(notificationDispatchService).sendPasswordChangedNotification(user);
     }
 }
