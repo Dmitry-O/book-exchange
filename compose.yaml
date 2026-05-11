@@ -12,6 +12,13 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
 
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: book-exchange-mailpit
+    ports:
+      - "${MAILPIT_SMTP_PORT}:1025"
+      - "${MAILPIT_WEB_PORT}:8025"
+
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:9.2.5
     container_name: book-exchange-elasticsearch
