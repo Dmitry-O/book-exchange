@@ -3,10 +3,12 @@ package com.example.bookexchange.exchange.mapper;
 import com.example.bookexchange.book.dto.BookCategoryDTO;
 import com.example.bookexchange.book.dto.BookDTO;
 import com.example.bookexchange.book.model.Book;
+import com.example.bookexchange.common.notification.UserUpdateType;
 import com.example.bookexchange.exchange.dto.ExchangeDTO;
 import com.example.bookexchange.exchange.dto.ExchangeDetailsDTO;
 import com.example.bookexchange.exchange.dto.ExchangeHistoryDTO;
 import com.example.bookexchange.exchange.dto.ExchangeHistoryDetailsDTO;
+import com.example.bookexchange.exchange.dto.ExchangeUpdateBookDTO;
 import com.example.bookexchange.exchange.dto.ExchangeUpdateDTO;
 import com.example.bookexchange.exchange.model.Exchange;
 import com.example.bookexchange.exchange.model.UserExchangeRole;
@@ -17,8 +19,10 @@ public abstract class ExchangeMapper {
 
     @Mapping(target = "senderBookName", source = "exchange.senderBook.name")
     @Mapping(target = "senderBookPhotoUrl", source = "exchange.senderBook.photoUrl")
+    @Mapping(target = "senderBookId", source = "exchange.senderBook.id")
     @Mapping(target = "receiverBookName", source = "exchange.receiverBook.name")
     @Mapping(target = "receiverBookPhotoUrl", source = "exchange.receiverBook.photoUrl")
+    @Mapping(target = "receiverBookId", source = "exchange.receiverBook.id")
     @Mapping(target = "status", source = "exchange.status")
     @Mapping(target = "userNickname", expression = "java(resolveOtherUserNickname(exchange, userRole))")
     @Mapping(target = "otherUserId", expression = "java(resolveOtherUserId(exchange, userRole))")
@@ -40,11 +44,14 @@ public abstract class ExchangeMapper {
 
     @Mapping(target = "senderBookName", source = "exchange.senderBook.name")
     @Mapping(target = "senderBookPhotoUrl", source = "exchange.senderBook.photoUrl")
+    @Mapping(target = "senderBookId", source = "exchange.senderBook.id")
     @Mapping(target = "receiverBookName", source = "exchange.receiverBook.name")
     @Mapping(target = "receiverBookPhotoUrl", source = "exchange.receiverBook.photoUrl")
+    @Mapping(target = "receiverBookId", source = "exchange.receiverBook.id")
     @Mapping(target = "status", source = "exchange.status")
     @Mapping(target = "userNickname", expression = "java(resolveOtherUserNickname(exchange, userRole))")
     @Mapping(target = "otherUserId", expression = "java(resolveOtherUserId(exchange, userRole))")
+    @Mapping(target = "userExchangeRole", source = "userRole")
     @Mapping(target = "version", source = "exchange.version")
     public abstract ExchangeHistoryDTO exchangeToExchangeHistoryDto(Exchange exchange, UserExchangeRole userRole);
 
@@ -69,15 +76,26 @@ public abstract class ExchangeMapper {
     @Mapping(target = "version", source = "exchange.version")
     @Mapping(target = "status", source = "exchange.status")
     @Mapping(target = "userExchangeRole", source = "userExchangeRole")
-    @Mapping(target = "updatedAt", source = "exchange.updatedAt")
+    @Mapping(target = "updateCreatedAt", source = "exchange.updateCreatedAt")
+    @Mapping(target = "senderBook", source = "exchange.senderBook")
+    @Mapping(target = "receiverBook", source = "exchange.receiverBook")
     @Mapping(target = "otherBookId", expression = "java(resolveOtherBookId(exchange, userExchangeRole))")
     @Mapping(target = "otherBookName", expression = "java(resolveOtherBookName(exchange, userExchangeRole))")
     @Mapping(target = "otherUserNickname", expression = "java(resolveOtherUserNickname(exchange, userExchangeRole))")
     @Mapping(target = "otherUserId", expression = "java(resolveOtherUserId(exchange, userExchangeRole))")
+    @Mapping(target = "declinerUserId", source = "exchange.declinerUser.id")
+    @Mapping(target = "declinerUserNickname", source = "exchange.declinerUser.nickname")
+    @Mapping(target = "declinerUserRole", expression = "java(resolveDeclinerUserRole(exchange))")
     public abstract ExchangeUpdateDTO exchangeToExchangeUpdateDto(
             Exchange exchange,
             UserExchangeRole userExchangeRole
     );
+
+    @Mapping(target = "id", source = "id")
+    @Mapping(target = "name", source = "name")
+    @Mapping(target = "photoUrl", source = "photoUrl")
+    @Mapping(target = "isGift", source = "isGift")
+    protected abstract ExchangeUpdateBookDTO bookToExchangeUpdateBookDto(Book book);
 
     @Mapping(target = "id", source = "id")
     @Mapping(target = "version", source = "version")
@@ -117,8 +135,10 @@ public abstract class ExchangeMapper {
             Exchange exchange,
             UserExchangeRole userRole
     ) {
+        dto.setUpdateType(UserUpdateType.EXCHANGE);
         dto.setExchangeId(exchange.getId());
         dto.setIsRead(resolveIsRead(exchange, userRole));
+        dto.setAutoDeclined(Boolean.TRUE.equals(exchange.getAutoDeclined()));
     }
 
     protected Long resolveOtherBookId(Exchange exchange, UserExchangeRole userRole) {
@@ -149,6 +169,16 @@ public abstract class ExchangeMapper {
         return userRole == UserExchangeRole.SENDER
                 ? exchange.getIsReadBySender()
                 : exchange.getIsReadByReceiver();
+    }
+
+    protected UserExchangeRole resolveDeclinerUserRole(Exchange exchange) {
+        if (exchange.getDeclinerUser() == null) {
+            return null;
+        }
+
+        return exchange.getDeclinerUser().getId().equals(exchange.getSenderUser().getId())
+                ? UserExchangeRole.SENDER
+                : UserExchangeRole.RECEIVER;
     }
 
     protected Book resolveOtherBook(Exchange exchange, UserExchangeRole userRole) {

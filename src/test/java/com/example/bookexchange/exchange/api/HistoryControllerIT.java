@@ -27,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.Set;
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -99,7 +100,30 @@ class HistoryControllerIT extends IntegrationTestSupport {
         assertThat(content.get(0).path("status").asText()).isIn(ExchangeStatus.APPROVED.name(), ExchangeStatus.DECLINED.name());
         assertThat(content.get(0).path("userNickname").asText()).isNotBlank();
         assertThat(content.get(0).path("otherUserId").asLong()).isPositive();
+        assertThat(findExchangeById(content, approvedFixture.exchangeId()).path("userExchangeRole").asText()).isEqualTo("SENDER");
+        assertThat(findExchangeById(content, declinedFixture.exchangeId()).path("userExchangeRole").asText()).isEqualTo("SENDER");
         assertHasVersion(content.get(0));
+    }
+
+    @Test
+    void shouldReturnReceiverRole_whenReceiverGetsExchangeHistory() throws Exception {
+        ExchangeFixture fixture = createCompletedExchange(606, ExchangeStatus.APPROVED);
+
+        MvcResult mvcResult = mockMvc.perform(get(ExchangePaths.HISTORY_PATH)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(fixture.receiver()))
+                        .queryParam("pageIndex", PageTestDefaults.PAGE_INDEX.toString())
+                        .queryParam("pageSize", PageTestDefaults.PAGE_SIZE.toString())
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode content = responseBody(mvcResult).path("data").path("content");
+        JsonNode historyItem = findExchangeById(content, fixture.exchangeId());
+
+        assertThat(content).hasSize(1);
+        assertThat(historyItem.path("userExchangeRole").asText()).isEqualTo("RECEIVER");
+        assertThat(historyItem.path("userNickname").asText()).isEqualTo(fixture.sender().getNickname());
+        assertThat(historyItem.path("otherUserId").asLong()).isEqualTo(fixture.sender().getId());
     }
 
     @Test
@@ -170,7 +194,60 @@ class HistoryControllerIT extends IntegrationTestSupport {
         assertThat(body.path("data").path("contactDetails").asText()).isEqualTo(fixture.senderContactDetails());
         assertVersion(body.path("data"), exchange.getVersion());
         assertThat(exchange.getIsReadByReceiver()).isTrue();
-        assertThat(exchange.getIsReadBySender()).isTrue();
+        assertThat(exchange.getIsReadBySender()).isFalse();
+    }
+
+    @Test
+    void shouldKeepHistoryOrderStable_whenHistoryDetailsOpenedAndReadStateToggled() throws Exception {
+        User sender = userUtil.createUser(FixtureNumbers.history(613));
+        ExchangeFixture newerFixture = createExchangeForSender(sender, 614);
+        ExchangeFixture olderFixture = createExchangeForSender(sender, 616);
+
+        Exchange newerExchange = exchangeRepository.findById(newerFixture.exchangeId()).orElseThrow();
+        newerExchange.setStatus(ExchangeStatus.APPROVED);
+        newerExchange.setUpdateCreatedAt(Instant.parse("2026-04-24T10:00:00Z"));
+        exchangeRepository.save(newerExchange);
+
+        Exchange olderExchange = exchangeRepository.findById(olderFixture.exchangeId()).orElseThrow();
+        olderExchange.setStatus(ExchangeStatus.APPROVED);
+        olderExchange.setUpdateCreatedAt(Instant.parse("2026-04-23T10:00:00Z"));
+        exchangeRepository.save(olderExchange);
+
+        MvcResult initialHistoryResult = mockMvc.perform(get(ExchangePaths.HISTORY_PATH)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(sender))
+                        .queryParam("pageIndex", PageTestDefaults.PAGE_INDEX.toString())
+                        .queryParam("pageSize", PageTestDefaults.PAGE_SIZE.toString())
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode initialContent = responseBody(initialHistoryResult).path("data").path("content");
+        assertThat(initialContent.get(0).path("id").asLong()).isEqualTo(newerFixture.exchangeId());
+        assertThat(initialContent.get(1).path("id").asLong()).isEqualTo(olderFixture.exchangeId());
+
+        mockMvc.perform(get(ExchangePaths.HISTORY_PATH_EXCHANGE_ID, olderFixture.exchangeId())
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(sender))
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(patch(ExchangePaths.UPDATES_PATH_EXCHANGE_ID_READ_STATE, olderFixture.exchangeId())
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(sender))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(java.util.Map.of("isRead", false)))
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk());
+
+        MvcResult stableHistoryResult = mockMvc.perform(get(ExchangePaths.HISTORY_PATH)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(sender))
+                        .queryParam("pageIndex", PageTestDefaults.PAGE_INDEX.toString())
+                        .queryParam("pageSize", PageTestDefaults.PAGE_SIZE.toString())
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode stableContent = responseBody(stableHistoryResult).path("data").path("content");
+        assertThat(stableContent.get(0).path("id").asLong()).isEqualTo(newerFixture.exchangeId());
+        assertThat(stableContent.get(1).path("id").asLong()).isEqualTo(olderFixture.exchangeId());
     }
 
     @Test
@@ -199,6 +276,11 @@ class HistoryControllerIT extends IntegrationTestSupport {
         assertThat(content.get(0).path("otherBookName").asText()).isNotBlank();
         assertThat(content.get(0).path("otherUserId").asLong()).isEqualTo(fixture.sender().getId());
         assertThat(content.get(0).path("otherUserNickname").asText()).isEqualTo(fixture.sender().getNickname());
+        assertThat(content.get(0).path("senderBook").path("id").asLong()).isPositive();
+        assertThat(content.get(0).path("senderBook").path("name").asText()).isNotBlank();
+        assertThat(content.get(0).path("receiverBook").path("id").asLong()).isPositive();
+        assertThat(content.get(0).path("receiverBook").path("name").asText()).isNotBlank();
+        assertThat(content.get(0).path("updateCreatedAt").asText()).isNotBlank();
         assertHasVersion(content.get(0));
     }
 
@@ -227,8 +309,54 @@ class HistoryControllerIT extends IntegrationTestSupport {
         assertThat(content.get(0).path("isRead").asBoolean()).isFalse();
         assertThat(content.get(0).get("otherBookId").isNull()).isTrue();
         assertThat(content.get(0).get("otherBookName").isNull()).isTrue();
+        assertThat(content.get(0).get("senderBook").isNull()).isTrue();
+        assertThat(content.get(0).path("receiverBook").path("id").asLong()).isEqualTo(receiverBookId);
+        assertThat(content.get(0).path("receiverBook").path("isGift").asBoolean()).isTrue();
         assertThat(content.get(0).path("otherUserId").asLong()).isEqualTo(sender.getId());
         assertThat(content.get(0).path("otherUserNickname").asText()).isEqualTo(sender.getNickname());
+    }
+
+    @Test
+    void shouldKeepOwnCreatedRequestUnreadUntilSenderOpensIt() throws Exception {
+        ExchangeFixture fixture = createPendingExchange(623);
+
+        MvcResult unreadBeforeOpenResult = mockMvc.perform(get(ExchangePaths.UPDATES_PATH)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(fixture.sender()))
+                        .queryParam("pageIndex", PageTestDefaults.PAGE_INDEX.toString())
+                        .queryParam("pageSize", PageTestDefaults.PAGE_SIZE.toString())
+                        .queryParam("readState", "UNREAD")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode unreadBeforeOpenContent = responseBody(unreadBeforeOpenResult).path("data").path("content");
+
+        assertThat(unreadBeforeOpenContent).hasSize(1);
+        assertThat(unreadBeforeOpenContent.get(0).path("exchangeId").asLong()).isEqualTo(fixture.exchangeId());
+        assertThat(unreadBeforeOpenContent.get(0).path("userExchangeRole").asText()).isEqualTo("SENDER");
+        assertThat(unreadBeforeOpenContent.get(0).path("isRead").asBoolean()).isFalse();
+
+        mockMvc.perform(get(ExchangePaths.REQUEST_PATH_EXCHANGE_ID, fixture.exchangeId())
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(fixture.sender()))
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk());
+
+        clearPersistenceContext();
+
+        Exchange openedExchange = exchangeRepository.findById(fixture.exchangeId()).orElseThrow();
+        assertThat(openedExchange.getIsReadBySender()).isTrue();
+        assertThat(openedExchange.getIsReadByReceiver()).isFalse();
+
+        MvcResult unreadAfterOpenResult = mockMvc.perform(get(ExchangePaths.UPDATES_PATH)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(fixture.sender()))
+                        .queryParam("pageIndex", PageTestDefaults.PAGE_INDEX.toString())
+                        .queryParam("pageSize", PageTestDefaults.PAGE_SIZE.toString())
+                        .queryParam("readState", "UNREAD")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        assertThat(responseBody(unreadAfterOpenResult).path("data").path("totalElements").asLong()).isZero();
     }
 
     @Test
@@ -263,8 +391,8 @@ class HistoryControllerIT extends IntegrationTestSupport {
         assertThat(allContent.get(0).path("isRead").asBoolean()).isTrue();
         assertThat(allContent.get(1).path("exchangeId").asLong()).isEqualTo(firstExchangeId);
         assertThat(allContent.get(1).path("isRead").asBoolean()).isFalse();
-        assertThat(allContent.get(0).path("updatedAt").asText())
-                .isGreaterThanOrEqualTo(allContent.get(1).path("updatedAt").asText());
+        assertThat(allContent.get(0).path("updateCreatedAt").asText())
+                .isGreaterThanOrEqualTo(allContent.get(1).path("updateCreatedAt").asText());
 
         MvcResult readUpdatesResult = mockMvc.perform(get(ExchangePaths.UPDATES_PATH)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(receiver))
@@ -352,6 +480,9 @@ class HistoryControllerIT extends IntegrationTestSupport {
         assertThat(unreadContent.get(0).path("status").asText()).isEqualTo(ExchangeStatus.DECLINED.name());
         assertThat(unreadContent.get(0).path("userExchangeRole").asText()).isEqualTo("RECEIVER");
         assertThat(unreadContent.get(0).path("isRead").asBoolean()).isFalse();
+        assertThat(unreadContent.get(0).path("declinerUserId").asLong()).isEqualTo(fixture.sender().getId());
+        assertThat(unreadContent.get(0).path("declinerUserNickname").asText()).isEqualTo(fixture.sender().getNickname());
+        assertThat(unreadContent.get(0).path("declinerUserRole").asText()).isEqualTo("SENDER");
     }
 
     @Test
@@ -391,6 +522,68 @@ class HistoryControllerIT extends IntegrationTestSupport {
         assertThat(content.get(0).path("isRead").asBoolean()).isFalse();
         assertThat(content.get(0).path("otherUserId").asLong()).isEqualTo(fixture.receiver().getId());
         assertThat(content.get(0).path("otherUserNickname").asText()).isEqualTo(fixture.receiver().getNickname());
+        assertThat(content.get(0).path("declinerUserId").asLong()).isEqualTo(fixture.receiver().getId());
+        assertThat(content.get(0).path("declinerUserNickname").asText()).isEqualTo(fixture.receiver().getNickname());
+        assertThat(content.get(0).path("declinerUserRole").asText()).isEqualTo("RECEIVER");
+    }
+
+    @Test
+    void shouldToggleUpdateReadStateWithoutChangingUpdateCreatedAt() throws Exception {
+        ExchangeFixture fixture = createPendingExchange(646);
+
+        MvcResult beforeToggleResult = mockMvc.perform(get(ExchangePaths.UPDATES_PATH)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(fixture.receiver()))
+                        .queryParam("pageIndex", PageTestDefaults.PAGE_INDEX.toString())
+                        .queryParam("pageSize", PageTestDefaults.PAGE_SIZE.toString())
+                        .queryParam("readState", "UNREAD")
+                        .accept(MediaType.APPLICATION_JSON))
+                 .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode beforeToggle = responseBody(beforeToggleResult).path("data").path("content").get(0);
+
+        clearPersistenceContext();
+
+        Exchange exchangeBeforeToggle = exchangeRepository.findById(fixture.exchangeId()).orElseThrow();
+        String updateCreatedAt = exchangeBeforeToggle.getUpdateCreatedAt().toString();
+
+        assertThat(beforeToggle.path("updateCreatedAt").asText()).isNotBlank();
+
+        MvcResult markReadResult = mockMvc.perform(patch(ExchangePaths.UPDATES_PATH_EXCHANGE_ID_READ_STATE, fixture.exchangeId())
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(fixture.receiver()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(java.util.Map.of("isRead", true)))
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        clearPersistenceContext();
+
+        Exchange markedReadExchange = exchangeRepository.findById(fixture.exchangeId()).orElseThrow();
+        JsonNode markReadBody = responseBody(markReadResult).path("data");
+
+        assertThat(markedReadExchange.getIsReadByReceiver()).isTrue();
+        assertThat(markReadBody.path("isRead").asBoolean()).isTrue();
+        assertThat(markReadBody.path("updateCreatedAt").asText()).isEqualTo(updateCreatedAt);
+        assertThat(markedReadExchange.getUpdateCreatedAt().toString()).isEqualTo(updateCreatedAt);
+
+        MvcResult markUnreadResult = mockMvc.perform(patch(ExchangePaths.UPDATES_PATH_EXCHANGE_ID_READ_STATE, fixture.exchangeId())
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(fixture.receiver()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(java.util.Map.of("isRead", false)))
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        clearPersistenceContext();
+
+        Exchange markedUnreadExchange = exchangeRepository.findById(fixture.exchangeId()).orElseThrow();
+        JsonNode markUnreadBody = responseBody(markUnreadResult).path("data");
+
+        assertThat(markedUnreadExchange.getIsReadByReceiver()).isFalse();
+        assertThat(markUnreadBody.path("isRead").asBoolean()).isFalse();
+        assertThat(markUnreadBody.path("updateCreatedAt").asText()).isEqualTo(updateCreatedAt);
+        assertThat(markedUnreadExchange.getUpdateCreatedAt().toString()).isEqualTo(updateCreatedAt);
     }
 
     @Test
@@ -522,6 +715,16 @@ class HistoryControllerIT extends IntegrationTestSupport {
 
     private ExchangeFixture createPendingExchange(int base) {
         return createCompletedExchange(base, ExchangeStatus.PENDING);
+    }
+
+    private JsonNode findExchangeById(JsonNode content, Long exchangeId) {
+        for (JsonNode item : content) {
+            if (item.path("id").asLong() == exchangeId) {
+                return item;
+            }
+        }
+
+        throw new IllegalStateException("Exchange with id=" + exchangeId + " was not found in response");
     }
 
     private String historyPath(Long exchangeId) {

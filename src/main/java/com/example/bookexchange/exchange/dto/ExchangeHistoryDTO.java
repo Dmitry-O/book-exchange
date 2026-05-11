@@ -1,6 +1,7 @@
 package com.example.bookexchange.exchange.dto;
 
 import com.example.bookexchange.exchange.model.ExchangeStatus;
+import com.example.bookexchange.exchange.model.UserExchangeRole;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
@@ -28,6 +29,14 @@ public class ExchangeHistoryDTO {
     @JsonProperty("otherUserId")
     private Long otherUserId;
 
+    @Schema(example = "15")
+    @JsonProperty("senderBookId")
+    private Long senderBookId;
+
+    @Schema(example = "19")
+    @JsonProperty("receiverBookId")
+    private Long receiverBookId;
+
     @Schema(example = "https://book-exchange-prod.s3.eu-central-1.amazonaws.com/users/42/books/15_1712582410000.jpg")
     @JsonProperty("senderBookPhotoUrl")
     private String senderBookPhotoUrl;
@@ -47,4 +56,8 @@ public class ExchangeHistoryDTO {
     @Schema(example = "true")
     @JsonProperty("isRead")
     private Boolean isRead;
+
+    @Schema(example = "SENDER")
+    @JsonProperty("userExchangeRole")
+    private UserExchangeRole userExchangeRole;
 }

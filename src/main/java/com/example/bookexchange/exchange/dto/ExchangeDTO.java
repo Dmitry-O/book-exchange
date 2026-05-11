@@ -28,6 +28,14 @@ public class ExchangeDTO {
     @JsonProperty("otherUserId")
     private Long otherUserId;
 
+    @Schema(example = "15")
+    @JsonProperty("senderBookId")
+    private Long senderBookId;
+
+    @Schema(example = "19")
+    @JsonProperty("receiverBookId")
+    private Long receiverBookId;
+
     @Schema(example = "https://book-exchange-prod.s3.eu-central-1.amazonaws.com/users/42/books/15_1712582410000.jpg")
     @JsonProperty("senderBookPhotoUrl")
     private String senderBookPhotoUrl;
