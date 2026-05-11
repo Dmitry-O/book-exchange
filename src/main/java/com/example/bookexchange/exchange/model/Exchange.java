@@ -7,6 +7,8 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
+import java.time.Instant;
+
 @EqualsAndHashCode(onlyExplicitlyIncluded = true, callSuper = false)
 @Getter
 @Setter
@@ -28,6 +30,12 @@ public class Exchange extends AuditableEntity {
 
     @Column(nullable = false)
     private Boolean isReadByReceiver = Boolean.FALSE;
+
+    @Column(nullable = false)
+    private Instant updateCreatedAt;
+
+    @Column(nullable = false)
+    private Boolean autoDeclined = Boolean.FALSE;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sender_user_id")

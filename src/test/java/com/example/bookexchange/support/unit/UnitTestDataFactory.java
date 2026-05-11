@@ -94,6 +94,7 @@ public final class UnitTestDataFactory {
         exchange.setVersion(1L);
         exchange.setIsReadBySender(false);
         exchange.setIsReadByReceiver(false);
+        exchange.setUpdateCreatedAt(Instant.now());
         return exchange;
     }
 

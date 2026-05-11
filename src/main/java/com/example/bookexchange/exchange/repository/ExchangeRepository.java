@@ -8,6 +8,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -114,9 +115,70 @@ public interface ExchangeRepository extends JpaRepository<Exchange, Long>, JpaSp
 
     Optional<Exchange> findBySenderUserIdAndReceiverUserIdAndReceiverBookIdAndStatusNot(Long senderUserId, Long receiverUserId, Long receiverBookId, ExchangeStatus status);
 
+    Optional<Exchange> findBySenderUserIdAndReceiverUserIdAndSenderBookIdAndReceiverBookIdAndStatusNot(
+            Long senderUserId,
+            Long receiverUserId,
+            Long senderBookId,
+            Long receiverBookId,
+            ExchangeStatus status
+    );
+
     List<Exchange> findByIdNotAndSenderBookIdAndStatus(Long exchangeId,  Long senderUserId, ExchangeStatus status);
 
     List<Exchange> findByIdNotAndReceiverBookIdAndStatus(Long exchangeId,  Long receiverUserId, ExchangeStatus status);
+
+    @Query("""
+            SELECT CASE WHEN COUNT(e) > 0 THEN true ELSE false END
+            FROM Exchange e
+            WHERE e.status IN :statuses
+                AND (
+                    (e.senderBook IS NOT NULL AND e.senderBook.id = :bookId)
+                    OR e.receiverBook.id = :bookId
+                )
+            """)
+    boolean existsByStatusInAndBookId(
+            @Param("statuses") Set<ExchangeStatus> statuses,
+            @Param("bookId") Long bookId
+    );
+
+    @EntityGraph(attributePaths = {
+            "senderUser",
+            "receiverUser",
+            "senderBook",
+            "receiverBook",
+            "declinerUser"
+    })
+    @Query("""
+            SELECT e
+            FROM Exchange e
+            WHERE e.status = :status
+                AND (
+                    e.senderBook.id = :bookId
+                    OR e.receiverBook.id = :bookId
+                )
+            """)
+    List<Exchange> findByStatusAndBookId(
+            @Param("status") ExchangeStatus status,
+            @Param("bookId") Long bookId
+    );
+
+    @EntityGraph(attributePaths = {
+            "senderUser",
+            "receiverUser",
+            "senderBook",
+            "receiverBook",
+            "declinerUser"
+    })
+    @Query("""
+            SELECT e
+            FROM Exchange e
+            WHERE e.status = :status
+                AND (e.senderUser.id = :userId OR e.receiverUser.id = :userId)
+            """)
+    List<Exchange> findByStatusAndParticipantUserId(
+            @Param("status") ExchangeStatus status,
+            @Param("userId") Long userId
+    );
 
     @EntityGraph(attributePaths = {
             "senderUser",
@@ -146,4 +208,22 @@ public interface ExchangeRepository extends JpaRepository<Exchange, Long>, JpaSp
             "declinerUser"
     })
     Optional<Exchange> findById(Long id);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            UPDATE Exchange e
+            SET e.isReadBySender = true
+            WHERE e.senderUser.id = :userId
+                AND e.isReadBySender = false
+            """)
+    int markAllSenderUpdatesAsRead(@Param("userId") Long userId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            UPDATE Exchange e
+            SET e.isReadByReceiver = true
+            WHERE e.receiverUser.id = :userId
+                AND e.isReadByReceiver = false
+            """)
+    int markAllReceiverUpdatesAsRead(@Param("userId") Long userId);
 }

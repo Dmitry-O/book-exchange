@@ -8,7 +8,9 @@ import com.example.bookexchange.common.swagger.page_data_response.ExchangeUpdate
 import com.example.bookexchange.common.swagger.page_data_response.HistoryPageData;
 import com.example.bookexchange.common.web.ResultResponseMapper;
 import com.example.bookexchange.exchange.dto.ExchangeHistoryDetailsDTO;
+import com.example.bookexchange.exchange.dto.ExchangeUpdateDTO;
 import com.example.bookexchange.exchange.dto.ExchangeUpdateQueryDTO;
+import com.example.bookexchange.exchange.dto.ExchangeUpdateReadStateChangeDTO;
 import com.example.bookexchange.exchange.service.HistoryService;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -72,6 +74,77 @@ public class HistoryController {
             HttpServletRequest request
     ) {
         return responseMapper.map(historyService.getUnreadExchangeUpdates(userId, queryDTO), request);
+    }
+
+    @UnauthorizedErrorResponse
+    @NotFoundErrorResponse
+    @ApiResponse(
+            responseCode = "200",
+            description = "Updates read state for the current user in exchange updates feed",
+            content = @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ExchangeUpdateDTO.class)
+            )
+    )
+    @PatchMapping(ExchangePaths.UPDATES_PATH_EXCHANGE_ID_READ_STATE)
+    public ResponseEntity<?> updateExchangeUpdateReadState(
+            @Parameter(description = "User ID", example = "1")
+            @CurrentUser Long userId,
+
+            @Parameter(description = "Exchange ID", example = "1")
+            @PathVariable Long exchangeId,
+
+            @Validated @RequestBody ExchangeUpdateReadStateChangeDTO dto,
+
+            HttpServletRequest request
+    ) {
+        return responseMapper.map(
+                historyService.updateExchangeUpdateReadState(userId, exchangeId, dto),
+                request
+        );
+    }
+
+    @UnauthorizedErrorResponse
+    @NotFoundErrorResponse
+    @ApiResponse(
+            responseCode = "200",
+            description = "Updates read state for a non-exchange notification in the current user's updates feed",
+            content = @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ExchangeUpdateDTO.class)
+            )
+    )
+    @PatchMapping(ExchangePaths.UPDATES_PATH_NOTIFICATION_ID_READ_STATE)
+    public ResponseEntity<?> updateNotificationUpdateReadState(
+            @Parameter(description = "User ID", example = "1")
+            @CurrentUser Long userId,
+
+            @Parameter(description = "Notification update ID", example = "1")
+            @PathVariable Long notificationId,
+
+            @Validated @RequestBody ExchangeUpdateReadStateChangeDTO dto,
+
+            HttpServletRequest request
+    ) {
+        return responseMapper.map(
+                historyService.updateNotificationUpdateReadState(userId, notificationId, dto),
+                request
+        );
+    }
+
+    @UnauthorizedErrorResponse
+    @ApiResponse(
+            responseCode = "200",
+            description = "Marks all exchange and notification updates as read for the current user"
+    )
+    @PatchMapping(ExchangePaths.UPDATES_PATH_MARK_ALL_READ)
+    public ResponseEntity<?> markAllUpdatesAsRead(
+            @Parameter(description = "User ID", example = "1")
+            @CurrentUser Long userId,
+
+            HttpServletRequest request
+    ) {
+        return responseMapper.map(historyService.markAllUpdatesAsRead(userId), request);
     }
 
     @UnauthorizedErrorResponse
