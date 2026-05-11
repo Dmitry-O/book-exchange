@@ -11,11 +11,13 @@ import com.example.bookexchange.common.audit.model.AuditResult;
 import com.example.bookexchange.common.audit.service.AuditService;
 import com.example.bookexchange.common.audit.service.VersionedEntityTransitionHelper;
 import com.example.bookexchange.common.dto.PageQueryDTO;
+import com.example.bookexchange.common.notification.NotificationDispatchService;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.common.result.ResultFactory;
 import com.example.bookexchange.book.dto.BookCreateDTO;
 import com.example.bookexchange.book.dto.BookDTO;
 import com.example.bookexchange.book.dto.BookSearchDTO;
+import com.example.bookexchange.book.dto.BookSortFieldDTO;
 import com.example.bookexchange.book.dto.BookUpdateDTO;
 import com.example.bookexchange.book.model.BookType;
 import com.example.bookexchange.common.dto.SortDirectionDTO;
@@ -24,6 +26,10 @@ import com.example.bookexchange.common.storage.ImageStorageService;
 import com.example.bookexchange.user.model.User;
 import com.example.bookexchange.user.repository.UserRepository;
 import com.example.bookexchange.common.util.ETagUtil;
+import com.example.bookexchange.exchange.model.Exchange;
+import com.example.bookexchange.exchange.model.ExchangeStatus;
+import com.example.bookexchange.exchange.repository.ExchangeRepository;
+import com.example.bookexchange.exchange.util.ExchangeReadStateUtil;
 import lombok.AllArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -31,6 +37,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.interceptor.TransactionAspectSupport;
@@ -40,12 +47,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
 @AllArgsConstructor
 public class BookServiceImpl implements BookService {
+
+    private static final Set<ExchangeStatus> BOOK_EDIT_LOCK_STATUSES = Set.of(
+            ExchangeStatus.PENDING,
+            ExchangeStatus.APPROVED
+    );
 
     private final BookRepository bookRepository;
     private final UserRepository userRepository;
@@ -54,6 +67,8 @@ public class BookServiceImpl implements BookService {
     private final VersionedEntityTransitionHelper versionedEntityTransitionHelper;
     private final ImageStorageService imageStorageService;
     private final BookSearchIndexService bookSearchIndexService;
+    private final ExchangeRepository exchangeRepository;
+    private final NotificationDispatchService notificationDispatchService;
 
     @Transactional
     @Override
@@ -119,12 +134,15 @@ public class BookServiceImpl implements BookService {
     public Result<BookDTO> findUserBookById(Long userId, Long bookId) {
         return ResultFactory
                 .fromOptional(bookRepository.findByIdAndUserId(bookId, userId), MessageKey.BOOK_NOT_FOUND)
-                .flatMap(book ->
-                        ResultFactory.okETag(
-                                bookMapper.bookToBookDto(book),
-                                ETagUtil.form(book)
-                        )
-                );
+                .flatMap(book -> {
+                    BookDTO dto = bookMapper.bookToBookDto(book);
+                    dto.setEditLocked(isBookLockedForEditing(book));
+
+                    return ResultFactory.okETag(
+                            dto,
+                            ETagUtil.form(book)
+                    );
+                });
     }
 
     @Transactional(readOnly = true)
@@ -180,6 +198,7 @@ public class BookServiceImpl implements BookService {
                     if (versionValidation.isFailure()) {
                         return versionValidation.map(v -> null);
                     }
+                    cancelPendingBookExchanges(book, book.getUser());
                     book.setDeletedAt(Instant.now());
                     bookSearchIndexService.scheduleUpsert(book);
                     logBookSuccess("BOOK_DELETE", userId, book);
@@ -193,6 +212,12 @@ public class BookServiceImpl implements BookService {
     public Result<BookDTO> updateUserBookById(Long userId, Long bookId, BookUpdateDTO dto, Long version) {
         return findUserBook(userId, bookId)
                 .flatMap(book -> {
+                    Result<Book> exchangeValidation = validateBookNotInExchange(book, "BOOK_UPDATE", userId);
+
+                    if (exchangeValidation.isFailure()) {
+                        return exchangeValidation.map(bookMapper::bookToBookDto);
+                    }
+
                     Result<Book> versionValidation = validateBookVersion(book, version, "BOOK_UPDATE", userId);
                     if (versionValidation.isFailure()) {
                         return versionValidation.map(bookMapper::bookToBookDto);
@@ -223,6 +248,12 @@ public class BookServiceImpl implements BookService {
     public Result<BookDTO> deleteUserBookPhoto(Long userId, Long bookId, Long version) {
         return findUserBook(userId, bookId)
                 .flatMap(book -> {
+                    Result<Book> exchangeValidation = validateBookNotInExchange(book, "BOOK_PHOTO_DELETE", userId);
+
+                    if (exchangeValidation.isFailure()) {
+                        return exchangeValidation.map(bookMapper::bookToBookDto);
+                    }
+
                     Result<Book> versionValidation = validateBookVersion(book, version, "BOOK_PHOTO_DELETE", userId);
 
                     if (versionValidation.isFailure()) {
@@ -266,14 +297,32 @@ public class BookServiceImpl implements BookService {
 
     private Pageable createSearchPageable(BookSearchDTO dto, Integer pageIndex, Integer pageSize) {
         if (dto.getSortBy() == null || dto.getSortDirection() == null) {
-            return PageRequest.of(pageIndex, pageSize, Sort.by(Sort.Direction.DESC, "createdAt"));
+            return PageRequest.of(
+                    pageIndex,
+                    pageSize,
+                    Sort.by(Sort.Direction.DESC, "createdAt")
+                            .and(Sort.by(Sort.Direction.DESC, "id"))
+            );
         }
 
         Sort.Direction direction = dto.getSortDirection() == SortDirectionDTO.DESC
                 ? Sort.Direction.DESC
                 : Sort.Direction.ASC;
 
-        return PageRequest.of(pageIndex, pageSize, Sort.by(direction, dto.getSortBy().getProperty()));
+        Sort.Order primaryOrder = new Sort.Order(direction, dto.getSortBy().getProperty());
+
+        if (dto.getSortBy() == BookSortFieldDTO.NAME
+                || dto.getSortBy() == BookSortFieldDTO.AUTHOR
+                || dto.getSortBy() == BookSortFieldDTO.CATEGORY
+                || dto.getSortBy() == BookSortFieldDTO.CITY) {
+            primaryOrder = primaryOrder.ignoreCase();
+        }
+
+        return PageRequest.of(
+                pageIndex,
+                pageSize,
+                Sort.by(primaryOrder).and(Sort.by(Sort.Direction.DESC, "id"))
+        );
     }
 
     private Result<Book> validateBookVersion(Book book, Long version, String action, Long actorId) {
@@ -289,17 +338,57 @@ public class BookServiceImpl implements BookService {
         );
     }
 
+    private Result<Book> validateBookNotInExchange(Book book, String action, Long actorId) {
+        if (!isBookLockedForEditing(book)) {
+            return ResultFactory.ok(book);
+        }
+
+        auditService.log(AuditEvent.builder()
+                .action(action)
+                .result(AuditResult.FAILURE)
+                .actorId(actorId)
+                .actorEmail(book.getUser().getEmail())
+                .reason("BOOK_CANT_BE_EDITED_DURING_EXCHANGE")
+                .detail("bookId", book.getId())
+                .detail("bookName", book.getName())
+                .build());
+
+        return ResultFactory.error(MessageKey.BOOK_CANT_BE_EDITED_DURING_EXCHANGE, HttpStatus.BAD_REQUEST);
+    }
+
+    private void cancelPendingBookExchanges(Book book, User declinerUser) {
+        List<Exchange> pendingExchanges = exchangeRepository.findByStatusAndBookId(ExchangeStatus.PENDING, book.getId());
+
+        if (pendingExchanges.isEmpty()) {
+            return;
+        }
+
+        pendingExchanges.forEach(exchange -> {
+            exchange.setStatus(ExchangeStatus.DECLINED);
+            exchange.setDeclinerUser(null);
+            exchange.setAutoDeclined(Boolean.TRUE);
+            ExchangeReadStateUtil.markUpdatedForBoth(exchange);
+            exchangeRepository.save(exchange);
+        });
+
+        notificationDispatchService.sendExchangeAutoDeclinedNotifications(pendingExchanges);
+    }
+
     @Transactional
     @Override
     public void softDeleteBooks(User user, Instant deletedAt) {
         List<Book> books = bookRepository.findAllByUserIdAndDeletedAtIsNull(user.getId());
 
         books.forEach(book -> {
+                    cancelPendingBookExchanges(book, user);
                     book.setDeletedAt(deletedAt);
-                    book.setPhotoUrl(null);
                 });
 
         bookSearchIndexService.scheduleUpsertAll(books);
+    }
+
+    private boolean isBookLockedForEditing(Book book) {
+        return exchangeRepository.existsByStatusInAndBookId(BOOK_EDIT_LOCK_STATUSES, book.getId());
     }
 
     private void logBookSuccess(String action, Long actorId, Book book) {

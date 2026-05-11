@@ -2,15 +2,24 @@ package com.example.bookexchange.book.service;
 
 import com.example.bookexchange.book.dto.BookCreateDTO;
 import com.example.bookexchange.book.dto.BookDTO;
+import com.example.bookexchange.book.dto.BookSearchDTO;
+import com.example.bookexchange.book.dto.BookSortFieldDTO;
 import com.example.bookexchange.book.dto.BookUpdateDTO;
 import com.example.bookexchange.book.mapper.BookMapper;
 import com.example.bookexchange.book.model.Book;
+import com.example.bookexchange.book.model.BookType;
 import com.example.bookexchange.book.repository.BookRepository;
 import com.example.bookexchange.book.search.BookSearchIndexService;
 import com.example.bookexchange.common.audit.service.AuditService;
 import com.example.bookexchange.common.audit.service.VersionedEntityTransitionHelper;
+import com.example.bookexchange.common.dto.PageQueryDTO;
+import com.example.bookexchange.common.dto.SortDirectionDTO;
+import com.example.bookexchange.common.notification.NotificationDispatchService;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.common.storage.ImageStorageService;
+import com.example.bookexchange.exchange.model.Exchange;
+import com.example.bookexchange.exchange.model.ExchangeStatus;
+import com.example.bookexchange.exchange.repository.ExchangeRepository;
 import com.example.bookexchange.support.unit.UnitFixtureIds;
 import com.example.bookexchange.support.unit.UnitTestDataFactory;
 import com.example.bookexchange.user.model.User;
@@ -19,14 +28,20 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static com.example.bookexchange.common.i18n.MessageKey.BOOK_CREATED;
+import static com.example.bookexchange.common.i18n.MessageKey.BOOK_CANT_BE_EDITED_DURING_EXCHANGE;
 import static com.example.bookexchange.common.i18n.MessageKey.BOOK_DELETED;
 import static com.example.bookexchange.common.i18n.MessageKey.BOOK_PHOTO_DELETED;
 import static com.example.bookexchange.common.i18n.MessageKey.BOOK_PUBLIC_NOT_FOUND;
@@ -40,6 +55,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -65,6 +81,12 @@ class BookServiceImplTest {
 
     @Mock
     private BookSearchIndexService bookSearchIndexService;
+
+    @Mock
+    private ExchangeRepository exchangeRepository;
+
+    @Mock
+    private NotificationDispatchService notificationDispatchService;
 
     @InjectMocks
     private BookServiceImpl bookService;
@@ -140,6 +162,51 @@ class BookServiceImplTest {
     }
 
     @Test
+    void shouldRejectBookUpdate_whenBookParticipatesInExchange() {
+        User user = UnitTestDataFactory.user(UnitFixtureIds.BOOK_OWNER_ID, "owner@example.com", "book_owner");
+        Book book = UnitTestDataFactory.book(UnitFixtureIds.SENDER_BOOK_ID, "Locked book", user);
+        BookUpdateDTO dto = UnitTestDataFactory.bookUpdateDto();
+
+        when(bookRepository.findByIdAndUserId(book.getId(), user.getId())).thenReturn(Optional.of(book));
+        when(exchangeRepository.existsByStatusInAndBookId(
+                Set.of(ExchangeStatus.PENDING, ExchangeStatus.APPROVED),
+                book.getId()
+        )).thenReturn(true);
+
+        Result<BookDTO> result = bookService.updateUserBookById(user.getId(), book.getId(), dto, book.getVersion());
+
+        assertFailure(result, BOOK_CANT_BE_EDITED_DURING_EXCHANGE, HttpStatus.BAD_REQUEST);
+        verify(bookMapper, never()).updateBookDtoToBook(any(), any());
+        verify(bookRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldAllowBookUpdate_whenOnlyDeclinedExchangeExists() {
+        User user = UnitTestDataFactory.user(UnitFixtureIds.BOOK_OWNER_ID, "owner@example.com", "book_owner");
+        Book book = UnitTestDataFactory.book(UnitFixtureIds.SENDER_BOOK_ID, "Unlocked book", user);
+        BookUpdateDTO dto = UnitTestDataFactory.bookUpdateDto();
+        BookDTO bookDto = mock(BookDTO.class);
+
+        when(bookRepository.findByIdAndUserId(book.getId(), user.getId())).thenReturn(Optional.of(book));
+        when(exchangeRepository.existsByStatusInAndBookId(
+                Set.of(ExchangeStatus.PENDING, ExchangeStatus.APPROVED),
+                book.getId()
+        )).thenReturn(false);
+        when(versionedEntityTransitionHelper.requireVersion(any(Book.class), any(Long.class), any(String.class), any()))
+                .thenReturn(ok(book));
+        when(bookRepository.save(book)).thenReturn(book);
+        when(bookMapper.bookToBookDto(book)).thenReturn(bookDto);
+        when(imageStorageService.replaceBookImage(user.getId(), book.getId(), dto.getPhotoBase64()))
+                .thenReturn(ok("https://book-exchange-test.s3.eu-central-1.amazonaws.com/users/" + user.getId() + "/books/" + book.getId() + "_test.jpg"));
+
+        Result<BookDTO> result = bookService.updateUserBookById(user.getId(), book.getId(), dto, book.getVersion());
+
+        assertSuccess(result, HttpStatus.OK, BOOK_UPDATED);
+        verify(bookMapper).updateBookDtoToBook(dto, book);
+        verify(bookRepository).save(book);
+    }
+
+    @Test
     void shouldReturnPublicBook_whenFindBookByIdIsCalledForActiveBook() {
         User user = UnitTestDataFactory.user(UnitFixtureIds.BOOK_OWNER_ID, "owner@example.com", "book_owner");
         Book book = UnitTestDataFactory.book(UnitFixtureIds.SENDER_BOOK_ID, "Public book", user);
@@ -170,6 +237,7 @@ class BookServiceImplTest {
         when(bookRepository.findByIdAndUserId(book.getId(), user.getId())).thenReturn(Optional.of(book));
         when(versionedEntityTransitionHelper.requireVersion(any(Book.class), any(Long.class), any(String.class), any()))
                 .thenReturn(ok(book));
+        when(exchangeRepository.findByStatusAndBookId(ExchangeStatus.PENDING, book.getId())).thenReturn(List.of());
 
         Result<Void> result = bookService.deleteUserBookById(user.getId(), book.getId(), book.getVersion());
 
@@ -179,12 +247,52 @@ class BookServiceImplTest {
     }
 
     @Test
+    void shouldCancelPendingExchanges_whenDeletingBookThatParticipatesInExchange() {
+        User user = UnitTestDataFactory.user(UnitFixtureIds.BOOK_OWNER_ID, "owner@example.com", "book_owner");
+        User otherUser = UnitTestDataFactory.user(UnitFixtureIds.RECEIVER_USER_ID, "receiver@example.com", "receiver_one");
+        Book book = UnitTestDataFactory.book(UnitFixtureIds.SENDER_BOOK_ID, "Locked book", user);
+        Book receiverBook = UnitTestDataFactory.book(UnitFixtureIds.RECEIVER_BOOK_ID, "Receiver book", otherUser);
+        Exchange pendingExchange = UnitTestDataFactory.exchange(
+                UnitFixtureIds.EXCHANGE_ID,
+                user,
+                otherUser,
+                book,
+                receiverBook,
+                ExchangeStatus.PENDING
+        );
+        pendingExchange.setIsReadBySender(true);
+        pendingExchange.setIsReadByReceiver(true);
+
+        when(bookRepository.findByIdAndUserId(book.getId(), user.getId())).thenReturn(Optional.of(book));
+        when(versionedEntityTransitionHelper.requireVersion(any(Book.class), any(Long.class), any(String.class), any()))
+                .thenReturn(ok(book));
+        when(exchangeRepository.findByStatusAndBookId(ExchangeStatus.PENDING, book.getId()))
+                .thenReturn(List.of(pendingExchange));
+
+        Result<Void> result = bookService.deleteUserBookById(user.getId(), book.getId(), book.getVersion());
+
+        assertSuccess(result, HttpStatus.OK, BOOK_DELETED);
+        assertThat(book.getDeletedAt()).isNotNull();
+        assertThat(pendingExchange.getStatus()).isEqualTo(ExchangeStatus.DECLINED);
+        assertThat(pendingExchange.getDeclinerUser()).isNull();
+        assertThat(pendingExchange.getAutoDeclined()).isTrue();
+        assertThat(pendingExchange.getIsReadBySender()).isFalse();
+        assertThat(pendingExchange.getIsReadByReceiver()).isFalse();
+        verify(exchangeRepository).save(pendingExchange);
+        verify(notificationDispatchService).sendExchangeAutoDeclinedNotifications(List.of(pendingExchange));
+    }
+
+    @Test
     void shouldDeleteBookPhoto_whenVersionMatchesAndPhotoExists() {
         User user = UnitTestDataFactory.user(UnitFixtureIds.BOOK_OWNER_ID, "owner@example.com", "book_owner");
         Book book = UnitTestDataFactory.book(UnitFixtureIds.SENDER_BOOK_ID, "Old book", user);
         BookDTO bookDto = mock(BookDTO.class);
 
         when(bookRepository.findByIdAndUserId(book.getId(), user.getId())).thenReturn(Optional.of(book));
+        when(exchangeRepository.existsByStatusInAndBookId(
+                Set.of(ExchangeStatus.PENDING, ExchangeStatus.APPROVED),
+                book.getId()
+        )).thenReturn(false);
         when(versionedEntityTransitionHelper.requireVersion(any(Book.class), any(Long.class), any(String.class), any()))
                 .thenReturn(ok(book));
         when(imageStorageService.deleteBookImage(user.getId(), book.getId())).thenReturn(ok(null));
@@ -200,6 +308,30 @@ class BookServiceImplTest {
     }
 
     @Test
+    void shouldAllowBookPhotoDelete_whenOnlyDeclinedExchangeExists() {
+        User user = UnitTestDataFactory.user(UnitFixtureIds.BOOK_OWNER_ID, "owner@example.com", "book_owner");
+        Book book = UnitTestDataFactory.book(UnitFixtureIds.SENDER_BOOK_ID, "Old book", user);
+        BookDTO bookDto = mock(BookDTO.class);
+
+        when(bookRepository.findByIdAndUserId(book.getId(), user.getId())).thenReturn(Optional.of(book));
+        when(exchangeRepository.existsByStatusInAndBookId(
+                Set.of(ExchangeStatus.PENDING, ExchangeStatus.APPROVED),
+                book.getId()
+        )).thenReturn(false);
+        when(versionedEntityTransitionHelper.requireVersion(any(Book.class), any(Long.class), any(String.class), any()))
+                .thenReturn(ok(book));
+        when(imageStorageService.deleteBookImage(user.getId(), book.getId())).thenReturn(ok(null));
+        when(bookRepository.save(book)).thenReturn(book);
+        when(bookMapper.bookToBookDto(book)).thenReturn(bookDto);
+
+        Result<BookDTO> result = bookService.deleteUserBookPhoto(user.getId(), book.getId(), book.getVersion());
+
+        assertSuccess(result, HttpStatus.OK, BOOK_PHOTO_DELETED);
+        verify(imageStorageService).deleteBookImage(user.getId(), book.getId());
+        verify(bookRepository).save(book);
+    }
+
+    @Test
     void shouldMarkAllActiveBooksAsDeleted_whenSoftDeleteBooksIsCalled() {
         User user = UnitTestDataFactory.user(UnitFixtureIds.BOOK_OWNER_ID, "owner@example.com", "book_owner");
         Book firstBook = UnitTestDataFactory.book(UnitFixtureIds.SENDER_BOOK_ID, "First", user);
@@ -207,12 +339,42 @@ class BookServiceImplTest {
         Instant deletedAt = Instant.now();
 
         when(bookRepository.findAllByUserIdAndDeletedAtIsNull(user.getId())).thenReturn(List.of(firstBook, secondBook));
+        when(exchangeRepository.findByStatusAndBookId(ExchangeStatus.PENDING, firstBook.getId())).thenReturn(List.of());
+        when(exchangeRepository.findByStatusAndBookId(ExchangeStatus.PENDING, secondBook.getId())).thenReturn(List.of());
 
         bookService.softDeleteBooks(user, deletedAt);
 
         assertThat(firstBook.getDeletedAt()).isEqualTo(deletedAt);
         assertThat(secondBook.getDeletedAt()).isEqualTo(deletedAt);
-        assertThat(firstBook.getPhotoUrl()).isNull();
-        assertThat(secondBook.getPhotoUrl()).isNull();
+        assertThat(firstBook.getPhotoUrl()).isNotNull();
+        assertThat(secondBook.getPhotoUrl()).isNotNull();
+    }
+
+    @Test
+    void shouldAddIdTieBreakerToPublicSearchSort_whenCustomSortIsRequested() {
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        BookSearchDTO searchDTO = BookSearchDTO.builder()
+                .sortBy(BookSortFieldDTO.CATEGORY)
+                .sortDirection(SortDirectionDTO.ASC)
+                .build();
+        PageQueryDTO queryDTO = UnitTestDataFactory.pageQuery(0, 20);
+
+        when(bookSearchIndexService.search(UnitFixtureIds.VERIFIED_USER_ID, searchDTO, queryDTO, BookType.ACTIVE))
+                .thenReturn(Optional.empty());
+        when(bookRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        Result<org.springframework.data.domain.Page<BookDTO>> result = bookService.findBooks(
+                UnitFixtureIds.VERIFIED_USER_ID,
+                searchDTO,
+                queryDTO
+        );
+
+        assertSuccess(result, HttpStatus.OK);
+        verify(bookRepository).findAll(any(Specification.class), pageableCaptor.capture());
+        assertThat(pageableCaptor.getValue().getSort().toList()).extracting(order -> order.getProperty())
+                .containsExactly("category", "id");
+        assertThat(pageableCaptor.getValue().getSort().getOrderFor("id").getDirection().name()).isEqualTo("DESC");
+        verifyNoInteractions(bookMapper);
     }
 }
