@@ -20,6 +20,7 @@ import org.thymeleaf.context.Context;
 import org.thymeleaf.spring6.SpringTemplateEngine;
 
 import java.util.Locale;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -32,69 +33,61 @@ public class EmailServiceImpl implements EmailService {
     private final UrlBuilder urlBuilder;
     private final AuditService auditService;
 
+    @Override
     public Result<Void> buildAndSendEmail(User user, String token, EmailType emailType) {
         String emailTo = user.getEmail();
         Locale locale = resolveLocale(user.getLocale());
         EmailContent content = buildEmailContent(user, token, emailType, locale);
+        String htmlTemplate = renderActionEmail(content, locale);
+
+        return sendHtmlEmail(emailTo, content.subject(), htmlTemplate, locale, "ACTION");
+    }
+
+    @Override
+    public Result<Void> sendNotificationEmail(NotificationEmailRequest request) {
+        Locale locale = resolveLocale(request.getLocale());
+        String brandName = message(locale, "email.common.brand");
 
         Context context = new Context(locale);
-        context.setVariable("brandName", content.brandName());
-        context.setVariable("preheader", content.preheader());
-        context.setVariable("eyebrow", content.eyebrow());
-        context.setVariable("title", content.title());
-        context.setVariable("greeting", content.greeting());
-        context.setVariable("intro", content.intro());
-        context.setVariable("ctaLabel", content.ctaLabel());
-        context.setVariable("actionUrl", content.actionUrl());
-        context.setVariable("linkHint", content.linkHint());
-        context.setVariable("expiryHint", content.expiryHint());
-        context.setVariable("ignoreText", content.ignoreText());
-        context.setVariable("signature", content.signature());
+        context.setVariable("brandName", brandName);
+        context.setVariable("preheader", defaultIfBlank(request.getPreheader(), request.getSubject()));
+        context.setVariable("eyebrow", request.getEyebrow());
+        context.setVariable("title", request.getTitle());
+        context.setVariable("greeting", message(
+                locale,
+                "email.common.greeting",
+                resolveDisplayName(request.getRecipientName(), request.getEmailTo())
+        ));
+        context.setVariable("intro", request.getIntro());
+        context.setVariable("summary", request.getSummary());
+        context.setVariable("eventTime", request.getEventTime());
+        context.setVariable("ctaLabel", request.getCtaLabel());
+        context.setVariable("ctaUrl", request.getCtaUrl());
+        context.setVariable("highlights", request.getHighlights());
+        context.setVariable("exchange", request.getExchange());
+        context.setVariable("book", request.getBook());
+        context.setVariable("user", request.getUser());
+        context.setVariable("report", request.getReport());
+        context.setVariable("detailsHeading", message(locale, "email.notification.detailsHeading"));
+        context.setVariable("exchangeSectionTitle", message(locale, "email.notification.exchange.sectionTitle"));
+        context.setVariable("bookSectionTitle", message(locale, "email.notification.book.sectionTitle"));
+        context.setVariable("accountSectionTitle", message(locale, "email.notification.account.sectionTitle"));
+        context.setVariable("giftBadgeText", message(locale, "email.notification.book.giftBadge"));
+        context.setVariable("giftListingBadgeText", message(locale, "email.notification.book.giftListingBadge"));
+        context.setVariable("reportReasonLabel", message(locale, "email.notification.report.reasonLabel"));
+        context.setVariable("reportCommentLabel", message(locale, "email.notification.report.commentLabel"));
+        context.setVariable("details", request.getDetails());
+        context.setVariable("signature", message(locale, "email.common.signature", brandName));
 
-        String htmlTemplate = templateEngine.process("email/action_email", context);
+        String htmlTemplate = templateEngine.process("email/notification_email", context);
 
-        try {
-            MimeMessage message = mailSender.createMimeMessage();
-
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-
-            helper.setTo(emailTo);
-            helper.setSubject(content.subject());
-            helper.setText(htmlTemplate, true);
-            helper.setFrom(appProperties.getEmailSentFrom());
-
-            mailSender.send(message);
-
-            auditService.log(AuditEvent.builder()
-                    .action("EMAIL_SENDING")
-                    .result(AuditResult.SUCCESS)
-                    .actorEmail(emailTo)
-                    .detail("subject", content.subject())
-                    .detail("locale", locale.toLanguageTag())
-                    .build()
-            );
-
-            return ResultFactory.successVoid();
-        } catch (Exception ex) {
-            auditService.log(AuditEvent.builder()
-                    .action("EMAIL_SENDING")
-                    .result(AuditResult.ERROR)
-                    .reason("SYSTEM_UNEXPECTED_ERROR")
-                    .detail("emailTo", emailTo)
-                    .detail("exception", ex.getMessage())
-                    .build()
-            );
-
-            return ResultFactory.error(MessageKey.SYSTEM_UNEXPECTED_ERROR, HttpStatus.INTERNAL_SERVER_ERROR);
-        }
+        return sendHtmlEmail(request.getEmailTo(), request.getSubject(), htmlTemplate, locale, "NOTIFICATION");
     }
 
     private EmailContent buildEmailContent(User user, String token, EmailType emailType, Locale locale) {
         String brandName = message(locale, "email.common.brand");
         String actionUrl = urlBuilder.buildEmailActionUrl(token, emailType);
-        String displayName = user.getNickname() != null && !user.getNickname().isBlank()
-                ? user.getNickname()
-                : user.getEmail();
+        String displayName = resolveDisplayName(user.getNickname(), user.getEmail());
 
         String subject = switch (emailType) {
             case CONFIRM_EMAIL -> message(locale, "email.verify.subject");
@@ -163,6 +156,76 @@ public class EmailServiceImpl implements EmailService {
 
     private String message(Locale locale, String key, Object... args) {
         return messageSource.getMessage(key, args, locale);
+    }
+
+    private String renderActionEmail(EmailContent content, Locale locale) {
+        Context context = new Context(locale);
+        context.setVariable("brandName", content.brandName());
+        context.setVariable("preheader", content.preheader());
+        context.setVariable("eyebrow", content.eyebrow());
+        context.setVariable("title", content.title());
+        context.setVariable("greeting", content.greeting());
+        context.setVariable("intro", content.intro());
+        context.setVariable("ctaLabel", content.ctaLabel());
+        context.setVariable("actionUrl", content.actionUrl());
+        context.setVariable("linkHint", content.linkHint());
+        context.setVariable("expiryHint", content.expiryHint());
+        context.setVariable("ignoreText", content.ignoreText());
+        context.setVariable("signature", content.signature());
+
+        return templateEngine.process("email/action_email", context);
+    }
+
+    private Result<Void> sendHtmlEmail(String emailTo, String subject, String htmlTemplate, Locale locale, String emailKind) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            helper.setTo(emailTo);
+            helper.setSubject(subject);
+            helper.setText(htmlTemplate, true);
+            helper.setFrom(appProperties.getEmailSentFrom());
+
+            mailSender.send(message);
+
+            auditService.log(AuditEvent.builder()
+                    .action("EMAIL_SENDING")
+                    .result(AuditResult.SUCCESS)
+                    .actorEmail(emailTo)
+                    .detail("subject", subject)
+                    .detail("locale", locale.toLanguageTag())
+                    .detail("emailKind", emailKind)
+                    .build()
+            );
+
+            return ResultFactory.successVoid();
+        } catch (Exception ex) {
+            auditService.log(AuditEvent.builder()
+                    .action("EMAIL_SENDING")
+                    .result(AuditResult.ERROR)
+                    .reason("SYSTEM_UNEXPECTED_ERROR")
+                    .detail("emailTo", emailTo)
+                    .detail("subject", subject)
+                    .detail("emailKind", emailKind)
+                    .detail("exception", ex.getMessage())
+                    .build()
+            );
+
+            return ResultFactory.error(MessageKey.SYSTEM_UNEXPECTED_ERROR, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    private String resolveDisplayName(String preferredName, String fallbackEmail) {
+        return preferredName != null && !preferredName.isBlank()
+                ? preferredName
+                : defaultIfBlank(fallbackEmail, "reader");
+    }
+
+    private String defaultIfBlank(String value, String fallback) {
+        return value == null || value.isBlank()
+                ? Objects.requireNonNullElse(fallback, "")
+                : value;
     }
 
     private record EmailContent(

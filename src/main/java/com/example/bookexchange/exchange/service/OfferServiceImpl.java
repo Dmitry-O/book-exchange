@@ -6,6 +6,7 @@ import com.example.bookexchange.common.audit.model.AuditEvent;
 import com.example.bookexchange.common.audit.model.AuditResult;
 import com.example.bookexchange.common.audit.service.AuditService;
 import com.example.bookexchange.common.dto.PageQueryDTO;
+import com.example.bookexchange.common.notification.NotificationDispatchService;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.common.result.ResultFactory;
 import com.example.bookexchange.common.i18n.MessageKey;
@@ -28,7 +29,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @AllArgsConstructor
@@ -40,6 +43,7 @@ public class OfferServiceImpl implements OfferService {
     private final AuditService auditService;
     private final ExchangeTransitionHelper exchangeTransitionHelper;
     private final BookSearchIndexService bookSearchIndexService;
+    private final NotificationDispatchService notificationDispatchService;
 
     @Transactional(readOnly = true)
     @Override
@@ -73,7 +77,7 @@ public class OfferServiceImpl implements OfferService {
                             Exchange persistedExchange = markAsReadByReceiver(exchange);
 
                             return ResultFactory.okETag(
-                                    exchangeMapper.exchangeToExchangeDetailsDto(
+                                    toUserExchangeDetailsDto(
                                             persistedExchange,
                                             persistedExchange.getSenderUser().getId(),
                                             persistedExchange.getSenderUser().getNickname()
@@ -130,12 +134,15 @@ public class OfferServiceImpl implements OfferService {
     private Result<ExchangeDetailsDTO> approveOffer(Exchange exchange, Long receiverUserId) {
         List<Book> exchangedBooks = markBooksAsExchanged(exchange);
         exchange.setStatus(ExchangeStatus.APPROVED);
+        exchange.setAutoDeclined(Boolean.FALSE);
         ExchangeReadStateUtil.markUpdatedByReceiver(exchange);
         exchangeRepository.save(exchange);
         bookSearchIndexService.scheduleUpsertAll(exchangedBooks);
 
-        declineCompetingExchanges(exchange);
+        List<Exchange> autoDeclinedExchanges = declineCompetingExchanges(exchange);
         logOfferSuccess("APPROVE_USER_OFFER", receiverUserId, exchange.getReceiverUser().getEmail());
+        notificationDispatchService.sendExchangeApprovedNotifications(exchange);
+        notificationDispatchService.sendExchangeAutoDeclinedNotifications(autoDeclinedExchanges);
 
         return updatedOfferDetails(exchange, MessageKey.EXCHANGE_APPROVED);
     }
@@ -148,10 +155,12 @@ public class OfferServiceImpl implements OfferService {
         ).flatMap(declinerUser -> {
             exchange.setStatus(ExchangeStatus.DECLINED);
             exchange.setDeclinerUser(declinerUser);
+            exchange.setAutoDeclined(Boolean.FALSE);
             ExchangeReadStateUtil.markUpdatedByReceiver(exchange);
 
             exchangeRepository.save(exchange);
             logOfferSuccess("DECLINE_USER_OFFER", receiverUserId, exchange.getReceiverUser().getEmail());
+            notificationDispatchService.sendExchangeDeclinedByReceiverNotifications(exchange);
 
             return updatedOfferDetails(exchange, MessageKey.EXCHANGE_DECLINED);
         });
@@ -172,39 +181,45 @@ public class OfferServiceImpl implements OfferService {
         return exchangedBooks;
     }
 
-    private void declineCompetingExchanges(Exchange approvedExchange) {
-        findCompetingExchanges(approvedExchange).forEach(exchange -> {
+    private List<Exchange> declineCompetingExchanges(Exchange approvedExchange) {
+        List<Exchange> competingExchanges = findCompetingExchanges(approvedExchange);
+
+        competingExchanges.forEach(exchange -> {
             exchange.setStatus(ExchangeStatus.DECLINED);
+            exchange.setDeclinerUser(approvedExchange.getReceiverUser());
+            exchange.setAutoDeclined(Boolean.TRUE);
             ExchangeReadStateUtil.markUpdatedForBoth(exchange);
             exchangeRepository.save(exchange);
         });
-    }
-
-    private List<Exchange> findCompetingExchanges(Exchange approvedExchange) {
-        List<Exchange> competingExchanges = new ArrayList<>();
-
-        Book senderBook = approvedExchange.getSenderBook();
-
-        if (senderBook != null) {
-            competingExchanges.addAll(exchangeRepository.findByIdNotAndSenderBookIdAndStatus(
-                    approvedExchange.getId(),
-                    senderBook.getId(),
-                    ExchangeStatus.PENDING
-            ));
-        }
-
-        competingExchanges.addAll(exchangeRepository.findByIdNotAndReceiverBookIdAndStatus(
-                approvedExchange.getId(),
-                approvedExchange.getReceiverBook().getId(),
-                ExchangeStatus.PENDING
-        ));
 
         return competingExchanges;
     }
 
+    private List<Exchange> findCompetingExchanges(Exchange approvedExchange) {
+        Map<Long, Exchange> competingExchanges = new LinkedHashMap<>();
+
+        Book senderBook = approvedExchange.getSenderBook();
+
+        if (senderBook != null) {
+            exchangeRepository.findByIdNotAndSenderBookIdAndStatus(
+                    approvedExchange.getId(),
+                    senderBook.getId(),
+                    ExchangeStatus.PENDING
+            ).forEach(exchange -> competingExchanges.put(exchange.getId(), exchange));
+        }
+
+        exchangeRepository.findByIdNotAndReceiverBookIdAndStatus(
+                approvedExchange.getId(),
+                approvedExchange.getReceiverBook().getId(),
+                ExchangeStatus.PENDING
+        ).forEach(exchange -> competingExchanges.put(exchange.getId(), exchange));
+
+        return new ArrayList<>(competingExchanges.values());
+    }
+
     private Result<ExchangeDetailsDTO> updatedOfferDetails(Exchange exchange, MessageKey messageKey) {
         return ResultFactory.updated(
-                exchangeMapper.exchangeToExchangeDetailsDto(
+                toUserExchangeDetailsDto(
                         exchange,
                         exchange.getSenderUser().getId(),
                         exchange.getSenderUser().getNickname()
@@ -232,5 +247,19 @@ public class OfferServiceImpl implements OfferService {
         }
 
         return exchange;
+    }
+
+    private ExchangeDetailsDTO toUserExchangeDetailsDto(Exchange exchange, Long otherUserId, String otherUserNickname) {
+        ExchangeDetailsDTO dto = exchangeMapper.exchangeToExchangeDetailsDto(exchange, otherUserId, otherUserNickname);
+
+        if (dto.getSenderBook() != null) {
+            dto.getSenderBook().setContactDetails(null);
+        }
+
+        if (dto.getReceiverBook() != null) {
+            dto.getReceiverBook().setContactDetails(null);
+        }
+
+        return dto;
     }
 }

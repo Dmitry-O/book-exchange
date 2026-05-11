@@ -15,10 +15,15 @@ import com.example.bookexchange.common.audit.service.SoftDeleteFilterHelper;
 import com.example.bookexchange.common.audit.service.VersionedEntityTransitionHelper;
 import com.example.bookexchange.common.dto.PageQueryDTO;
 import com.example.bookexchange.common.i18n.MessageKey;
+import com.example.bookexchange.common.notification.NotificationDispatchService;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.common.result.ResultFactory;
 import com.example.bookexchange.common.storage.ImageStorageService;
 import com.example.bookexchange.common.util.ETagUtil;
+import com.example.bookexchange.exchange.model.Exchange;
+import com.example.bookexchange.exchange.model.ExchangeStatus;
+import com.example.bookexchange.exchange.repository.ExchangeRepository;
+import com.example.bookexchange.exchange.util.ExchangeReadStateUtil;
 import com.example.bookexchange.user.model.User;
 import com.example.bookexchange.user.model.UserRole;
 import com.example.bookexchange.user.model.UserType;
@@ -34,9 +39,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 @Service
@@ -53,6 +60,8 @@ public class AdminUserServiceImpl implements AdminUserService {
     private final VersionedEntityTransitionHelper versionedEntityTransitionHelper;
     private final ImageStorageService imageStorageService;
     private final BookSearchIndexService bookSearchIndexService;
+    private final NotificationDispatchService notificationDispatchService;
+    private final ExchangeRepository exchangeRepository;
 
     @Transactional(readOnly = true)
     @Override
@@ -78,7 +87,12 @@ public class AdminUserServiceImpl implements AdminUserService {
                             Pageable pageable = PageRequest.of(
                                     queryDTO.getPageIndex(),
                                     queryDTO.getPageSize(),
-                                    Sort.by(Sort.Direction.DESC, "createdAt")
+                                    userType == UserType.ALL
+                                            ? Sort.by(Sort.Order.asc("deletedAt"))
+                                            .and(Sort.by(Sort.Direction.DESC, "createdAt"))
+                                            .and(Sort.by(Sort.Direction.DESC, "id"))
+                                            : Sort.by(Sort.Direction.DESC, "createdAt")
+                                            .and(Sort.by(Sort.Direction.DESC, "id"))
                             );
 
                             Page<UserAdminDTO> page = userRepository.findAll(specification, pageable).map(adminMapper::userToUserAdminDto);
@@ -155,6 +169,9 @@ public class AdminUserServiceImpl implements AdminUserService {
                             .build()
                     );
 
+                    notificationDispatchService.sendAdminRightsGrantedNotification(user, adminUser.getUsername());
+                    notifyAdminRightsActorIfSuperAdmin(adminUser, user, true);
+
                     return ResultFactory.updated(
                             adminMapper.userToUserAdminDto(user),
                             MessageKey.ADMIN_RIGHTS_GIVEN,
@@ -201,6 +218,9 @@ public class AdminUserServiceImpl implements AdminUserService {
                             .detail("targetUserEmail", user.getEmail())
                             .build()
                     );
+
+                    notificationDispatchService.sendAdminRightsRevokedNotification(user, adminUser.getUsername());
+                    notifyAdminRightsActorIfSuperAdmin(adminUser, user, false);
 
                     return ResultFactory.updated(
                             adminMapper.userToUserAdminDto(user),
@@ -289,6 +309,11 @@ public class AdminUserServiceImpl implements AdminUserService {
                             .build()
                     );
 
+                    notificationDispatchService.sendAdminUserBannedNotification(user, adminUser.getUsername());
+                    findActorUser(adminUser).ifPresent(actor ->
+                            notificationDispatchService.sendAdminUserBannedActorNotification(actor, user)
+                    );
+
                     return ResultFactory.updated(
                             adminMapper.userToUserAdminDto(user),
                             MessageKey.ADMIN_USER_BANNED,
@@ -338,6 +363,10 @@ public class AdminUserServiceImpl implements AdminUserService {
                             .build()
                     );
 
+                    findActorUser(adminUser).ifPresent(actor ->
+                            notificationDispatchService.sendAdminUserUnbannedUpdates(actor, user)
+                    );
+
                     return ResultFactory.updated(
                             adminMapper.userToUserAdminDto(user),
                             MessageKey.ADMIN_USER_UNBANNED,
@@ -371,13 +400,10 @@ public class AdminUserServiceImpl implements AdminUserService {
                         return versionValidation.map(adminMapper::userToUserAdminDto);
                     }
 
-                    Result<Void> deletedImagesResult = imageStorageService.deleteAllUserImages(userId);
-
-                    if (deletedImagesResult.isFailure()) {
-                        return deletedImagesResult.map(v -> adminMapper.userToUserAdminDto(user));
-                    }
-
                     String oldUserEmail = user.getEmail();
+                    String oldUserNickname = user.getNickname();
+                    String oldUserLocale = user.getLocale();
+                    String oldUserPhotoUrl = user.getPhotoUrl();
                     Instant deletedAt = Instant.now();
 
                     user.setEmail("anonymized-" + user.getId() + "@anonymized.anonymized");
@@ -389,13 +415,19 @@ public class AdminUserServiceImpl implements AdminUserService {
                     List<Book> books = bookRepository.findAllByUserIdAndDeletedAtIsNull(userId);
                     books.forEach(book -> {
                         book.setDeletedAt(deletedAt);
-                        book.setPhotoUrl(null);
                     });
+                    cancelPendingUserExchanges(user);
 
                     bookSearchIndexService.scheduleUpsertAll(books);
 
                     refreshTokenRepository.deleteByUserId(userId);
                     verificationTokenRepository.deleteByUserId(userId);
+
+                    Result<Void> profileImageDeleteResult = deleteUserProfileImageIfPresent(user.getId(), oldUserPhotoUrl);
+
+                    if (profileImageDeleteResult.isFailure()) {
+                        return rollbackOnFailure(profileImageDeleteResult.map(v -> adminMapper.userToUserAdminDto(user)));
+                    }
 
                     auditService.log(AuditEvent.builder()
                             .action("ADMIN_USER_DELETE")
@@ -407,6 +439,24 @@ public class AdminUserServiceImpl implements AdminUserService {
                             .build()
                     );
 
+                    notificationDispatchService.sendAdminUserDeletedNotification(
+                            userId,
+                            oldUserEmail,
+                            oldUserNickname,
+                            oldUserLocale,
+                            adminUser.getUsername(),
+                            deletedAt
+                    );
+                    findActorUser(adminUser).ifPresent(actor ->
+                            notificationDispatchService.sendAdminUserDeletedActorNotification(
+                                    actor,
+                                    userId,
+                                    oldUserNickname,
+                                    oldUserEmail,
+                                    null
+                            )
+                    );
+
                     return ResultFactory.updated(
                             adminMapper.userToUserAdminDto(user),
                             MessageKey.ADMIN_USER_DELETED,
@@ -414,5 +464,47 @@ public class AdminUserServiceImpl implements AdminUserService {
                             oldUserEmail
                     );
                 });
+    }
+
+    private void notifyAdminRightsActorIfSuperAdmin(UserDetails adminUser, User targetUser, boolean granted) {
+        findActorUser(adminUser)
+                .filter(actor -> actor.getRoles().contains(UserRole.SUPER_ADMIN))
+                .ifPresent(actor -> notificationDispatchService.sendAdminRightsActorNotification(actor, targetUser, granted));
+    }
+
+    private Optional<User> findActorUser(UserDetails adminUser) {
+        return Optional.ofNullable(userRepository.findByEmail(adminUser.getUsername()))
+                .orElse(Optional.empty());
+    }
+
+    private void cancelPendingUserExchanges(User user) {
+        List<Exchange> pendingExchanges = exchangeRepository.findByStatusAndParticipantUserId(ExchangeStatus.PENDING, user.getId());
+
+        if (pendingExchanges.isEmpty()) {
+            return;
+        }
+
+        pendingExchanges.forEach(exchange -> {
+            exchange.setStatus(ExchangeStatus.DECLINED);
+            exchange.setDeclinerUser(null);
+            exchange.setAutoDeclined(Boolean.TRUE);
+            ExchangeReadStateUtil.markUpdatedForBoth(exchange);
+            exchangeRepository.save(exchange);
+        });
+
+        notificationDispatchService.sendExchangeAutoDeclinedNotifications(pendingExchanges);
+    }
+
+    private Result<Void> deleteUserProfileImageIfPresent(Long userId, String photoUrl) {
+        if (photoUrl == null || photoUrl.isBlank()) {
+            return ResultFactory.successVoid();
+        }
+
+        return imageStorageService.deleteUserProfileImage(userId);
+    }
+
+    private <T> Result<T> rollbackOnFailure(Result<T> result) {
+        TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+        return result;
     }
 }

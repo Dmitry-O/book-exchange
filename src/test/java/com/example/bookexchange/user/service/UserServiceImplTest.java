@@ -7,8 +7,12 @@ import com.example.bookexchange.book.service.BookService;
 import com.example.bookexchange.common.audit.service.AuditService;
 import com.example.bookexchange.common.audit.service.VersionedEntityTransitionHelper;
 import com.example.bookexchange.common.i18n.MessageKey;
+import com.example.bookexchange.common.notification.NotificationDispatchService;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.common.storage.ImageStorageService;
+import com.example.bookexchange.exchange.model.Exchange;
+import com.example.bookexchange.exchange.model.ExchangeStatus;
+import com.example.bookexchange.exchange.repository.ExchangeRepository;
 import com.example.bookexchange.support.unit.UnitFixtureIds;
 import com.example.bookexchange.support.unit.UnitTestDataFactory;
 import com.example.bookexchange.user.dto.UserDTO;
@@ -26,6 +30,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.Optional;
+import java.util.List;
 
 import static com.example.bookexchange.common.i18n.MessageKey.AUTH_LOGOUT;
 import static com.example.bookexchange.common.i18n.MessageKey.AUTH_NICKNAME_ALREADY_EXISTS;
@@ -75,6 +80,12 @@ class UserServiceImplTest {
     @Mock
     private ImageStorageService imageStorageService;
 
+    @Mock
+    private NotificationDispatchService notificationDispatchService;
+
+    @Mock
+    private ExchangeRepository exchangeRepository;
+
     @InjectMocks
     private UserServiceImpl userService;
 
@@ -97,13 +108,15 @@ class UserServiceImplTest {
     @Test
     void shouldAnonymizeUserAndDeleteTokens_whenDeleteUserVersionMatches() {
         User user = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, "reader@example.com", "reader_one");
+        user.setPhotoUrl("https://book-exchange-test.s3.eu-central-1.amazonaws.com/users/" + user.getId() + "/profile_photo_test.jpg");
 
         when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
         when(versionedEntityTransitionHelper.requireVersion(any(User.class), any(Long.class), any(String.class), any()))
                 .thenReturn(ok(user));
-        when(imageStorageService.deleteAllUserImages(user.getId())).thenReturn(ok(null));
+        when(exchangeRepository.findByStatusAndParticipantUserId(ExchangeStatus.PENDING, user.getId())).thenReturn(List.of());
         when(refreshTokenService.deleteUserTokens(user)).thenReturn(ok(user));
         when(verificationTokenService.deleteUserTokens(user)).thenReturn(ok(user));
+        when(imageStorageService.deleteUserProfileImage(user.getId())).thenReturn(ok(null));
 
         Result<Void> result = userService.deleteUser(user.getId(), user.getVersion());
 
@@ -114,7 +127,14 @@ class UserServiceImplTest {
         assertThat(user.getDeletedAt()).isNotNull();
         assertThat(user.getPhotoUrl()).isNull();
         verify(bookService).softDeleteBooks(any(User.class), any());
-        verify(imageStorageService).deleteAllUserImages(user.getId());
+        verify(imageStorageService).deleteUserProfileImage(user.getId());
+        verify(notificationDispatchService).sendUserSelfDeletedNotification(
+                user.getId(),
+                "reader@example.com",
+                "reader_one",
+                "en",
+                user.getDeletedAt()
+        );
     }
 
     @Test
@@ -209,6 +229,43 @@ class UserServiceImplTest {
         assertSuccess(result, HttpStatus.OK, AUTH_PASSWORD_CHANGED);
         assertThat(user.getPassword()).isEqualTo("new-encoded-password");
         verify(userRepository).save(user);
+        verify(notificationDispatchService).sendPasswordChangedNotification(user);
+    }
+
+    @Test
+    void shouldAutoDeclineGiftRequests_whenUserDeletesOwnAccount() {
+        User user = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, "reader@example.com", "reader_one");
+        User otherUser = UnitTestDataFactory.user(UnitFixtureIds.RECEIVER_USER_ID, "owner@example.com", "owner_one");
+        Exchange pendingGiftExchange = UnitTestDataFactory.exchange(
+                UnitFixtureIds.EXCHANGE_ID,
+                user,
+                otherUser,
+                null,
+                UnitTestDataFactory.book(UnitFixtureIds.RECEIVER_BOOK_ID, "Gift book", otherUser),
+                ExchangeStatus.PENDING
+        );
+        pendingGiftExchange.getReceiverBook().setIsGift(true);
+        pendingGiftExchange.setIsReadBySender(true);
+        pendingGiftExchange.setIsReadByReceiver(true);
+
+        when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
+        when(versionedEntityTransitionHelper.requireVersion(any(User.class), any(Long.class), any(String.class), any()))
+                .thenReturn(ok(user));
+        when(exchangeRepository.findByStatusAndParticipantUserId(ExchangeStatus.PENDING, user.getId()))
+                .thenReturn(List.of(pendingGiftExchange));
+        when(refreshTokenService.deleteUserTokens(user)).thenReturn(ok(user));
+        when(verificationTokenService.deleteUserTokens(user)).thenReturn(ok(user));
+
+        Result<Void> result = userService.deleteUser(user.getId(), user.getVersion());
+
+        assertSuccess(result, HttpStatus.OK, USER_ACCOUNT_DELETED);
+        assertThat(pendingGiftExchange.getStatus()).isEqualTo(ExchangeStatus.DECLINED);
+        assertThat(pendingGiftExchange.getDeclinerUser()).isNull();
+        assertThat(pendingGiftExchange.getAutoDeclined()).isTrue();
+        assertThat(pendingGiftExchange.getIsReadBySender()).isFalse();
+        assertThat(pendingGiftExchange.getIsReadByReceiver()).isFalse();
+        verify(exchangeRepository).save(pendingGiftExchange);
+        verify(notificationDispatchService).sendExchangeAutoDeclinedNotifications(List.of(pendingGiftExchange));
     }
 
     @Test

@@ -5,6 +5,7 @@ import com.example.bookexchange.common.audit.model.AuditEvent;
 import com.example.bookexchange.common.audit.model.AuditResult;
 import com.example.bookexchange.common.audit.service.AuditService;
 import com.example.bookexchange.common.dto.PageQueryDTO;
+import com.example.bookexchange.common.notification.NotificationDispatchService;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.common.result.ResultFactory;
 import com.example.bookexchange.book.repository.BookRepository;
@@ -40,6 +41,7 @@ public class RequestServiceImpl implements RequestService {
     private final ExchangeMapper exchangeMapper;
     private final AuditService auditService;
     private final ExchangeTransitionHelper exchangeTransitionHelper;
+    private final NotificationDispatchService notificationDispatchService;
 
     @Transactional
     @Override
@@ -72,7 +74,7 @@ public class RequestServiceImpl implements RequestService {
                             Exchange persistedExchange = markAsReadBySender(exchange);
 
                             return ResultFactory.okETag(
-                                    exchangeMapper.exchangeToExchangeDetailsDto(
+                                    toUserExchangeDetailsDto(
                                             persistedExchange,
                                             persistedExchange.getReceiverUser().getId(),
                                             persistedExchange.getReceiverUser().getNickname()
@@ -250,6 +252,40 @@ public class RequestServiceImpl implements RequestService {
             return ResultFactory.error(MessageKey.BOOK_CANT_EXCHANGE_SAME_BOOK, HttpStatus.BAD_REQUEST);
         }
 
+        if (Boolean.TRUE.equals(senderBook.getIsGift())) {
+            auditService.log(AuditEvent.builder()
+                    .action("CREATE_USER_REQUEST")
+                    .result(AuditResult.FAILURE)
+                    .actorId(ctx.getSenderUserId())
+                    .reason("SENDER_BOOK_IS_GIFT")
+                    .build()
+            );
+
+            return ResultFactory.error(MessageKey.BOOK_GIFT_CANT_BE_USED_FOR_EXCHANGE, HttpStatus.BAD_REQUEST);
+        }
+
+        boolean exactExchangeExists = exchangeRepository
+                .findBySenderUserIdAndReceiverUserIdAndSenderBookIdAndReceiverBookIdAndStatusNot(
+                        ctx.getSenderUserId(),
+                        ctx.getReceiverUserId(),
+                        senderBook.getId(),
+                        receiverBook.getId(),
+                        ExchangeStatus.DECLINED
+                )
+                .isPresent();
+
+        if (exactExchangeExists) {
+            auditService.log(AuditEvent.builder()
+                    .action("CREATE_USER_REQUEST")
+                    .result(AuditResult.FAILURE)
+                    .actorId(ctx.getSenderUserId())
+                    .reason("EXCHANGE_BETWEEN_BOOKS_ALREADY_EXISTS")
+                    .build()
+            );
+
+            return ResultFactory.entityExists(MessageKey.EXCHANGE_BETWEEN_BOOKS_EXISTS);
+        }
+
         return ResultFactory.ok(ctx);
     }
 
@@ -279,6 +315,7 @@ public class RequestServiceImpl implements RequestService {
         exchange.setReceiverBook(ctx.getReceiverBook());
         exchange.setSenderBook(ctx.getSenderBook());
         exchange.setStatus(ExchangeStatus.PENDING);
+        exchange.setAutoDeclined(Boolean.FALSE);
         ExchangeReadStateUtil.markCreatedBySender(exchange);
 
         exchangeRepository.save(exchange);
@@ -292,6 +329,8 @@ public class RequestServiceImpl implements RequestService {
                 .actorEmail(ctx.getSenderUser().getEmail())
                 .build()
         );
+
+        notificationDispatchService.sendExchangeCreatedNotifications(exchange);
 
         return ResultFactory.ok(ctx);
     }
@@ -311,10 +350,12 @@ public class RequestServiceImpl implements RequestService {
         ).flatMap(declinerUser -> {
             exchange.setStatus(ExchangeStatus.DECLINED);
             exchange.setDeclinerUser(declinerUser);
+            exchange.setAutoDeclined(Boolean.FALSE);
             ExchangeReadStateUtil.markUpdatedBySender(exchange);
 
             exchangeRepository.save(exchange);
             logRequestSuccess("DECLINE_USER_REQUEST", senderUserId, exchange.getSenderUser().getEmail());
+            notificationDispatchService.sendExchangeDeclinedBySenderNotifications(exchange);
 
             return updatedExchangeDetails(exchange, MessageKey.EXCHANGE_DECLINED);
         });
@@ -322,7 +363,7 @@ public class RequestServiceImpl implements RequestService {
 
     private Result<ExchangeDetailsDTO> updatedExchangeDetails(Exchange exchange, MessageKey messageKey) {
         return ResultFactory.updated(
-                exchangeMapper.exchangeToExchangeDetailsDto(
+                toUserExchangeDetailsDto(
                         exchange,
                         exchange.getReceiverUser().getId(),
                         exchange.getReceiverUser().getNickname()
@@ -344,7 +385,7 @@ public class RequestServiceImpl implements RequestService {
 
     private Result<ExchangeDetailsDTO> formExchangeDetailsResponse(ExchangeContext ctx) {
         return ResultFactory.created(
-                exchangeMapper.exchangeToExchangeDetailsDto(
+                toUserExchangeDetailsDto(
                         ctx.getExchange(),
                         ctx.getReceiverUser().getId(),
                         ctx.getReceiverUser().getNickname()
@@ -362,5 +403,19 @@ public class RequestServiceImpl implements RequestService {
         }
 
         return exchange;
+    }
+
+    private ExchangeDetailsDTO toUserExchangeDetailsDto(Exchange exchange, Long otherUserId, String otherUserNickname) {
+        ExchangeDetailsDTO dto = exchangeMapper.exchangeToExchangeDetailsDto(exchange, otherUserId, otherUserNickname);
+
+        if (dto.getSenderBook() != null) {
+            dto.getSenderBook().setContactDetails(null);
+        }
+
+        if (dto.getReceiverBook() != null) {
+            dto.getReceiverBook().setContactDetails(null);
+        }
+
+        return dto;
     }
 }

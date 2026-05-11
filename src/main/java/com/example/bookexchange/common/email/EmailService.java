@@ -6,4 +6,6 @@ import com.example.bookexchange.common.result.Result;
 public interface EmailService {
 
     Result<Void> buildAndSendEmail(User user, String token, EmailType emailType);
+
+    Result<Void> sendNotificationEmail(NotificationEmailRequest request);
 }

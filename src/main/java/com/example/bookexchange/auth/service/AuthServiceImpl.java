@@ -9,6 +9,7 @@ import com.example.bookexchange.common.audit.service.AuditService;
 import com.example.bookexchange.common.email.EmailService;
 import com.example.bookexchange.common.email.EmailType;
 import com.example.bookexchange.common.i18n.MessageKey;
+import com.example.bookexchange.common.notification.NotificationDispatchService;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.common.result.ResultFactory;
 import com.example.bookexchange.security.auth.JwtService;
@@ -40,6 +41,7 @@ public class AuthServiceImpl implements AuthService {
     private final JwtService jwtService;
     private final EmailService emailService;
     private final AuditService auditService;
+    private final NotificationDispatchService notificationDispatchService;
 
     @Transactional
     @Override
@@ -184,6 +186,7 @@ public class AuthServiceImpl implements AuthService {
                     verificationTokenService.deleteToken(vt);
 
                     logAuthSuccess("RESET_FORGOTTEN_PASSWORD", user);
+                    notificationDispatchService.sendPasswordChangedNotification(user);
 
                     return ResultFactory.okMessage(MessageKey.AUTH_PASSWORD_CHANGED);
                 });

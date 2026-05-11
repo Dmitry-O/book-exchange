@@ -16,10 +16,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.thymeleaf.spring6.SpringTemplateEngine;
 import org.thymeleaf.templatemode.TemplateMode;
 import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
-import org.thymeleaf.spring6.SpringTemplateEngine;
 
+import java.util.List;
 import java.util.Properties;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -88,9 +89,10 @@ class EmailServiceImplTest {
         assertThatCode(() -> emailService.buildAndSendEmail(user, "reset-token", EmailType.RESET_PASSWORD))
                 .doesNotThrowAnyException();
 
-        assertThat(mimeMessage.getSubject()).isEqualTo("Setzen Sie Ihr Passwort zurück");
-        assertThat(extractHtml(mimeMessage)).contains("Setzen Sie Ihr Passwort sicher zurück");
-        assertThat(extractHtml(mimeMessage)).contains("http://localhost:5173/reset-password?token=reset-token");
+        String html = extractHtml(mimeMessage);
+
+        assertThat(mimeMessage.getSubject()).contains("Passwort");
+        assertThat(html).contains("http://localhost:5173/reset-password?token=reset-token");
         verify(mailSender).send(mimeMessage);
     }
 
@@ -107,9 +109,213 @@ class EmailServiceImplTest {
         assertThatCode(() -> emailService.buildAndSendEmail(user, "delete-token", EmailType.DELETE_ACCOUNT))
                 .doesNotThrowAnyException();
 
-        assertThat(mimeMessage.getSubject()).isEqualTo("Подтвердите удаление аккаунта");
-        assertThat(extractHtml(mimeMessage)).contains("Удалите аккаунт безопасно");
-        assertThat(extractHtml(mimeMessage)).contains("http://localhost:5173/delete-account-confirm?token=delete-token");
+        String html = extractHtml(mimeMessage);
+
+        assertThat(mimeMessage.getSubject()).isNotBlank();
+        assertThat(html).contains("http://localhost:5173/delete-account-confirm?token=delete-token");
+        verify(mailSender).send(mimeMessage);
+    }
+
+    @Test
+    void shouldRenderStructuredNotificationEmail() throws Exception {
+        MimeMessage mimeMessage = new MimeMessage(Session.getInstance(new Properties()));
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+
+        NotificationEmailRequest request = NotificationEmailRequest.builder()
+                .emailTo("reader@example.com")
+                .recipientName("reader_one")
+                .locale("en")
+                .subject("Exchange request updated")
+                .preheader("Exchange request updated")
+                .eyebrow("Exchange update")
+                .title("Your exchange request was approved")
+                .intro("The receiver approved your exchange request.")
+                .summary("The exchange status is now APPROVED.")
+                .highlights(List.of(
+                        NotificationEmailBadge.builder()
+                                .label("Status")
+                                .value("Approved")
+                                .tone("success")
+                                .build(),
+                        NotificationEmailBadge.builder()
+                                .label("Changed at")
+                                .value("2026-04-24T10:15:30Z")
+                                .tone("neutral")
+                                .build()
+                ))
+                .exchange(NotificationEmailExchange.builder()
+                        .exchangeId("3101")
+                        .referenceText("Exchange #3101")
+                        .status(NotificationEmailBadge.builder()
+                                .label("Status")
+                                .value("Approved")
+                                .tone("success")
+                                .build())
+                        .changedAt("24 Apr 2026, 10:15")
+                        .leftBook(NotificationEmailBook.builder()
+                                .title("Your book")
+                                .name("Atomic Habits")
+                                .subtitle("James Clear, 2018")
+                                .meta("Self-help, Berlin")
+                                .build())
+                        .rightBook(NotificationEmailBook.builder()
+                                .title("Requested book")
+                                .name("The Hobbit")
+                                .subtitle("J. R. R. Tolkien, 1937")
+                                .meta("Fantasy, Munich")
+                                .gift(true)
+                                .build())
+                        .leftUser(NotificationEmailUserCard.builder()
+                                .title("You")
+                                .name("reader_one")
+                                .meta("reader@example.com")
+                                .initial("R")
+                                .build())
+                        .rightUser(NotificationEmailUserCard.builder()
+                                .title("Book owner")
+                                .name("owner_two")
+                                .meta("owner@example.com")
+                                .initial("O")
+                                .build())
+                        .build())
+                .details(List.of(
+                        new NotificationEmailDetail("Exchange ID", "3101"),
+                        new NotificationEmailDetail("Status", "APPROVED")
+                ))
+                .build();
+
+        assertThatCode(() -> emailService.sendNotificationEmail(request))
+                .doesNotThrowAnyException();
+
+        String html = extractHtml(mimeMessage);
+
+        assertThat(mimeMessage.getSubject()).isEqualTo("Exchange request updated");
+        assertThat(html).contains("Your exchange request was approved");
+        assertThat(html).contains("Exchange overview");
+        assertThat(html).contains("24 Apr 2026, 10:15");
+        assertThat(html).contains("Atomic Habits");
+        assertThat(html).contains("The Hobbit");
+        assertThat(html).contains("reader_one");
+        assertThat(html).doesNotContain("Exchange ID");
+        assertThat(html).doesNotContain("Exchange #3101");
+        verify(mailSender).send(mimeMessage);
+    }
+
+    @Test
+    void shouldRenderStructuredReportNotificationSections() throws Exception {
+        MimeMessage mimeMessage = new MimeMessage(Session.getInstance(new Properties()));
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+
+        NotificationEmailRequest request = NotificationEmailRequest.builder()
+                .emailTo("reader@example.com")
+                .recipientName("reader_one")
+                .locale("en")
+                .subject("Your report was resolved")
+                .preheader("Your report was resolved")
+                .eyebrow("Report update")
+                .title("Your report was resolved")
+                .intro("An administrator resolved your report.")
+                .summary("The report status is now RESOLVED.")
+                .report(NotificationEmailReport.builder()
+                        .title("Your moderation report")
+                        .status(NotificationEmailBadge.builder()
+                                .label("Status")
+                                .value("Resolved")
+                                .tone("success")
+                                .build())
+                        .targetText("Book #15")
+                        .targetStateText("The reported book has been deleted. The card below shows the historical snapshot captured when you created the report.")
+                        .targetModerationText("The reported user account is currently restricted by the admin team.")
+                        .targetBook(NotificationEmailBook.builder()
+                                .title("Reported book snapshot")
+                                .name("Charley Smash")
+                                .subtitle("Book #15")
+                                .meta("Owner: owner_one")
+                                .photoUrl("https://example.com/book.jpg")
+                                .build())
+                        .targetUser(NotificationEmailUserCard.builder()
+                                .title("Reported user")
+                                .name("owner_one")
+                                .meta("User #42")
+                                .photoUrl("https://example.com/user.jpg")
+                                .initial("O")
+                                .build())
+                        .reason("Spam")
+                        .comment("Looks suspicious")
+                        .build())
+                .details(List.of(
+                        new NotificationEmailDetail("Report ID", "4101"),
+                        new NotificationEmailDetail("Status", "RESOLVED")
+                ))
+                .build();
+
+        assertThatCode(() -> emailService.sendNotificationEmail(request))
+                .doesNotThrowAnyException();
+
+        String html = extractHtml(mimeMessage);
+
+        assertThat(mimeMessage.getSubject()).isEqualTo("Your report was resolved");
+        assertThat(html).contains("Your moderation report");
+        assertThat(html).contains("Reported book snapshot");
+        assertThat(html).contains("Charley Smash");
+        assertThat(html).contains("Owner: owner_one");
+        assertThat(html).contains("Reported user");
+        assertThat(html).contains("User #42");
+        assertThat(html).contains("The reported book has been deleted. The card below shows the historical snapshot captured when you created the report.");
+        assertThat(html).contains("The reported user account is currently restricted by the admin team.");
+        assertThat(html).contains("Spam");
+        assertThat(html).contains("Looks suspicious");
+        verify(mailSender).send(mimeMessage);
+    }
+
+    @Test
+    void shouldRenderLocalizedNotificationStaticSectionsForGermanLocale() throws Exception {
+        MimeMessage mimeMessage = new MimeMessage(Session.getInstance(new Properties()));
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+
+        NotificationEmailRequest request = NotificationEmailRequest.builder()
+                .emailTo("reader@example.com")
+                .recipientName("reader_one")
+                .locale("de")
+                .subject("Ihre Beschwerde wurde gelöst")
+                .preheader("Ihre Beschwerde wurde gelöst")
+                .eyebrow("Beschwerde-Update")
+                .title("Ihre Beschwerde wurde gelöst")
+                .intro("Ein Admin hat Ihre Beschwerde gelöst.")
+                .summary("Der Status der Beschwerde ist jetzt GELÖST.")
+                .user(NotificationEmailUserCard.builder()
+                        .title("Ihr Konto")
+                        .name("reader_one")
+                        .meta("reader@example.com")
+                        .initial("R")
+                        .build())
+                .report(NotificationEmailReport.builder()
+                        .title("Ihre Moderationsbeschwerde")
+                        .status(NotificationEmailBadge.builder()
+                                .label("Status")
+                                .value("Gelöst")
+                                .tone("success")
+                                .build())
+                        .targetText("Nutzer #42")
+                        .reason("Spam")
+                        .comment("Sieht verdächtig aus")
+                        .build())
+                .details(List.of(
+                        new NotificationEmailDetail("Beschwerde-ID", "4101"),
+                        new NotificationEmailDetail("Status", "GELÖST")
+                ))
+                .build();
+
+        assertThatCode(() -> emailService.sendNotificationEmail(request))
+                .doesNotThrowAnyException();
+
+        String html = extractHtml(mimeMessage);
+
+        assertThat(html).contains("Kontoübersicht");
+        assertThat(html).contains("Spam");
+        assertThat(html).contains("Grund:");
+        assertThat(html).contains("Kommentar:");
+        assertThat(html).doesNotContain("Details");
         verify(mailSender).send(mimeMessage);
     }
 

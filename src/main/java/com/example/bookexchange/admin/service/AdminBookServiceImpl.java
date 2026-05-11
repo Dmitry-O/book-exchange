@@ -17,6 +17,7 @@ import com.example.bookexchange.common.audit.model.AuditResult;
 import com.example.bookexchange.common.audit.service.AuditService;
 import com.example.bookexchange.common.audit.service.SoftDeleteFilterHelper;
 import com.example.bookexchange.common.audit.service.VersionedEntityTransitionHelper;
+import com.example.bookexchange.common.notification.NotificationDispatchService;
 import com.example.bookexchange.common.result.Failure;
 import com.example.bookexchange.common.dto.PageQueryDTO;
 import com.example.bookexchange.common.dto.SortDirectionDTO;
@@ -25,6 +26,8 @@ import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.common.result.ResultFactory;
 import com.example.bookexchange.common.storage.ImageStorageService;
 import com.example.bookexchange.common.util.ETagUtil;
+import com.example.bookexchange.exchange.repository.ExchangeRepository;
+import com.example.bookexchange.exchange.model.ExchangeStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -32,6 +35,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,12 +46,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class AdminBookServiceImpl implements AdminBookService {
+
+    private static final Set<ExchangeStatus> BOOK_EDIT_LOCK_STATUSES = Set.of(
+            ExchangeStatus.PENDING,
+            ExchangeStatus.APPROVED
+    );
 
     private final BookRepository bookRepository;
     private final BookMapper bookMapper;
@@ -57,6 +67,8 @@ public class AdminBookServiceImpl implements AdminBookService {
     private final VersionedEntityTransitionHelper versionedEntityTransitionHelper;
     private final ImageStorageService imageStorageService;
     private final BookSearchIndexService bookSearchIndexService;
+    private final NotificationDispatchService notificationDispatchService;
+    private final ExchangeRepository exchangeRepository;
 
     @Transactional(readOnly = true)
     @Override
@@ -84,13 +96,14 @@ public class AdminBookServiceImpl implements AdminBookService {
 
     private Pageable createSearchPageable(BookSearchDTO dto, Integer pageIndex, Integer pageSize, BookType bookType) {
         if (dto.getSortBy() == null || dto.getSortDirection() == null) {
-            String defaultProperty = bookType == BookType.DELETED ? "deletedAt" : "createdAt";
+            Sort sort = bookType == BookType.ALL
+                    ? Sort.by(Sort.Order.asc("deletedAt"))
+                    .and(Sort.by(Sort.Direction.DESC, "createdAt"))
+                    .and(Sort.by(Sort.Direction.DESC, "id"))
+                    : Sort.by(Sort.Direction.DESC, bookType == BookType.DELETED ? "deletedAt" : "createdAt")
+                            .and(Sort.by(Sort.Direction.DESC, "id"));
 
-            return PageRequest.of(
-                    pageIndex,
-                    pageSize,
-                    Sort.by(Sort.Direction.DESC, defaultProperty).and(Sort.by(Sort.Direction.DESC, "id"))
-            );
+            return PageRequest.of(pageIndex, pageSize, sort);
         }
 
         Sort.Direction direction = dto.getSortDirection() == SortDirectionDTO.DESC
@@ -106,11 +119,13 @@ public class AdminBookServiceImpl implements AdminBookService {
             primaryOrder = primaryOrder.ignoreCase();
         }
 
-        return PageRequest.of(
-                pageIndex,
-                pageSize,
-                Sort.by(primaryOrder).and(Sort.by(Sort.Direction.DESC, "id"))
-        );
+        Sort sort = Sort.by(primaryOrder).and(Sort.by(Sort.Direction.DESC, "id"));
+
+        if (bookType == BookType.ALL) {
+            sort = Sort.by(Sort.Order.asc("deletedAt")).and(sort);
+        }
+
+        return PageRequest.of(pageIndex, pageSize, sort);
     }
 
     @Transactional(readOnly = true)
@@ -133,8 +148,11 @@ public class AdminBookServiceImpl implements AdminBookService {
                                             .build()
                                     );
 
+                                    BookAdminDTO dto = adminMapper.bookToBookAdminDto(book);
+                                    dto.setEditLocked(isBookLockedForEditing(book));
+
                                     return ResultFactory.okETag(
-                                            adminMapper.bookToBookAdminDto(book),
+                                            dto,
                                             ETagUtil.form(book)
                                     );
                                 }
@@ -152,6 +170,12 @@ public class AdminBookServiceImpl implements AdminBookService {
                         MessageKey.ADMIN_BOOK_NOT_FOUND
                 )
                 .flatMap(book -> {
+                    Result<Book> exchangeValidation = validateBookNotInExchange(book, "ADMIN_BOOK_UPDATE", adminUser);
+
+                    if (exchangeValidation.isFailure()) {
+                        return exchangeValidation.map(adminMapper::bookToBookAdminDto);
+                    }
+
                     Result<Book> versionValidation = versionedEntityTransitionHelper.requireVersion(
                             book,
                             version,
@@ -188,6 +212,8 @@ public class AdminBookServiceImpl implements AdminBookService {
                                 .build()
                         );
 
+                        notificationDispatchService.sendAdminBookUpdatedNotification(updatedBook, adminUser.getUsername());
+
                         return ResultFactory.updated(
                                 adminMapper.bookToBookAdminDto(updatedBook),
                                 MessageKey.ADMIN_BOOK_UPDATED,
@@ -208,6 +234,12 @@ public class AdminBookServiceImpl implements AdminBookService {
                                 MessageKey.ADMIN_BOOK_NOT_FOUND
                         )
                         .flatMap(book -> {
+                            Result<Book> exchangeValidation = validateBookNotInExchange(book, "ADMIN_BOOK_PHOTO_DELETE", adminUser);
+
+                            if (exchangeValidation.isFailure()) {
+                                return exchangeValidation.map(adminMapper::bookToBookAdminDto);
+                            }
+
                             Result<Book> versionValidation = versionedEntityTransitionHelper.requireVersion(
                                     book,
                                     version,
@@ -248,6 +280,8 @@ public class AdminBookServiceImpl implements AdminBookService {
                                                 .build()
                                         );
 
+                                        notificationDispatchService.sendAdminBookPhotoDeletedNotification(updatedBook, adminUser.getUsername());
+
                                         return ResultFactory.updated(
                                                 adminMapper.bookToBookAdminDto(updatedBook),
                                                 MessageKey.ADMIN_BOOK_PHOTO_DELETED,
@@ -283,6 +317,7 @@ public class AdminBookServiceImpl implements AdminBookService {
                         return versionValidation.map(adminMapper::bookToBookAdminDto);
                     }
 
+                    cancelPendingBookExchanges(book, book.getUser());
                     book.setDeletedAt(Instant.now());
                     bookSearchIndexService.scheduleUpsert(book);
 
@@ -295,6 +330,8 @@ public class AdminBookServiceImpl implements AdminBookService {
                             .detail("bookName", book.getName())
                             .build()
                     );
+
+                    notificationDispatchService.sendAdminBookDeletedNotification(book, adminUser.getUsername());
 
                     return ResultFactory.updated(
                             adminMapper.bookToBookAdminDto(book),
@@ -342,6 +379,8 @@ public class AdminBookServiceImpl implements AdminBookService {
                                     .detail("bookName", book.getName())
                                     .build()
                             );
+
+                            notificationDispatchService.sendAdminBookRestoredNotification(book, adminUser.getUsername());
 
                             return ResultFactory.updated(
                                     adminMapper.bookToBookAdminDto(book),
@@ -397,6 +436,47 @@ public class AdminBookServiceImpl implements AdminBookService {
                 });
     }
 
+    private Result<Book> validateBookNotInExchange(Book book, String action, UserDetails adminUser) {
+        if (!isBookLockedForEditing(book)) {
+            return ResultFactory.ok(book);
+        }
+
+        auditService.log(AuditEvent.builder()
+                .action(action)
+                .result(AuditResult.FAILURE)
+                .actorEmail(adminUser.getUsername())
+                .reason("BOOK_CANT_BE_EDITED_DURING_EXCHANGE")
+                .detail("actorUserRoles", adminUser.getAuthorities())
+                .detail("bookId", book.getId())
+                .detail("bookName", book.getName())
+                .build());
+
+        return ResultFactory.error(MessageKey.BOOK_CANT_BE_EDITED_DURING_EXCHANGE, HttpStatus.BAD_REQUEST);
+    }
+
+    private void cancelPendingBookExchanges(Book book, com.example.bookexchange.user.model.User declinerUser) {
+        List<com.example.bookexchange.exchange.model.Exchange> pendingExchanges =
+                exchangeRepository.findByStatusAndBookId(com.example.bookexchange.exchange.model.ExchangeStatus.PENDING, book.getId());
+
+        if (pendingExchanges.isEmpty()) {
+            return;
+        }
+
+        pendingExchanges.forEach(exchange -> {
+            exchange.setStatus(com.example.bookexchange.exchange.model.ExchangeStatus.DECLINED);
+            exchange.setDeclinerUser(null);
+            exchange.setAutoDeclined(Boolean.TRUE);
+            com.example.bookexchange.exchange.util.ExchangeReadStateUtil.markUpdatedForBoth(exchange);
+            exchangeRepository.save(exchange);
+        });
+
+        notificationDispatchService.sendExchangeAutoDeclinedNotifications(pendingExchanges);
+    }
+
+    private boolean isBookLockedForEditing(Book book) {
+        return exchangeRepository.existsByStatusInAndBookId(BOOK_EDIT_LOCK_STATUSES, book.getId());
+    }
+
     private <T> Result<T> rollbackOnFailure(Result<T> result) {
         TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
         return result;
@@ -408,6 +488,10 @@ public class AdminBookServiceImpl implements AdminBookService {
             Pageable pageable,
             BookType bookType
     ) {
+        if (bookType == BookType.ALL) {
+            return Optional.empty();
+        }
+
         return bookSearchIndexService.search(null, dto, queryDTO, bookType)
                 .map(searchResult -> ResultFactory.ok(buildBookAdminDtoPage(searchResult, pageable)));
     }
