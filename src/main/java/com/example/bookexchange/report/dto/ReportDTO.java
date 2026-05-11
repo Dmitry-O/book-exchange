@@ -40,6 +40,10 @@ public class ReportDTO {
     @JsonProperty("targetBook")
     private ReportTargetBookDTO targetBook;
 
+    @Schema(example = "false")
+    @JsonProperty("targetDeleted")
+    private boolean targetDeleted;
+
     @Schema(example = "SPAM")
     @JsonProperty("reason")
     private ReportReason reason;

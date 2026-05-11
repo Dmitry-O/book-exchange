@@ -5,6 +5,7 @@ import com.example.bookexchange.book.repository.BookRepository;
 import com.example.bookexchange.common.audit.service.AuditService;
 import com.example.bookexchange.common.audit.service.SoftDeleteFilterHelper;
 import com.example.bookexchange.common.dto.PageQueryDTO;
+import com.example.bookexchange.common.notification.NotificationDispatchService;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.report.dto.ReportCreateDTO;
 import com.example.bookexchange.report.dto.ReportDTO;
@@ -20,6 +21,7 @@ import com.example.bookexchange.user.model.User;
 import com.example.bookexchange.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -27,6 +29,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.http.HttpStatus;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -65,6 +68,9 @@ class ReportServiceImplTest {
 
     @Mock
     private SoftDeleteFilterHelper softDeleteFilterHelper;
+
+    @Mock
+    private NotificationDispatchService notificationDispatchService;
 
     @InjectMocks
     private ReportServiceImpl reportService;
@@ -122,21 +128,62 @@ class ReportServiceImplTest {
     }
 
     @Test
-    void shouldPersistReport_whenCreateReportTargetIsValid() {
+    void shouldPersistUserSnapshot_whenCreateReportTargetIsValid() {
         User reporter = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, "reporter@example.com", "reporter_one");
         User target = UnitTestDataFactory.user(UnitFixtureIds.TARGET_USER_ID, "target@example.com", "target_one");
         ReportCreateDTO dto = UnitTestDataFactory.reportCreateDto(TargetType.USER);
+        ArgumentCaptor<Report> reportCaptor = ArgumentCaptor.forClass(Report.class);
 
         when(userRepository.findById(reporter.getId())).thenReturn(Optional.of(reporter));
         when(userRepository.findById(target.getId())).thenReturn(Optional.of(target));
-        when(reportRepository.existsByReporterIdAndTargetTypeAndTargetId(reporter.getId(), TargetType.USER, target.getId()))
+        when(reportRepository.existsByReporterIdAndTargetTypeAndTargetIdAndStatus(
+                reporter.getId(),
+                TargetType.USER,
+                target.getId(),
+                ReportStatus.OPEN
+        ))
                 .thenReturn(false);
 
         Result<Void> result = reportService.createReport(reporter.getId(), target.getId(), dto);
 
         assertSuccess(result, HttpStatus.OK, REPORT_SENT);
-        verify(reportRepository).save(any());
+        verify(reportRepository).save(reportCaptor.capture());
         verify(auditService).log(any());
+        assertThat(reportCaptor.getValue().getTargetUserNicknameSnapshot()).isEqualTo(target.getNickname());
+        assertThat(reportCaptor.getValue().getTargetBookNameSnapshot()).isNull();
+        assertThat(reportCaptor.getValue().getTargetBookOwnerUserIdSnapshot()).isNull();
+        assertThat(reportCaptor.getValue().getTargetBookOwnerNicknameSnapshot()).isNull();
+        verify(notificationDispatchService).sendReportSubmittedNotifications(reportCaptor.getValue());
+    }
+
+    @Test
+    void shouldPersistBookSnapshot_whenCreateReportTargetsBook() {
+        User reporter = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, "reporter@example.com", "reporter_one");
+        User owner = UnitTestDataFactory.user(UnitFixtureIds.BOOK_OWNER_ID, "owner@example.com", "owner_one");
+        Book targetBook = UnitTestDataFactory.book(UnitFixtureIds.SENDER_BOOK_ID, "Snapshot book", owner);
+        ReportCreateDTO dto = UnitTestDataFactory.reportCreateDto(TargetType.BOOK);
+        ArgumentCaptor<Report> reportCaptor = ArgumentCaptor.forClass(Report.class);
+
+        when(userRepository.findById(reporter.getId())).thenReturn(Optional.of(reporter));
+        when(bookRepository.findByIdAndUserId(targetBook.getId(), reporter.getId())).thenReturn(Optional.empty());
+        when(bookRepository.findById(targetBook.getId())).thenReturn(Optional.of(targetBook));
+        when(reportRepository.existsByReporterIdAndTargetTypeAndTargetIdAndStatus(
+                reporter.getId(),
+                TargetType.BOOK,
+                targetBook.getId(),
+                ReportStatus.OPEN
+        ))
+                .thenReturn(false);
+
+        Result<Void> result = reportService.createReport(reporter.getId(), targetBook.getId(), dto);
+
+        assertSuccess(result, HttpStatus.OK, REPORT_SENT);
+        verify(reportRepository).save(reportCaptor.capture());
+        assertThat(reportCaptor.getValue().getTargetBookNameSnapshot()).isEqualTo(targetBook.getName());
+        assertThat(reportCaptor.getValue().getTargetBookOwnerUserIdSnapshot()).isEqualTo(owner.getId());
+        assertThat(reportCaptor.getValue().getTargetBookOwnerNicknameSnapshot()).isEqualTo(owner.getNickname());
+        assertThat(reportCaptor.getValue().getTargetUserNicknameSnapshot()).isNull();
+        verify(notificationDispatchService).sendReportSubmittedNotifications(reportCaptor.getValue());
     }
 
     @Test
@@ -147,7 +194,12 @@ class ReportServiceImplTest {
 
         when(userRepository.findById(reporter.getId())).thenReturn(Optional.of(reporter));
         when(userRepository.findById(target.getId())).thenReturn(Optional.of(target));
-        when(reportRepository.existsByReporterIdAndTargetTypeAndTargetId(reporter.getId(), TargetType.USER, target.getId()))
+        when(reportRepository.existsByReporterIdAndTargetTypeAndTargetIdAndStatus(
+                reporter.getId(),
+                TargetType.USER,
+                target.getId(),
+                ReportStatus.OPEN
+        ))
                 .thenReturn(true);
 
         Result<Void> result = reportService.createReport(reporter.getId(), target.getId(), dto);
@@ -161,6 +213,7 @@ class ReportServiceImplTest {
         User targetUser = UnitTestDataFactory.user(UnitFixtureIds.TARGET_USER_ID, "target@example.com", "target_one");
         targetUser.setPhotoUrl("https://cdn.example.com/users/200/profile.jpg");
         Report report = UnitTestDataFactory.report(1L, reporter, TargetType.USER, UnitFixtureIds.TARGET_USER_ID, ReportStatus.OPEN);
+        report.captureUserSnapshot(targetUser);
         ReportDTO reportDto = ReportDTO.builder()
                 .id(report.getId())
                 .version(report.getVersion())
@@ -180,11 +233,50 @@ class ReportServiceImplTest {
                 .thenReturn(new PageImpl<>(List.of(report)));
         when(userRepository.findAllById(List.of(targetUser.getId()))).thenReturn(List.of(targetUser));
         when(reportMapper.reportToUserReportDto(report)).thenReturn(reportDto);
-        when(reportMapper.userToReportTargetUserDto(targetUser)).thenReturn(targetUserDto);
+        when(reportMapper.reportToSnapshotTargetUserDto(report)).thenReturn(targetUserDto);
 
         Result<Page<ReportDTO>> result = reportService.findUserReports(reporter.getId(), queryDTO);
 
         ReportDTO content = assertSuccess(result, HttpStatus.OK).body().getContent().getFirst();
         assertThat(content.getTargetUser()).isEqualTo(targetUserDto);
+        assertThat(content.isTargetDeleted()).isFalse();
+    }
+
+    @Test
+    void shouldKeepUserSnapshotAndMarkDeleted_whenReportedUserWasDeleted() {
+        User reporter = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, "reporter@example.com", "reporter_one");
+        User deletedTargetUser = UnitTestDataFactory.user(UnitFixtureIds.TARGET_USER_ID, "deleted@example.com", "deleted_target");
+        deletedTargetUser.setDeletedAt(Instant.parse("2026-04-24T08:15:30Z"));
+        deletedTargetUser.setNickname("deleted_user_1104");
+        deletedTargetUser.setPhotoUrl(null);
+
+        Report report = UnitTestDataFactory.report(1L, reporter, TargetType.USER, UnitFixtureIds.TARGET_USER_ID, ReportStatus.OPEN);
+        report.setTargetUserNicknameSnapshot("snapshot_target_one");
+
+        ReportDTO reportDto = ReportDTO.builder()
+                .id(report.getId())
+                .version(report.getVersion())
+                .targetType(TargetType.USER)
+                .targetId(deletedTargetUser.getId())
+                .build();
+        ReportTargetUserDTO snapshotTargetUserDto = ReportTargetUserDTO.builder()
+                .id(deletedTargetUser.getId())
+                .nickname("snapshot_target_one")
+                .build();
+
+        when(softDeleteFilterHelper.runWithoutDeletedFilter(any()))
+                .thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(0)).get());
+        when(reportRepository.findByReporterId(eq(reporter.getId()), any()))
+                .thenReturn(new PageImpl<>(List.of(report)));
+        when(userRepository.findAllById(List.of(deletedTargetUser.getId()))).thenReturn(List.of(deletedTargetUser));
+        when(reportMapper.reportToUserReportDto(report)).thenReturn(reportDto);
+        when(reportMapper.reportToSnapshotTargetUserDto(report)).thenReturn(snapshotTargetUserDto);
+
+        Result<Page<ReportDTO>> result = reportService.findUserReports(reporter.getId(), UnitTestDataFactory.pageQuery(0, 20));
+
+        ReportDTO content = assertSuccess(result, HttpStatus.OK).body().getContent().getFirst();
+        assertThat(content.isTargetDeleted()).isTrue();
+        assertThat(content.getTargetUser().getNickname()).isEqualTo("snapshot_target_one");
+        assertThat(content.getTargetUser().getPhotoUrl()).isNull();
     }
 }

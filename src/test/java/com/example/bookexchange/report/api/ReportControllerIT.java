@@ -6,10 +6,12 @@ import com.example.bookexchange.report.model.ReportReason;
 import com.example.bookexchange.report.model.ReportStatus;
 import com.example.bookexchange.report.model.TargetType;
 import com.example.bookexchange.report.repository.ReportRepository;
+import com.example.bookexchange.book.repository.BookRepository;
 import com.example.bookexchange.common.i18n.MessageKey;
 import com.example.bookexchange.report.model.Report;
 import com.example.bookexchange.support.FixtureNumbers;
 import com.example.bookexchange.support.TestReportStrings;
+import com.example.bookexchange.book.model.Book;
 import com.example.bookexchange.user.model.User;
 import com.example.bookexchange.user.repository.UserRepository;
 import com.example.bookexchange.support.fixture.BookFixtureSupport;
@@ -25,6 +27,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.junit.jupiter.Testcontainers;
+
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -47,6 +51,9 @@ class ReportControllerIT extends IntegrationTestSupport {
 
     @Autowired
     UserRepository userRepository;
+
+    @Autowired
+    BookRepository bookRepository;
 
     private MockMvc mockMvc;
 
@@ -84,6 +91,8 @@ class ReportControllerIT extends IntegrationTestSupport {
         assertThat(savedReport.getTargetId()).isEqualTo(targetUser.getId());
         assertThat(savedReport.getReason()).isEqualTo(ReportReason.SPAM);
         assertThat(savedReport.getStatus()).isEqualTo(ReportStatus.OPEN);
+        assertThat(savedReport.getTargetUserNicknameSnapshot()).isEqualTo(targetUser.getNickname());
+        assertThat(savedReport.getTargetBookNameSnapshot()).isNull();
     }
 
     @Test
@@ -112,6 +121,9 @@ class ReportControllerIT extends IntegrationTestSupport {
         assertThat(savedReport.getTargetType()).isEqualTo(TargetType.BOOK);
         assertThat(savedReport.getTargetId()).isEqualTo(targetBookId);
         assertThat(savedReport.getReason()).isEqualTo(ReportReason.INAPPROPRIATE);
+        assertThat(savedReport.getTargetBookNameSnapshot()).isNotBlank();
+        assertThat(savedReport.getTargetBookOwnerUserIdSnapshot()).isEqualTo(bookOwner.getId());
+        assertThat(savedReport.getTargetBookOwnerNicknameSnapshot()).isEqualTo(bookOwner.getNickname());
     }
 
     @Test
@@ -148,6 +160,46 @@ class ReportControllerIT extends IntegrationTestSupport {
     }
 
     @Test
+    void shouldAllowCreatingNewReport_whenPreviousReportForSameTargetIsAlreadyResolved() throws Exception {
+        User reporter = userUtil.createUser(FixtureNumbers.report(711));
+        User targetUser = userUtil.createUser(FixtureNumbers.report(712));
+        Report resolvedReport = new Report(
+                null,
+                TargetType.USER,
+                targetUser.getId(),
+                ReportReason.SPAM,
+                "Old resolved report",
+                ReportStatus.RESOLVED,
+                reporter
+        );
+        resolvedReport.captureUserSnapshot(targetUser);
+        reportRepository.save(resolvedReport);
+
+        ReportCreateDTO dto = ReportCreateDTO.builder()
+                .targetType(TargetType.USER)
+                .reason(ReportReason.FRAUD)
+                .comment(TestReportStrings.comment("A new issue appeared after the previous report was resolved."))
+                .build();
+
+        MvcResult mvcResult = mockMvc.perform(post(ReportPaths.REPORT_PATH_TARGET_ID, targetUser.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(reporter))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode body = responseBody(mvcResult);
+
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(reportRepository.findAll()).hasSize(2);
+        assertThat(reportRepository.findAll().stream()
+                .filter(report -> report.getTargetId().equals(targetUser.getId()))
+                .map(Report::getStatus))
+                .containsExactlyInAnyOrder(ReportStatus.RESOLVED, ReportStatus.OPEN);
+    }
+
+    @Test
     void shouldReturnCurrentUserReports_whenUserGetsOwnReports() throws Exception {
         User reporter = userUtil.createUser(FixtureNumbers.report(720));
         User targetUser = userUtil.createUser(FixtureNumbers.report(721));
@@ -156,7 +208,7 @@ class ReportControllerIT extends IntegrationTestSupport {
         User anotherReporter = userUtil.createUser(FixtureNumbers.report(722));
         Long targetBookId = bookUtil.createBook(targetUser.getId(), FixtureNumbers.report(723));
 
-        reportRepository.save(new Report(
+        Report userReportEntity = new Report(
                 null,
                 TargetType.USER,
                 targetUser.getId(),
@@ -164,8 +216,12 @@ class ReportControllerIT extends IntegrationTestSupport {
                 "User report",
                 ReportStatus.OPEN,
                 reporter
-        ));
-        reportRepository.save(new Report(
+        );
+        userReportEntity.captureUserSnapshot(targetUser);
+        reportRepository.save(userReportEntity);
+
+        Book targetBook = bookRepository.findById(targetBookId).orElseThrow();
+        Report bookReportEntity = new Report(
                 null,
                 TargetType.BOOK,
                 targetBookId,
@@ -173,7 +229,10 @@ class ReportControllerIT extends IntegrationTestSupport {
                 "Book report",
                 ReportStatus.RESOLVED,
                 reporter
-        ));
+        );
+        bookReportEntity.captureBookSnapshot(targetBook);
+        reportRepository.save(bookReportEntity);
+
         reportRepository.save(new Report(
                 null,
                 TargetType.USER,
@@ -205,6 +264,7 @@ class ReportControllerIT extends IntegrationTestSupport {
         assertThat(userReport.path("targetUser").path("id").asLong()).isEqualTo(targetUser.getId());
         assertThat(userReport.path("targetUser").path("nickname").asText()).isEqualTo(targetUser.getNickname());
         assertThat(userReport.path("targetUser").path("photoUrl").asText()).isEqualTo(targetUser.getPhotoUrl());
+        assertThat(userReport.path("targetDeleted").asBoolean()).isFalse();
         assertThat(userReport.path("targetBook").isNull()).isTrue();
 
         assertThat(bookReport.path("targetBook").path("id").asLong()).isEqualTo(targetBookId);
@@ -213,7 +273,80 @@ class ReportControllerIT extends IntegrationTestSupport {
         assertThat(bookReport.path("targetBook").path("ownerUserId").asLong()).isEqualTo(targetUser.getId());
         assertThat(bookReport.path("targetBook").path("ownerNickname").asText()).isEqualTo(targetUser.getNickname());
         assertThat(bookReport.path("targetBook").path("ownerPhotoUrl").asText()).isEqualTo(targetUser.getPhotoUrl());
+        assertThat(bookReport.path("targetDeleted").asBoolean()).isFalse();
         assertThat(bookReport.path("targetUser").isNull()).isTrue();
+    }
+
+    @Test
+    void shouldReturnHistoricalSnapshotAndDeletedFlag_whenReportedTargetWasDeleted() throws Exception {
+        User reporter = userUtil.createUser(FixtureNumbers.report(730));
+        User targetUser = userUtil.createUser(FixtureNumbers.report(731));
+        targetUser.setPhotoUrl("https://cdn.example.com/users/731/profile.jpg");
+        userRepository.save(targetUser);
+
+        Long targetBookId = bookUtil.createBook(targetUser.getId(), FixtureNumbers.report(732));
+        Book targetBook = bookRepository.findById(targetBookId).orElseThrow();
+        String userSnapshotNickname = targetUser.getNickname();
+        String bookSnapshotName = targetBook.getName();
+
+        Report userReportEntity = new Report(
+                null,
+                TargetType.USER,
+                targetUser.getId(),
+                ReportReason.SPAM,
+                "User report",
+                ReportStatus.OPEN,
+                reporter
+        );
+        userReportEntity.captureUserSnapshot(targetUser);
+        reportRepository.save(userReportEntity);
+
+        Report bookReportEntity = new Report(
+                null,
+                TargetType.BOOK,
+                targetBookId,
+                ReportReason.FRAUD,
+                "Book report",
+                ReportStatus.OPEN,
+                reporter
+        );
+        bookReportEntity.captureBookSnapshot(targetBook);
+        reportRepository.save(bookReportEntity);
+
+        targetUser.setDeletedAt(Instant.parse("2026-04-24T08:15:30Z"));
+        targetUser.setEmail("deleted_731@example.com");
+        targetUser.setNickname("deleted_user_731");
+        targetUser.setPhotoUrl(null);
+        userRepository.save(targetUser);
+
+        targetBook.setDeletedAt(Instant.parse("2026-04-24T08:15:31Z"));
+        targetBook.setName("Deleted book");
+        targetBook.setPhotoUrl(null);
+        bookRepository.save(targetBook);
+
+        clearPersistenceContext();
+
+        MvcResult mvcResult = mockMvc.perform(get(ReportPaths.REPORT_PATH_USER)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(reporter))
+                        .queryParam("pageIndex", "0")
+                        .queryParam("pageSize", "20")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode content = responseBody(mvcResult).path("data").path("content");
+        JsonNode userReport = findReportByTargetType(content, TargetType.USER);
+        JsonNode bookReport = findReportByTargetType(content, TargetType.BOOK);
+
+        assertThat(userReport.path("targetDeleted").asBoolean()).isTrue();
+        assertThat(userReport.path("targetUser").path("nickname").asText()).isEqualTo(userSnapshotNickname);
+        assertThat(userReport.path("targetUser").path("photoUrl").isNull()).isTrue();
+
+        assertThat(bookReport.path("targetDeleted").asBoolean()).isTrue();
+        assertThat(bookReport.path("targetBook").path("name").asText()).isEqualTo(bookSnapshotName);
+        assertThat(bookReport.path("targetBook").path("photoUrl").isNull()).isTrue();
+        assertThat(bookReport.path("targetBook").path("ownerNickname").asText()).isEqualTo(userSnapshotNickname);
+        assertThat(bookReport.path("targetBook").path("ownerPhotoUrl").isNull()).isTrue();
     }
 
     @Test

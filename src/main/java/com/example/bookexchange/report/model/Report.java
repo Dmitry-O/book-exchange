@@ -1,5 +1,6 @@
 package com.example.bookexchange.report.model;
 
+import com.example.bookexchange.book.model.Book;
 import com.example.bookexchange.common.audit.model.AuditableEntity;
 import com.example.bookexchange.user.model.User;
 import com.fasterxml.jackson.annotation.JsonBackReference;
@@ -27,6 +28,17 @@ public class Report extends AuditableEntity {
     @NotNull
     private Long targetId;
 
+    @Column(length = 20)
+    private String targetUserNicknameSnapshot;
+
+    @Column(length = 25)
+    private String targetBookNameSnapshot;
+
+    private Long targetBookOwnerUserIdSnapshot;
+
+    @Column(length = 20)
+    private String targetBookOwnerNicknameSnapshot;
+
     @NotNull
     @Enumerated(EnumType.STRING)
     private ReportReason reason;
@@ -41,4 +53,44 @@ public class Report extends AuditableEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JsonBackReference
     private User reporter;
+
+    public Report(
+            Long id,
+            TargetType targetType,
+            Long targetId,
+            ReportReason reason,
+            String comment,
+            ReportStatus status,
+            User reporter
+    ) {
+        this.id = id;
+        this.targetType = targetType;
+        this.targetId = targetId;
+        this.reason = reason;
+        this.comment = comment;
+        this.status = status;
+        this.reporter = reporter;
+    }
+
+    public void captureUserSnapshot(User targetUser) {
+        targetUserNicknameSnapshot = targetUser != null ? targetUser.getNickname() : null;
+        targetBookNameSnapshot = null;
+        targetBookOwnerUserIdSnapshot = null;
+        targetBookOwnerNicknameSnapshot = null;
+    }
+
+    public void captureBookSnapshot(Book targetBook) {
+        targetUserNicknameSnapshot = null;
+
+        if (targetBook == null) {
+            targetBookNameSnapshot = null;
+            targetBookOwnerUserIdSnapshot = null;
+            targetBookOwnerNicknameSnapshot = null;
+            return;
+        }
+
+        targetBookNameSnapshot = targetBook.getName();
+        targetBookOwnerUserIdSnapshot = targetBook.getUser() != null ? targetBook.getUser().getId() : null;
+        targetBookOwnerNicknameSnapshot = targetBook.getUser() != null ? targetBook.getUser().getNickname() : null;
+    }
 }
