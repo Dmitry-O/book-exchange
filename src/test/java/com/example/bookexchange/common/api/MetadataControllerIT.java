@@ -44,4 +44,37 @@ class MetadataControllerIT extends IntegrationTestSupport {
         assertThat(categories.toString()).contains("Science Fiction");
         assertThat(categories.toString()).contains("Other");
     }
+
+    @Test
+    void shouldReturnLocalizedCitySuggestions_whenCityAutocompleteIsRequested() throws Exception {
+        MvcResult mvcResult = mockMvc.perform(get(MetadataPaths.METADATA_PATH_CITIES)
+                        .queryParam("query", "mun")
+                        .queryParam("limit", "5")
+                        .header("Accept-Language", "de")
+                        .accept(APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode body = responseBody(mvcResult);
+        JsonNode cities = body.path("data");
+
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(cities.isArray()).isTrue();
+        assertThat(cities).anySatisfy(city -> {
+            assertThat(city.path("value").asText()).isEqualTo("Munich");
+            assertThat(city.path("label").asText()).isEqualTo("München");
+        });
+    }
+
+    @Test
+    void shouldReturnBadRequest_whenCityAutocompleteQueryIsTooShort() throws Exception {
+        MvcResult mvcResult = mockMvc.perform(get(MetadataPaths.METADATA_PATH_CITIES)
+                        .queryParam("query", "m")
+                        .queryParam("limit", "5")
+                        .accept(APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andReturn();
+
+        assertValidationErrorResponse(responseBody(mvcResult), MetadataPaths.METADATA_PATH_CITIES);
+    }
 }

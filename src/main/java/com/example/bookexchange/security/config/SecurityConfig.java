@@ -56,7 +56,7 @@ public class SecurityConfig {
                         .requestMatchers(BookPaths.BOOK_PATH_HISTORY).authenticated()
                         .requestMatchers(HttpMethod.GET, BookPaths.BOOK_PATH_SEARCH).permitAll()
                         .requestMatchers(HttpMethod.GET, BookPaths.BOOK_PATH_BOOK_ID).permitAll()
-                        .requestMatchers(MetadataPaths.METADATA_PATH).permitAll()
+                        .requestMatchers(MetadataPaths.METADATA_PATH, MetadataPaths.METADATA_PATH + "/**").permitAll()
                         .requestMatchers(
                                 "/actuator/health",
                                 "/actuator/info",

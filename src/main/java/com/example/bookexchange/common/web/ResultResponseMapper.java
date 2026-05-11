@@ -20,6 +20,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.TransactionSystemException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -152,6 +153,49 @@ public class ResultResponseMapper {
         return errorHelper.formatErrorResponse(
                 HttpStatus.BAD_REQUEST,
                 finalMessage,
+                request,
+                "VALIDATION_ERROR"
+        );
+    }
+
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<?> handleHandlerMethodValidation(
+            HandlerMethodValidationException ex,
+            HttpServletRequest request
+    ) {
+        List<String> messages = ex.getAllErrors()
+                .stream()
+                .map(error -> error.getDefaultMessage())
+                .filter(message -> message != null && !message.isBlank())
+                .toList();
+
+        String finalMessage = !messages.isEmpty()
+                ? String.join("; ", messages)
+                : messageService.getMessage(MessageKey.SYSTEM_INVALID_DATA);
+
+        return errorHelper.formatErrorResponse(
+                HttpStatus.BAD_REQUEST,
+                finalMessage,
+                request,
+                "VALIDATION_ERROR"
+        );
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<?> handleConstraintViolation(
+            ConstraintViolationException ex,
+            HttpServletRequest request
+    ) {
+        String message = ex.getConstraintViolations()
+                .stream()
+                .map(violation -> violation.getMessage())
+                .filter(value -> value != null && !value.isBlank())
+                .distinct()
+                .collect(Collectors.joining("; "));
+
+        return errorHelper.formatErrorResponse(
+                HttpStatus.BAD_REQUEST,
+                message.isBlank() ? messageService.getMessage(MessageKey.SYSTEM_INVALID_DATA) : message,
                 request,
                 "VALIDATION_ERROR"
         );

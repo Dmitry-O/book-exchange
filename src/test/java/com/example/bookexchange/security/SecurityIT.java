@@ -94,6 +94,20 @@ class SecurityIT extends IntegrationTestSupport {
     }
 
     @Test
+    void shouldAllowAnonymousAccess_whenPublicCityAutocompleteEndpointIsCalled() throws Exception {
+        MvcResult mvcResult = mockMvc.perform(get(MetadataPaths.METADATA_PATH_CITIES)
+                        .queryParam("query", "ber")
+                        .queryParam("limit", "5"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode body = responseBody(mvcResult);
+
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(body.path("data").isArray()).isTrue();
+    }
+
+    @Test
     void shouldReturnCorsHeaders_whenPreflightRequestMatchesAllowedOrigin() throws Exception {
         mockMvc.perform(options(UserPaths.USER_PATH)
                         .header(HttpHeaders.ORIGIN, "http://localhost:5173")

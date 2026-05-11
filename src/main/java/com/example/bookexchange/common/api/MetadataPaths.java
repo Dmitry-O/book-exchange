@@ -6,4 +6,5 @@ import lombok.NoArgsConstructor;
 public final class MetadataPaths {
 
     public static final String METADATA_PATH = "/metadata";
+    public static final String METADATA_PATH_CITIES = METADATA_PATH + "/cities";
 }
