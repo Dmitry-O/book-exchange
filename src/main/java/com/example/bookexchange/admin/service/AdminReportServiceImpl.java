@@ -8,6 +8,7 @@ import com.example.bookexchange.common.audit.service.VersionedEntityTransitionHe
 import com.example.bookexchange.common.dto.PageQueryDTO;
 import com.example.bookexchange.common.dto.SortDirectionDTO;
 import com.example.bookexchange.common.i18n.MessageKey;
+import com.example.bookexchange.common.notification.NotificationDispatchService;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.common.result.ResultFactory;
 import com.example.bookexchange.common.util.ETagUtil;
@@ -34,6 +35,7 @@ public class AdminReportServiceImpl implements AdminReportService {
     private final ReportMapper reportMapper;
     private final AuditService auditService;
     private final VersionedEntityTransitionHelper versionedEntityTransitionHelper;
+    private final NotificationDispatchService notificationDispatchService;
 
     @Transactional(readOnly = true)
     @Override
@@ -44,7 +46,13 @@ public class AdminReportServiceImpl implements AdminReportService {
                 ? Sort.Direction.DESC
                 : Sort.Direction.ASC;
 
-        pageable = PageRequest.of(queryDTO.getPageIndex(), queryDTO.getPageSize(), Sort.by(direction, "createdAt"));
+        pageable = PageRequest.of(
+                queryDTO.getPageIndex(),
+                queryDTO.getPageSize(),
+                Sort.by(Sort.Order.asc("status"))
+                        .and(Sort.by(direction, "createdAt"))
+                        .and(Sort.by(direction, "id"))
+        );
 
         Page<Report> reportPage;
 
@@ -119,6 +127,8 @@ public class AdminReportServiceImpl implements AdminReportService {
                             .build()
                     );
 
+                    notificationDispatchService.sendReportResolvedNotification(report, adminUser.getUsername());
+
                     return ResultFactory.updated(
                             reportMapper.reportToReportDto(report),
                             MessageKey.ADMIN_REPORT_RESOLVED,
@@ -162,6 +172,8 @@ public class AdminReportServiceImpl implements AdminReportService {
                             .detail("reportId", reportId)
                             .build()
                     );
+
+                    notificationDispatchService.sendReportRejectedNotification(report, adminUser.getUsername());
 
                     return ResultFactory.updated(
                             reportMapper.reportToReportDto(report),

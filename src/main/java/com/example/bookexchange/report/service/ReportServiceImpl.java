@@ -1,6 +1,7 @@
 package com.example.bookexchange.report.service;
 
 import com.example.bookexchange.book.repository.BookRepository;
+import com.example.bookexchange.book.model.Book;
 import com.example.bookexchange.common.audit.service.SoftDeleteFilterHelper;
 import com.example.bookexchange.common.dto.PageQueryDTO;
 import com.example.bookexchange.common.audit.model.AuditEvent;
@@ -9,6 +10,7 @@ import com.example.bookexchange.common.audit.service.AuditService;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.common.result.ResultFactory;
 import com.example.bookexchange.common.i18n.MessageKey;
+import com.example.bookexchange.common.notification.NotificationDispatchService;
 import com.example.bookexchange.report.dto.ReportDTO;
 import com.example.bookexchange.report.dto.ReportTargetBookDTO;
 import com.example.bookexchange.report.dto.ReportTargetUserDTO;
@@ -44,13 +46,14 @@ public class ReportServiceImpl implements ReportService {
     private final AuditService auditService;
     private final ReportMapper reportMapper;
     private final SoftDeleteFilterHelper softDeleteFilterHelper;
+    private final NotificationDispatchService notificationDispatchService;
 
     @Transactional
     @Override
     public Result<Void> createReport(Long reporterId, Long targetId, ReportCreateDTO reportCreateDTO) {
         return validateTarget(reporterId, targetId, reportCreateDTO)
-                .flatMap(reporter -> ensureNoDuplicateReport(reporter, targetId, reportCreateDTO))
-                .flatMap(reporter -> saveReport(reporter, targetId, reportCreateDTO));
+                .flatMap(target -> ensureNoDuplicateReport(target, targetId, reportCreateDTO))
+                .flatMap(target -> saveReport(target, targetId, reportCreateDTO));
     }
 
     @Transactional(readOnly = true)
@@ -63,14 +66,14 @@ public class ReportServiceImpl implements ReportService {
         );
 
         Page<Report> reportPage = reportRepository.findByReporterId(reporterId, pageable);
-        Map<Long, ReportTargetUserDTO> targetUsers = loadTargetUsers(reportPage.getContent());
-        Map<Long, ReportTargetBookDTO> targetBooks = loadTargetBooks(reportPage.getContent());
+        Map<Long, User> targetUsers = loadTargetUsers(reportPage.getContent());
+        Map<Long, Book> targetBooks = loadTargetBooks(reportPage.getContent());
         Page<ReportDTO> responsePage = reportPage.map(report -> enrichUserReportDto(report, targetUsers, targetBooks));
 
         return ResultFactory.ok(responsePage);
     }
 
-    private Result<User> validateTarget(Long reporterId, Long targetId, ReportCreateDTO reportCreateDTO) {
+    private Result<ValidatedReportTarget> validateTarget(Long reporterId, Long targetId, ReportCreateDTO reportCreateDTO) {
         return ResultFactory.fromRepository(
                         userRepository,
                         reporterId,
@@ -87,7 +90,7 @@ public class ReportServiceImpl implements ReportService {
                                         targetId,
                                         MessageKey.USER_ACCOUNT_NOT_FOUND
                                 )
-                                .flatMap(u -> ResultFactory.ok(reporter));
+                                .flatMap(targetUser -> ResultFactory.ok(new ValidatedReportTarget(reporter, targetUser, null)));
                     }
 
                     if (reportCreateDTO.getTargetType() == TargetType.BOOK) {
@@ -100,14 +103,14 @@ public class ReportServiceImpl implements ReportService {
                                         targetId,
                                         MessageKey.BOOK_NOT_FOUND
                                 )
-                                .flatMap(b -> ResultFactory.ok(reporter));
+                                .flatMap(targetBook -> ResultFactory.ok(new ValidatedReportTarget(reporter, null, targetBook)));
                     }
 
                     return ResultFactory.error(MessageKey.SYSTEM_INVALID_DATA, HttpStatus.BAD_REQUEST);
                 });
     }
 
-    private Result<Void> saveReport(User reporter, Long targetId, ReportCreateDTO reportCreateDTO) {
+    private Result<Void> saveReport(ValidatedReportTarget target, Long targetId, ReportCreateDTO reportCreateDTO) {
         Report report = new Report(
                 null,
                 reportCreateDTO.getTargetType(),
@@ -115,16 +118,25 @@ public class ReportServiceImpl implements ReportService {
                 reportCreateDTO.getReason(),
                 reportCreateDTO.getComment(),
                 ReportStatus.OPEN,
-                reporter
+                target.reporter()
         );
 
+        if (reportCreateDTO.getTargetType() == TargetType.USER) {
+            report.captureUserSnapshot(target.targetUser());
+        }
+
+        if (reportCreateDTO.getTargetType() == TargetType.BOOK) {
+            report.captureBookSnapshot(target.targetBook());
+        }
+
         reportRepository.save(report);
+        notificationDispatchService.sendReportSubmittedNotifications(report);
 
         auditService.log(AuditEvent.builder()
                 .action("REPORT_CREATE")
                 .result(AuditResult.SUCCESS)
-                .actorId(reporter.getId())
-                .actorEmail(reporter.getEmail())
+                .actorId(target.reporter().getId())
+                .actorEmail(target.reporter().getEmail())
                 .detail("targetId", targetId)
                 .detail("reportCreateDTO", reportCreateDTO)
                 .build()
@@ -133,19 +145,24 @@ public class ReportServiceImpl implements ReportService {
         return ResultFactory.okMessage(MessageKey.REPORT_SENT);
     }
 
-    private Result<User> ensureNoDuplicateReport(User reporter, Long targetId, ReportCreateDTO reportCreateDTO) {
-        boolean alreadyExists = reportRepository.existsByReporterIdAndTargetTypeAndTargetId(
-                reporter.getId(),
+    private Result<ValidatedReportTarget> ensureNoDuplicateReport(
+            ValidatedReportTarget target,
+            Long targetId,
+            ReportCreateDTO reportCreateDTO
+    ) {
+        boolean alreadyExists = reportRepository.existsByReporterIdAndTargetTypeAndTargetIdAndStatus(
+                target.reporter().getId(),
                 reportCreateDTO.getTargetType(),
-                targetId
+                targetId,
+                ReportStatus.OPEN
         );
 
         if (alreadyExists) {
             auditService.log(AuditEvent.builder()
                     .action("REPORT_CREATE")
                     .result(AuditResult.FAILURE)
-                    .actorId(reporter.getId())
-                    .actorEmail(reporter.getEmail())
+                    .actorId(target.reporter().getId())
+                    .actorEmail(target.reporter().getEmail())
                     .reason("REPORT_ALREADY_EXISTS")
                     .detail("targetId", targetId)
                     .detail("targetType", reportCreateDTO.getTargetType())
@@ -155,28 +172,36 @@ public class ReportServiceImpl implements ReportService {
             return ResultFactory.entityExists(MessageKey.REPORT_ALREADY_EXISTS);
         }
 
-        return ResultFactory.ok(reporter);
+        return ResultFactory.ok(target);
     }
 
     private ReportDTO enrichUserReportDto(
             Report report,
-            Map<Long, ReportTargetUserDTO> targetUsers,
-            Map<Long, ReportTargetBookDTO> targetBooks
+            Map<Long, User> targetUsers,
+            Map<Long, Book> targetBooks
     ) {
         ReportDTO dto = reportMapper.reportToUserReportDto(report);
 
         if (report.getTargetType() == TargetType.USER) {
-            dto.setTargetUser(targetUsers.get(report.getTargetId()));
+            User currentTargetUser = targetUsers.get(report.getTargetId());
+            boolean targetDeleted = isDeleted(currentTargetUser);
+
+            dto.setTargetDeleted(targetDeleted);
+            dto.setTargetUser(buildUserTargetSnapshot(report, currentTargetUser, targetDeleted));
         }
 
         if (report.getTargetType() == TargetType.BOOK) {
-            dto.setTargetBook(targetBooks.get(report.getTargetId()));
+            Book currentTargetBook = targetBooks.get(report.getTargetId());
+            boolean targetDeleted = isDeleted(currentTargetBook);
+
+            dto.setTargetDeleted(targetDeleted);
+            dto.setTargetBook(buildBookTargetSnapshot(report, currentTargetBook, targetDeleted));
         }
 
         return dto;
     }
 
-    private Map<Long, ReportTargetUserDTO> loadTargetUsers(List<Report> reports) {
+    private Map<Long, User> loadTargetUsers(List<Report> reports) {
         List<Long> targetUserIds = reports.stream()
                 .filter(report -> report.getTargetType() == TargetType.USER)
                 .map(Report::getTargetId)
@@ -189,16 +214,15 @@ public class ReportServiceImpl implements ReportService {
 
         return softDeleteFilterHelper.runWithoutDeletedFilter(() ->
                 userRepository.findAllById(targetUserIds).stream()
-                        .map(reportMapper::userToReportTargetUserDto)
                         .collect(Collectors.toMap(
-                                ReportTargetUserDTO::getId,
+                                User::getId,
                                 Function.identity(),
                                 (left, right) -> left
                         ))
         );
     }
 
-    private Map<Long, ReportTargetBookDTO> loadTargetBooks(List<Report> reports) {
+    private Map<Long, Book> loadTargetBooks(List<Report> reports) {
         List<Long> targetBookIds = reports.stream()
                 .filter(report -> report.getTargetType() == TargetType.BOOK)
                 .map(Report::getTargetId)
@@ -211,12 +235,78 @@ public class ReportServiceImpl implements ReportService {
 
         return softDeleteFilterHelper.runWithoutDeletedFilter(() ->
                 bookRepository.findAllByIdIn(targetBookIds).stream()
-                        .map(reportMapper::bookToReportTargetBookDto)
                         .collect(Collectors.toMap(
-                                ReportTargetBookDTO::getId,
+                                Book::getId,
                                 Function.identity(),
                                 (left, right) -> left
                         ))
         );
+    }
+
+    private ReportTargetUserDTO buildUserTargetSnapshot(Report report, User currentTargetUser, boolean targetDeleted) {
+        ReportTargetUserDTO targetUser = reportMapper.reportToSnapshotTargetUserDto(report);
+
+        if (targetUser == null) {
+            targetUser = new ReportTargetUserDTO();
+        }
+
+        targetUser.setId(report.getTargetId());
+
+        if (isBlank(targetUser.getNickname()) && !targetDeleted && currentTargetUser != null) {
+            targetUser.setNickname(currentTargetUser.getNickname());
+        }
+
+        targetUser.setPhotoUrl(targetDeleted || currentTargetUser == null ? null : currentTargetUser.getPhotoUrl());
+
+        return isBlank(targetUser.getNickname()) ? null : targetUser;
+    }
+
+    private ReportTargetBookDTO buildBookTargetSnapshot(Report report, Book currentTargetBook, boolean targetDeleted) {
+        ReportTargetBookDTO targetBook = reportMapper.reportToSnapshotTargetBookDto(report);
+
+        if (targetBook == null) {
+            targetBook = new ReportTargetBookDTO();
+        }
+
+        targetBook.setId(report.getTargetId());
+
+        if (!targetDeleted && currentTargetBook != null) {
+            if (isBlank(targetBook.getName())) {
+                targetBook.setName(currentTargetBook.getName());
+            }
+
+            if (targetBook.getOwnerUserId() == null && currentTargetBook.getUser() != null) {
+                targetBook.setOwnerUserId(currentTargetBook.getUser().getId());
+            }
+
+            if (isBlank(targetBook.getOwnerNickname()) && currentTargetBook.getUser() != null) {
+                targetBook.setOwnerNickname(currentTargetBook.getUser().getNickname());
+            }
+
+            targetBook.setPhotoUrl(currentTargetBook.getPhotoUrl());
+            targetBook.setOwnerPhotoUrl(currentTargetBook.getUser() != null && !isDeleted(currentTargetBook.getUser())
+                    ? currentTargetBook.getUser().getPhotoUrl()
+                    : null);
+        } else {
+            targetBook.setPhotoUrl(null);
+            targetBook.setOwnerPhotoUrl(null);
+        }
+
+        return isBlank(targetBook.getName()) ? null : targetBook;
+    }
+
+    private boolean isDeleted(User user) {
+        return user == null || user.getDeletedAt() != null;
+    }
+
+    private boolean isDeleted(Book book) {
+        return book == null || book.getDeletedAt() != null;
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    private record ValidatedReportTarget(User reporter, User targetUser, Book targetBook) {
     }
 }

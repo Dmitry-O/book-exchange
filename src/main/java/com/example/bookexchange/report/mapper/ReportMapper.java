@@ -30,7 +30,21 @@ public abstract class ReportMapper {
     @Mapping(target = "meta", ignore = true)
     public abstract ReportAdminDTO reportToReportDto(Report report);
 
+    @Mapping(target = "targetDeleted", ignore = true)
     public abstract ReportDTO reportToUserReportDto(Report report);
+
+    @Mapping(target = "id", source = "targetId")
+    @Mapping(target = "nickname", source = "targetUserNicknameSnapshot")
+    @Mapping(target = "photoUrl", ignore = true)
+    public abstract ReportTargetUserDTO reportToSnapshotTargetUserDto(Report report);
+
+    @Mapping(target = "id", source = "targetId")
+    @Mapping(target = "name", source = "targetBookNameSnapshot")
+    @Mapping(target = "photoUrl", ignore = true)
+    @Mapping(target = "ownerUserId", source = "targetBookOwnerUserIdSnapshot")
+    @Mapping(target = "ownerNickname", source = "targetBookOwnerNicknameSnapshot")
+    @Mapping(target = "ownerPhotoUrl", ignore = true)
+    public abstract ReportTargetBookDTO reportToSnapshotTargetBookDto(Report report);
 
     @Mapping(target = "id", source = "id")
     @Mapping(target = "nickname", source = "nickname")
