@@ -40,6 +40,8 @@ public enum MessageKey {
     BOOK_EXCHANGE_ALREADY_EXISTS("book.exchange.already.exists"),
     BOOK_CANT_EXCHANGE_SAME_BOOK("book.cant.exchange.same.book"),
     BOOK_ALREADY_IN_RECEIVERS_LIST("book.already.in.receivers.list"),
+    BOOK_GIFT_CANT_BE_USED_FOR_EXCHANGE("book.gift.cant.be.used.for.exchange"),
+    BOOK_CANT_BE_EDITED_DURING_EXCHANGE("book.cant.be.edited.during.exchange"),
 
     EXCHANGE_NOT_FOUND("exchange.not.found"),
     EXCHANGE_CANT_BE_APPROVED("exchange.cant.be.approved"),

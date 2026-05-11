@@ -1,0 +1,2 @@
+ALTER TABLE exchange
+    ADD COLUMN auto_declined BOOLEAN NOT NULL DEFAULT FALSE;

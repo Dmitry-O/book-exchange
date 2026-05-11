@@ -73,4 +73,8 @@ public class BookDTO {
     @Schema(example = "false")
     @JsonProperty("isExchanged")
     private Boolean isExchanged;
+
+    @Schema(example = "true")
+    @JsonProperty("editLocked")
+    private Boolean editLocked;
 }
