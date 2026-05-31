@@ -203,6 +203,29 @@ class AdminUserControllerIT extends IntegrationTestSupport {
     }
 
     @Test
+    void shouldReturnOnlyPlainUsers_whenAdminFiltersByUserRole() throws Exception {
+        User superAdmin = userUtil.createSuperAdmin(FixtureNumbers.adminUser(40));
+        User targetAdmin = userUtil.createAdmin(FixtureNumbers.adminUser(41));
+        User targetUser = userUtil.createUser(FixtureNumbers.adminUser(42));
+
+        MvcResult mvcResult = mockMvc.perform(get(AdminPaths.ADMIN_PATH_USERS)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(superAdmin))
+                        .queryParam("pageIndex", PageTestDefaults.PAGE_INDEX.toString())
+                        .queryParam("pageSize", PageTestDefaults.PAGE_SIZE.toString())
+                        .queryParam("roles", UserRole.USER.name())
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode content = responseBody(mvcResult).path("data").path("content");
+        String responseContent = content.toString();
+
+        assertThat(responseContent).contains("\"id\":" + targetUser.getId());
+        assertThat(responseContent).doesNotContain("\"id\":" + targetAdmin.getId());
+        assertThat(responseContent).doesNotContain("\"id\":" + superAdmin.getId());
+    }
+
+    @Test
     void shouldReturnDeletedUsers_whenAdminFiltersByDeletedUserType() throws Exception {
         User admin = userUtil.createAdmin(FixtureNumbers.adminUser(28));
         User activeUser = userUtil.createUser(FixtureNumbers.adminUser(29));
