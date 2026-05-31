@@ -4,6 +4,7 @@
     <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
 
     <logger name="com.example.bookexchange.book.search.ElasticsearchBookSearchIndexService" level="ERROR"/>
+    <logger name="com.example.bookexchange.common.jobs.BookPhotoCleanupServiceImpl" level="ERROR"/>
     <logger name="com.example.bookexchange.common.notification.NotificationDispatchServiceImpl" level="ERROR"/>
 
     <root level="INFO">
