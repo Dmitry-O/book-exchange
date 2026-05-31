@@ -50,4 +50,16 @@ public class MetadataDTO {
     @Schema(example = "[\"Drama\", \"Fantasy\", \"Science Fiction\", \"History\", \"Other\"]")
     @JsonProperty("bookCategories")
     private List<String> bookCategories;
+
+    @Schema(implementation = PopularBookCategoryDTO.class)
+    @JsonProperty("popularBookCategories")
+    private List<PopularBookCategoryDTO> popularBookCategories;
+
+    @Schema(implementation = MetadataLinksDTO.class)
+    @JsonProperty("links")
+    private MetadataLinksDTO links;
+
+    @Schema(implementation = PublicStatisticsDTO.class)
+    @JsonProperty("statistics")
+    private PublicStatisticsDTO statistics;
 }

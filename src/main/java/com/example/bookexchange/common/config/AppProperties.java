@@ -20,6 +20,7 @@ public class AppProperties {
     private List<String> corsAllowedOrigins = List.of("http://localhost:5173");
     private ReportSettings report = new ReportSettings();
     private NotificationSettings notification = new NotificationSettings();
+    private ShowcaseSettings showcase = new ShowcaseSettings();
 
     @Getter
     @Setter
@@ -31,5 +32,14 @@ public class AppProperties {
     @Setter
     public static class NotificationSettings {
         private long emailBatchDelayMillis = 0;
+    }
+
+    @Getter
+    @Setter
+    public static class ShowcaseSettings {
+        private String backendGithubUrl;
+        private String frontendGithubUrl;
+        private String linkedinUrl;
+        private String swaggerUrl;
     }
 }

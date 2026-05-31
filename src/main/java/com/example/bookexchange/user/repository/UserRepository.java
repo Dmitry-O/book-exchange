@@ -31,4 +31,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @EntityGraph(attributePaths = "roles")
     @Query("SELECT DISTINCT u FROM User u JOIN u.roles role WHERE role IN :roles AND u.emailVerified = true")
     List<User> findVerifiedUsersByAnyRole(@Param("roles") Set<UserRole> roles);
+
+    long countByDeletedAtIsNull();
 }

@@ -33,7 +33,6 @@ class NotificationDisplayLocalizer {
             entry(BookCategoryDTO.GRAPHIC_NOVEL, "Graphic Novel", "Graphic Novel", "Р“СЂР°С„РёС‡РµСЃРєРёР№ СЂРѕРјР°РЅ"),
             entry(BookCategoryDTO.HEALTH, "Health", "Gesundheit", "Р—РґРѕСЂРѕРІСЊРµ"),
             entry(BookCategoryDTO.HISTORY, "History", "Geschichte", "РСЃС‚РѕСЂРёСЏ"),
-            entry(BookCategoryDTO.HORROR, "Horror", "Horror", "РЈР¶Р°СЃС‹"),
             entry(BookCategoryDTO.MANGA, "Manga", "Manga", "РњР°РЅРіР°"),
             entry(BookCategoryDTO.MEMOIR, "Memoir", "Memoiren", "РњРµРјСѓР°СЂС‹"),
             entry(BookCategoryDTO.MYSTERY, "Mystery", "Mystery", "Р”РµС‚РµРєС‚РёРІ"),
