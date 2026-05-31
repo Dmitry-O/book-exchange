@@ -9,6 +9,8 @@ public interface VerificationTokenService {
 
     Result<String> createToken(User user, TokenType tokenType);
 
+    Result<Void> ensureCooldownPassed(User user, TokenType tokenType);
+
     Result<VerificationToken> validateToken(String token, TokenType expectedType, String action);
 
     Result<User> deleteUserTokens(User user);

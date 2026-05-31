@@ -164,12 +164,13 @@ public class AuthServiceImpl implements AuthService {
                         return ResultFactory.error(MessageKey.AUTH_ACCOUNT_NOT_VERIFIED, HttpStatus.FORBIDDEN);
                     }
 
-                    return sendResetPasswordEmail(user)
-                            .flatMap(v -> {
-                                logAuthSuccess("FORGOT_PASSWORD", user);
+                    return verificationTokenService.ensureCooldownPassed(user, TokenType.RESET_PASSWORD)
+                            .flatMap(v -> sendResetPasswordEmail(user)
+                                    .flatMap(r -> {
+                                        logAuthSuccess("FORGOT_PASSWORD", user);
 
-                                return ResultFactory.successVoid();
-                            });
+                                        return ResultFactory.successVoid();
+                                    }));
                 })
                 .flatMap(v -> ResultFactory.okMessage(MessageKey.EMAIL_RESET_PASSWORD));
     }
@@ -204,13 +205,16 @@ public class AuthServiceImpl implements AuthService {
                         return ResultFactory.error(MessageKey.AUTH_ACCOUNT_ALREADY_VERIFIED, HttpStatus.BAD_REQUEST);
                     }
 
-                    verificationTokenService.deleteByUserAndType(user, TokenType.CONFIRM_EMAIL);
-
-                    return sendVerificationEmail(user)
+                    return verificationTokenService.ensureCooldownPassed(user, TokenType.CONFIRM_EMAIL)
                             .flatMap(v -> {
-                                logAuthSuccess("RESEND_EMAIL_CONFIRMATION", user);
+                                verificationTokenService.deleteByUserAndType(user, TokenType.CONFIRM_EMAIL);
 
-                                return ResultFactory.okMessage(MessageKey.EMAIL_VERIFY_ACCOUNT);
+                                return sendVerificationEmail(user)
+                                        .flatMap(r -> {
+                                            logAuthSuccess("RESEND_EMAIL_CONFIRMATION", user);
+
+                                            return ResultFactory.okMessage(MessageKey.EMAIL_VERIFY_ACCOUNT);
+                                        });
                             });
                 });
     }
@@ -223,12 +227,13 @@ public class AuthServiceImpl implements AuthService {
                         MessageKey.AUTH_EMAIL_NOT_FOUND
                 )
                 .flatMap(user ->
-                        sendDeleteAccountEmail(user)
-                                .flatMap(v -> {
-                                    logAuthSuccess("INITIATE_DELETE_ACCOUNT", user);
+                        verificationTokenService.ensureCooldownPassed(user, TokenType.DELETE_ACCOUNT)
+                                .flatMap(v -> sendDeleteAccountEmail(user)
+                                        .flatMap(r -> {
+                                            logAuthSuccess("INITIATE_DELETE_ACCOUNT", user);
 
-                                    return ResultFactory.okMessage(MessageKey.EMAIL_DELETE_ACCOUNT);
-                                })
+                                            return ResultFactory.okMessage(MessageKey.EMAIL_DELETE_ACCOUNT);
+                                        }))
                 );
     }
 

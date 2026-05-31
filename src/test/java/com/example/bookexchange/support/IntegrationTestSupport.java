@@ -3,6 +3,7 @@ package com.example.bookexchange.support;
 import com.example.bookexchange.common.i18n.MessageKey;
 import com.example.bookexchange.config.TestUserConfig;
 import com.example.bookexchange.security.auth.JwtService;
+import com.example.bookexchange.security.filter.RateLimitFilter;
 import com.example.bookexchange.user.model.User;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -47,6 +48,9 @@ public abstract class IntegrationTestSupport {
     @Autowired
     protected EntityManager entityManager;
 
+    @Autowired
+    protected RateLimitFilter rateLimitFilter;
+
     static MySQLContainer<?> mySQLContainer = new MySQLContainer<>("mysql:9").withReuse(true);
 
     static {
@@ -69,9 +73,15 @@ public abstract class IntegrationTestSupport {
         registry.add("spring.task.scheduling.enabled", () -> false);
         registry.add("app.search.books.enabled", () -> false);
         registry.add("app.search.books.reindex-on-startup", () -> false);
+        registry.add("app.showcase.backend-github-url", () -> "https://github.com/test/book-exchange-backend");
+        registry.add("app.showcase.frontend-github-url", () -> "https://github.com/test/book-exchange-frontend");
+        registry.add("app.showcase.linkedin-url", () -> "https://www.linkedin.com/in/test-user");
+        registry.add("app.showcase.swagger-url", () -> "http://localhost:8080/swagger-ui/index.html");
     }
 
     protected MockMvc buildMockMvc() {
+        rateLimitFilter.clearBucketsForTests();
+
         return MockMvcBuilders.webAppContextSetup(webApplicationContext)
                 .apply(SecurityMockMvcConfigurers.springSecurity())
                 .build();

@@ -20,12 +20,14 @@ import java.util.Optional;
 
 import static com.example.bookexchange.common.i18n.MessageKey.AUTH_TOKEN_EXPIRED;
 import static com.example.bookexchange.common.i18n.MessageKey.AUTH_TOKEN_NOT_VALID;
+import static com.example.bookexchange.common.i18n.MessageKey.SYSTEM_TOO_MANY_REQUESTS;
 import static com.example.bookexchange.support.unit.ResultAssertions.assertFailure;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
+import static org.springframework.http.HttpStatus.TOO_MANY_REQUESTS;
 
 @ExtendWith(MockitoExtension.class)
 class VerificationTokenServiceImplTest {
@@ -113,6 +115,34 @@ class VerificationTokenServiceImplTest {
         verificationTokenService.deleteByUserAndType(user, TokenType.CONFIRM_EMAIL);
 
         verify(verificationTokenRepository).deleteById(token.getId());
+    }
+
+    @Test
+    void shouldReturnTooManyRequests_whenCooldownHasNotElapsed() {
+        User user = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, "reader@example.com", "reader_one");
+        VerificationToken token = new VerificationToken();
+        token.setCreatedAt(Instant.now().minusSeconds(30));
+
+        when(verificationTokenRepository.findTopByUserAndTypeOrderByCreatedAtDesc(user, TokenType.RESET_PASSWORD))
+                .thenReturn(Optional.of(token));
+
+        Result<Void> result = verificationTokenService.ensureCooldownPassed(user, TokenType.RESET_PASSWORD);
+
+        assertFailure(result, SYSTEM_TOO_MANY_REQUESTS, TOO_MANY_REQUESTS);
+    }
+
+    @Test
+    void shouldAllowEmailAction_whenCooldownElapsed() {
+        User user = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, "reader@example.com", "reader_one");
+        VerificationToken token = new VerificationToken();
+        token.setCreatedAt(Instant.now().minusSeconds(90));
+
+        when(verificationTokenRepository.findTopByUserAndTypeOrderByCreatedAtDesc(user, TokenType.DELETE_ACCOUNT))
+                .thenReturn(Optional.of(token));
+
+        Result<Void> result = verificationTokenService.ensureCooldownPassed(user, TokenType.DELETE_ACCOUNT);
+
+        assertThat(result.isSuccess()).isTrue();
     }
 
     @Test

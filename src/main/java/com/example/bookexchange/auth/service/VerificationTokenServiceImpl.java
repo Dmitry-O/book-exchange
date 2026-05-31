@@ -25,6 +25,8 @@ import static java.time.temporal.ChronoUnit.MINUTES;
 @RequiredArgsConstructor
 public class VerificationTokenServiceImpl implements VerificationTokenService {
 
+    private static final long EMAIL_ACTION_COOLDOWN_SECONDS = 60L;
+
     private final VerificationTokenRepository verificationTokenRepository;
     private final AuditService auditService;
 
@@ -58,6 +60,25 @@ public class VerificationTokenServiceImpl implements VerificationTokenService {
         verificationToken.setUser(user);
 
         return ResultFactory.ok(verificationTokenRepository.save(verificationToken).getToken());
+    }
+
+    @Override
+    public Result<Void> ensureCooldownPassed(User user, TokenType tokenType) {
+        VerificationToken verificationToken = verificationTokenRepository
+                .findTopByUserAndTypeOrderByCreatedAtDesc(user, tokenType)
+                .orElse(null);
+
+        if (verificationToken == null) {
+            return ResultFactory.successVoid();
+        }
+
+        Instant createdAt = verificationToken.getCreatedAt();
+
+        if (createdAt != null && createdAt.plusSeconds(EMAIL_ACTION_COOLDOWN_SECONDS).isAfter(Instant.now())) {
+            return ResultFactory.error(MessageKey.SYSTEM_TOO_MANY_REQUESTS, HttpStatus.TOO_MANY_REQUESTS);
+        }
+
+        return ResultFactory.successVoid();
     }
 
     @Override

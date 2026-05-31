@@ -660,10 +660,20 @@ class AuthControllerIT extends IntegrationTestSupport {
                 .andExpect(status().isOk());
 
         User user = userRepository.findByEmail(userCreateDTO.getEmail()).orElseThrow();
-        String oldToken = verificationTokenRepository
+        VerificationToken oldVerificationToken = verificationTokenRepository
                 .findByUserAndType(user, TokenType.CONFIRM_EMAIL)
-                .orElseThrow()
-                .getToken();
+                .orElseThrow();
+        entityManager.createNativeQuery("""
+                        UPDATE verification_token
+                        SET created_at = :createdAt
+                        WHERE id = :id
+                        """)
+                .setParameter("createdAt", Instant.now().minusSeconds(61))
+                .setParameter("id", oldVerificationToken.getId())
+                .executeUpdate();
+        clearPersistenceContext();
+
+        String oldToken = oldVerificationToken.getToken();
 
         UserResendEmailConfirmationDTO dto = UserResendEmailConfirmationDTO.builder()
                 .email(user.getEmail())
@@ -684,6 +694,36 @@ class AuthControllerIT extends IntegrationTestSupport {
         assertThat(responseBody(mvcResult).path("success").asBoolean()).isTrue();
         assertThat(newToken).isNotBlank();
         assertThat(newToken).isNotEqualTo(oldToken);
+    }
+
+    @Test
+    void shouldReturnTooManyRequests_whenResendEmailConfirmationCooldownHasNotElapsed() throws Exception {
+        UserCreateDTO userCreateDTO = userUtil.buildUserCreateDTO(FixtureNumbers.auth(24));
+
+        mockMvc.perform(post(AuthPaths.AUTH_PATH_REGISTER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(userCreateDTO)))
+                .andExpect(status().isOk());
+
+        User user = userRepository.findByEmail(userCreateDTO.getEmail()).orElseThrow();
+        UserResendEmailConfirmationDTO dto = UserResendEmailConfirmationDTO.builder()
+                .email(user.getEmail())
+                .build();
+
+        MvcResult mvcResult = mockMvc.perform(patch(AuthPaths.AUTH_PATH_RESEND_CONFIRMATION_EMAIL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isTooManyRequests())
+                .andReturn();
+
+        assertErrorResponse(
+                responseBody(mvcResult),
+                429,
+                MessageKey.SYSTEM_TOO_MANY_REQUESTS,
+                AuthPaths.AUTH_PATH_RESEND_CONFIRMATION_EMAIL
+        );
     }
 
     @Test

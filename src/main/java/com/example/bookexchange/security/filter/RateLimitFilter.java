@@ -152,4 +152,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
         filterChain.doFilter(request, response);
     }
+
+    public void clearBucketsForTests() {
+        buckets.invalidateAll();
+    }
 }

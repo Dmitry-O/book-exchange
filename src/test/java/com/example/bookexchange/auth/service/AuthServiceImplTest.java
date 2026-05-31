@@ -36,6 +36,8 @@ import java.util.Optional;
 
 import static com.example.bookexchange.common.result.ResultFactory.ok;
 import static com.example.bookexchange.common.result.ResultFactory.okMessage;
+import static com.example.bookexchange.common.result.ResultFactory.error;
+import static com.example.bookexchange.common.result.ResultFactory.successVoid;
 import static com.example.bookexchange.support.unit.ResultAssertions.assertFailure;
 import static com.example.bookexchange.support.unit.ResultAssertions.assertSuccess;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -230,6 +232,21 @@ class AuthServiceImplTest {
     }
 
     @Test
+    void shouldReturnTooManyRequests_whenForgotPasswordIsRequestedTooSoon() {
+        UserForgotPasswordDTO dto = UnitTestDataFactory.forgotPasswordDto("reader@example.com");
+        User user = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, dto.getEmail(), "reader_one");
+
+        when(userRepository.findByEmail(dto.getEmail())).thenReturn(Optional.of(user));
+        when(verificationTokenService.ensureCooldownPassed(user, TokenType.RESET_PASSWORD))
+                .thenReturn(error(MessageKey.SYSTEM_TOO_MANY_REQUESTS, HttpStatus.TOO_MANY_REQUESTS));
+
+        Result<Void> result = authService.forgotPassword(dto);
+
+        assertFailure(result, MessageKey.SYSTEM_TOO_MANY_REQUESTS, HttpStatus.TOO_MANY_REQUESTS);
+        verify(verificationTokenService, never()).createToken(any(), any());
+    }
+
+    @Test
     void shouldReturnBadRequest_whenResendEmailConfirmationAccountIsAlreadyVerified() {
         UserResendEmailConfirmationDTO dto = UnitTestDataFactory.resendEmailConfirmationDto("reader@example.com");
         User user = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, dto.getEmail(), "reader_one");
@@ -242,11 +259,27 @@ class AuthServiceImplTest {
     }
 
     @Test
+    void shouldReturnTooManyRequests_whenResendEmailConfirmationIsRequestedTooSoon() {
+        UserResendEmailConfirmationDTO dto = UnitTestDataFactory.resendEmailConfirmationDto("reader@example.com");
+        User user = UnitTestDataFactory.unverifiedUser(UnitFixtureIds.UNVERIFIED_USER_ID, dto.getEmail(), "reader_one");
+
+        when(userRepository.findByEmail(dto.getEmail())).thenReturn(Optional.of(user));
+        when(verificationTokenService.ensureCooldownPassed(user, TokenType.CONFIRM_EMAIL))
+                .thenReturn(error(MessageKey.SYSTEM_TOO_MANY_REQUESTS, HttpStatus.TOO_MANY_REQUESTS));
+
+        Result<Void> result = authService.resendEmailConfirmation(dto);
+
+        assertFailure(result, MessageKey.SYSTEM_TOO_MANY_REQUESTS, HttpStatus.TOO_MANY_REQUESTS);
+        verify(verificationTokenService, never()).deleteByUserAndType(any(), any());
+    }
+
+    @Test
     void shouldSendDeleteEmail_whenInitiateDeleteAccountUserExists() {
         UserInitiateDeleteAccountDTO dto = UnitTestDataFactory.initiateDeleteAccountDto("reader@example.com");
         User user = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, dto.getEmail(), "reader_one");
 
         when(userRepository.findByEmail(dto.getEmail())).thenReturn(Optional.of(user));
+        when(verificationTokenService.ensureCooldownPassed(user, TokenType.DELETE_ACCOUNT)).thenReturn(successVoid());
         when(verificationTokenService.createToken(user, TokenType.DELETE_ACCOUNT)).thenReturn(ok("delete-token"));
         when(emailService.buildAndSendEmail(user, "delete-token", EmailType.DELETE_ACCOUNT))
                 .thenReturn(okMessage(MessageKey.EMAIL_DELETE_ACCOUNT));
@@ -255,6 +288,21 @@ class AuthServiceImplTest {
 
         assertSuccess(result, HttpStatus.OK, MessageKey.EMAIL_DELETE_ACCOUNT);
         verify(auditService).log(any());
+    }
+
+    @Test
+    void shouldReturnTooManyRequests_whenDeleteAccountEmailIsRequestedTooSoon() {
+        UserInitiateDeleteAccountDTO dto = UnitTestDataFactory.initiateDeleteAccountDto("reader@example.com");
+        User user = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, dto.getEmail(), "reader_one");
+
+        when(userRepository.findByEmail(dto.getEmail())).thenReturn(Optional.of(user));
+        when(verificationTokenService.ensureCooldownPassed(user, TokenType.DELETE_ACCOUNT))
+                .thenReturn(error(MessageKey.SYSTEM_TOO_MANY_REQUESTS, HttpStatus.TOO_MANY_REQUESTS));
+
+        Result<Void> result = authService.initiateDeleteAccount(dto);
+
+        assertFailure(result, MessageKey.SYSTEM_TOO_MANY_REQUESTS, HttpStatus.TOO_MANY_REQUESTS);
+        verify(verificationTokenService, never()).createToken(any(), any());
     }
 
     @Test
