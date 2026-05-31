@@ -1,0 +1,13 @@
+.git
+.idea
+.m2
+target
+build
+dist
+*.iml
+*.log
+.env
+README.md
+run-local.ps1
+run-tests.ps1
+__frontend_link
