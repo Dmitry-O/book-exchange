@@ -91,6 +91,9 @@ class SecurityIT extends IntegrationTestSupport {
         assertThat(body.path("data").path("userTypes").isArray()).isTrue();
         assertThat(body.path("data").path("roles").isArray()).isTrue();
         assertThat(body.path("data").path("bookSortFields").isArray()).isTrue();
+        assertThat(body.path("data").path("statistics").path("users").isNumber()).isTrue();
+        assertThat(body.path("data").path("statistics").path("books").isNumber()).isTrue();
+        assertThat(body.path("data").path("statistics").path("exchanges").isNumber()).isTrue();
     }
 
     @Test

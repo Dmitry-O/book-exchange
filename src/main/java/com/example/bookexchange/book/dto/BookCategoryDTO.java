@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonValue;
 import lombok.Getter;
 
 import java.util.Arrays;
+import java.util.Optional;
 
 @Getter
 public enum BookCategoryDTO {
@@ -25,7 +26,6 @@ public enum BookCategoryDTO {
     GRAPHIC_NOVEL("Graphic Novel"),
     HEALTH("Health"),
     HISTORY("History"),
-    HORROR("Horror"),
     MANGA("Manga"),
     MEMOIR("Memoir"),
     MYSTERY("Mystery"),
@@ -69,9 +69,16 @@ public enum BookCategoryDTO {
             return OTHER;
         }
 
+        return findByStorageValue(value).orElse(OTHER);
+    }
+
+    public static Optional<BookCategoryDTO> findByStorageValue(String value) {
+        if (value == null || value.isBlank()) {
+            return Optional.empty();
+        }
+
         return Arrays.stream(values())
                 .filter(category -> category.property.equalsIgnoreCase(value) || category.name().equalsIgnoreCase(value))
-                .findFirst()
-                .orElse(OTHER);
+                .findFirst();
     }
 }

@@ -46,5 +46,25 @@ public interface BookRepository extends JpaRepository<Book, Long>, JpaSpecificat
     @EntityGraph(attributePaths = "user")
     List<Book> findAllByDeletedAtBeforeAndPhotoUrlIsNotNull(Instant deletedAtBefore);
 
+    long countByDeletedAtIsNullAndIsExchangedFalse();
+
+    @Query("""
+            SELECT b.category AS category, COUNT(b.id) AS bookCount
+            FROM Book b
+            WHERE b.deletedAt IS NULL
+                AND b.isExchanged = false
+            GROUP BY b.category
+            ORDER BY COUNT(b.id) DESC, b.category ASC
+            """
+    )
+    List<BookCategoryCountView> countAvailableBooksByCategory();
+
     void deleteByUserId(Long userId);
+
+    interface BookCategoryCountView {
+
+        String getCategory();
+
+        long getBookCount();
+    }
 }
