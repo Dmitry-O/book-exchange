@@ -16,6 +16,6 @@ if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
 }
 
 docker info | Out-Null
-docker compose -f "$PSScriptRoot\compose.localmysql.yaml" up -d
+docker compose -f "$PSScriptRoot\compose.local.yaml" up -d
 
-.\mvnw.cmd spring-boot:run "-Dspring-boot.run.profiles=localmysql"
+.\mvnw.cmd spring-boot:run "-Dspring-boot.run.profiles=local"

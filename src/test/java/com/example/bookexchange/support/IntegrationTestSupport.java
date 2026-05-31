@@ -29,7 +29,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
 @Import(TestUserConfig.class)
-@ActiveProfiles("localmysql")
+@ActiveProfiles("local")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public abstract class IntegrationTestSupport {
 
