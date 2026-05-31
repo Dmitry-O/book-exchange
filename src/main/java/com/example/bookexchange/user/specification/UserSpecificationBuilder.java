@@ -33,6 +33,15 @@ public class UserSpecificationBuilder {
 
                 Join<User, UserRole> rolesJoin = root.join("roles");
                 predicate = cb.and(predicate, rolesJoin.in(requestedRoles));
+
+                if (requestedRoles.size() == 1 && requestedRoles.contains(UserRole.USER)) {
+                    predicate = cb.and(
+                            predicate,
+                            cb.isNotMember(UserRole.ADMIN, root.get("roles")),
+                            cb.isNotMember(UserRole.SUPER_ADMIN, root.get("roles"))
+                    );
+                }
+
                 query.distinct(true);
             }
 
