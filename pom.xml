@@ -28,8 +28,10 @@
     </scm>
     <properties>
         <java.version>25</java.version>
+        <argLine></argLine>
         <org.mapstruct.version>1.6.3</org.mapstruct.version>
         <aws.sdk.version>2.27.21</aws.sdk.version>
+        <jacoco.version>0.8.14</jacoco.version>
     </properties>
     <dependencyManagement>
         <dependencies>
@@ -250,8 +252,29 @@
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>properties</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>@{argLine} -javaagent:${org.mockito:mockito-core:jar}</argLine>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-failsafe-plugin</artifactId>
                 <version>3.5.2</version>
+                <configuration>
+                    <argLine>@{argLine} -javaagent:${org.mockito:mockito-core:jar}</argLine>
+                </configuration>
                 <executions>
                     <execution>
                         <goals>
@@ -264,7 +287,7 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.12</version>
+                <version>${jacoco.version}</version>
                 <executions>
                     <execution>
                         <configuration>
