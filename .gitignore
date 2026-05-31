@@ -4,6 +4,7 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 /.env
+/__frontend_link/
 
 ### STS ###
 .apt_generated
