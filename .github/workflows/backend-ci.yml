@@ -28,11 +28,37 @@ jobs:
           java-version: '25'
           cache: maven
 
-      - name: Run tests
-        run: ./mvnw -B test
+      - name: Run full test suite
+        run: ./mvnw -B verify
 
-      - name: Package application
-        run: ./mvnw -B -DskipTests package
+      - name: Print test summary
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import glob
+          import xml.etree.ElementTree as ET
+
+          def collect(pattern):
+              totals = {"tests": 0, "failures": 0, "errors": 0, "skipped": 0}
+              for path in glob.glob(pattern):
+                  root = ET.parse(path).getroot()
+                  for key in totals:
+                      totals[key] += int(root.attrib.get(key, 0))
+              return totals
+
+          surefire = collect("target/surefire-reports/TEST-*.xml")
+          failsafe = collect("target/failsafe-reports/TEST-*.xml")
+          total = {key: surefire[key] + failsafe[key] for key in surefire}
+
+          print("Test summary:")
+          print(f"Unit tests       : {surefire['tests']}")
+          print(f"Integration tests: {failsafe['tests']}")
+          print(f"Total tests      : {total['tests']}")
+          print(f"Failures         : {total['failures']}")
+          print(f"Errors           : {total['errors']}")
+          print(f"Skipped          : {total['skipped']}")
+          PY
 
       - name: Upload application jar
         uses: actions/upload-artifact@v4
