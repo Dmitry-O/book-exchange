@@ -95,7 +95,8 @@ class NotificationDispatchServiceImplTest {
                 reportMapper,
                 notificationDisplayLocalizer,
                 messageSource(),
-                appProperties()
+                appProperties(),
+                Runnable::run
         );
     }
 

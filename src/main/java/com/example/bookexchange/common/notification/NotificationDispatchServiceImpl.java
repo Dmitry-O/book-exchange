@@ -29,6 +29,7 @@ import com.example.bookexchange.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -64,6 +65,7 @@ public class NotificationDispatchServiceImpl implements NotificationDispatchServ
     private final NotificationDisplayLocalizer notificationDisplayLocalizer;
     private final MessageSource messageSource;
     private final AppProperties appProperties;
+    private final TaskExecutor notificationTaskExecutor;
 
     @Override
     public void sendExchangeCreatedNotifications(Exchange exchange) {
@@ -1164,13 +1166,26 @@ public class NotificationDispatchServiceImpl implements NotificationDispatchServ
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    sendNotificationBatch(preparedRequests);
+                    executeNotificationBatch(preparedRequests);
                 }
             });
             return;
         }
 
-        sendNotificationBatch(preparedRequests);
+        executeNotificationBatch(preparedRequests);
+    }
+
+    private void executeNotificationBatch(List<NotificationEmailRequest> requests) {
+        try {
+            notificationTaskExecutor.execute(() -> sendNotificationBatch(requests));
+        } catch (RuntimeException ex) {
+            log.warn(
+                    "Failed to schedule notification email batch. Sending synchronously. batchSize={}, reason={}",
+                    requests.size(),
+                    ex.getMessage()
+            );
+            sendNotificationBatch(requests);
+        }
     }
 
     private void sendNotificationBatch(List<NotificationEmailRequest> requests) {
