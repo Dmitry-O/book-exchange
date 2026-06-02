@@ -25,6 +25,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -48,9 +49,18 @@ public class SecurityConfig {
     @Order(0)
     public SecurityFilterChain actuatorFilterChain(HttpSecurity http) {
         return http
-                .securityMatcher("/actuator/**")
+                .securityMatcher(pathMatcher("/actuator/**", withApiBasePath("/actuator/**")))
                 .csrf(AbstractHttpConfigurer::disable)
-                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(pathMatcher(
+                                "/actuator/health",
+                                "/actuator/health/**",
+                                withApiBasePath("/actuator/health"),
+                                withApiBasePath("/actuator/health/**")
+                        )).permitAll()
+                        .anyRequest().denyAll()
+                )
                 .build();
     }
 
@@ -62,6 +72,14 @@ public class SecurityConfig {
                 .cors(Customizer.withDefaults())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(pathMatcher("/error", withApiBasePath("/error"))).permitAll()
+                        .requestMatchers(pathMatcher(
+                                "/actuator/health",
+                                "/actuator/health/**",
+                                withApiBasePath("/actuator/health"),
+                                withApiBasePath("/actuator/health/**")
+                        )).permitAll()
+                        .requestMatchers(pathMatcher("/actuator/**", withApiBasePath("/actuator/**"))).denyAll()
                         .requestMatchers(AuthPaths.AUTH_PATH + "/**").permitAll()
                         .requestMatchers(AdminPaths.ADMIN_PATH + "/**").hasRole("ADMIN")
                         .requestMatchers(BookPaths.BOOK_PATH_USER, BookPaths.BOOK_PATH_USER + "/**").authenticated()
@@ -109,5 +127,50 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    private String withApiBasePath(String path) {
+        String basePath = appProperties.getBaseApiPath();
+
+        if (basePath == null || basePath.isBlank() || "/".equals(basePath)) {
+            return path;
+        }
+
+        String normalizedBasePath = basePath.startsWith("/") ? basePath : "/" + basePath;
+
+        if (normalizedBasePath.endsWith("/")) {
+            normalizedBasePath = normalizedBasePath.substring(0, normalizedBasePath.length() - 1);
+        }
+
+        return normalizedBasePath + path;
+    }
+
+    private RequestMatcher pathMatcher(String... patterns) {
+        return request -> {
+            String path = request.getRequestURI();
+            String contextPath = request.getContextPath();
+
+            if (contextPath != null && !contextPath.isBlank() && path.startsWith(contextPath)) {
+                path = path.substring(contextPath.length());
+            }
+
+            for (String pattern : patterns) {
+                if (matchesPattern(path, pattern)) {
+                    return true;
+                }
+            }
+
+            return false;
+        };
+    }
+
+    private boolean matchesPattern(String path, String pattern) {
+        if (pattern.endsWith("/**")) {
+            String prefix = pattern.substring(0, pattern.length() - 3);
+
+            return path.equals(prefix) || path.startsWith(prefix + "/");
+        }
+
+        return path.equals(pattern);
     }
 }
