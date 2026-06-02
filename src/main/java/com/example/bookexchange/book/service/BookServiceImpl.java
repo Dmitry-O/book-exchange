@@ -268,14 +268,14 @@ public class BookServiceImpl implements BookService {
                         );
                     }
 
-                            return imageStorageService.deleteBookImage(userId, bookId)
-                                    .flatMap(v -> {
-                                        book.setPhotoUrl(null);
-                                        Book updatedBook = bookRepository.save(book);
-                                        bookSearchIndexService.scheduleUpsert(updatedBook);
-                                        logBookSuccess("BOOK_PHOTO_DELETE", userId, updatedBook);
+                    return imageStorageService.deleteBookImage(userId, bookId)
+                            .flatMap(v -> {
+                                book.setPhotoUrl(null);
+                                Book updatedBook = bookRepository.save(book);
+                                bookSearchIndexService.scheduleUpsert(updatedBook);
+                                logBookSuccess("BOOK_PHOTO_DELETE", userId, updatedBook);
 
-                                        return ResultFactory.updated(
+                                return ResultFactory.updated(
                                         bookMapper.bookToBookDto(updatedBook),
                                         MessageKey.BOOK_PHOTO_DELETED,
                                         ETagUtil.form(updatedBook)
