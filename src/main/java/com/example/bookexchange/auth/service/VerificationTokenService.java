@@ -11,6 +11,8 @@ public interface VerificationTokenService {
 
     Result<Void> ensureCooldownPassed(User user, TokenType tokenType);
 
+    Result<VerificationToken> inspectToken(String token, TokenType expectedType, String action);
+
     Result<VerificationToken> validateToken(String token, TokenType expectedType, String action);
 
     Result<User> deleteUserTokens(User user);

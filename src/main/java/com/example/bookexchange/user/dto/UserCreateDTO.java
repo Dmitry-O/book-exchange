@@ -20,10 +20,11 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class UserCreateDTO {
 
-    @Schema(example = "example@info.com")
+    @Schema(example = "example@info.com", format = "email", maxLength = 254)
     @JsonProperty("email")
     @NotBlank
-    @Email
+    @Email(message = "{validation.email.format}")
+    @Size(max = 254, message = "{validation.email.length}")
     private String email;
 
     @Schema(example = "Password-123!")

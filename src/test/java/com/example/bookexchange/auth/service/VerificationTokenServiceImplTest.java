@@ -24,6 +24,7 @@ import static com.example.bookexchange.common.i18n.MessageKey.SYSTEM_TOO_MANY_RE
 import static com.example.bookexchange.support.unit.ResultAssertions.assertFailure;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
@@ -79,6 +80,29 @@ class VerificationTokenServiceImplTest {
 
         assertFailure(result, AUTH_TOKEN_EXPIRED, BAD_REQUEST);
         verify(verificationTokenRepository).deleteById(token.getId());
+        verify(auditService).log(any());
+    }
+
+    @Test
+    void shouldNotDeleteExpiredToken_whenInspectingToken() {
+        User user = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, "reader@example.com", "reader_one");
+        VerificationToken token = new VerificationToken();
+        token.setId(UnitFixtureIds.VERIFICATION_TOKEN_ID);
+        token.setToken("expired-token");
+        token.setType(TokenType.RESET_PASSWORD);
+        token.setUser(user);
+        token.setExpiryDate(Instant.now().minusSeconds(60));
+
+        when(verificationTokenRepository.findByToken("expired-token")).thenReturn(Optional.of(token));
+
+        Result<VerificationToken> result = verificationTokenService.inspectToken(
+                "expired-token",
+                TokenType.RESET_PASSWORD,
+                "VALIDATE_VERIFICATION_TOKEN"
+        );
+
+        assertFailure(result, AUTH_TOKEN_EXPIRED, BAD_REQUEST);
+        verify(verificationTokenRepository, never()).deleteById(token.getId());
         verify(auditService).log(any());
     }
 

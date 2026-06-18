@@ -82,14 +82,30 @@ public class VerificationTokenServiceImpl implements VerificationTokenService {
     }
 
     @Override
+    public Result<VerificationToken> inspectToken(String token, TokenType expectedType, String action) {
+        return checkToken(token, expectedType, action, false);
+    }
+
+    @Override
     public Result<VerificationToken> validateToken(String token, TokenType expectedType, String action) {
+        return checkToken(token, expectedType, action, true);
+    }
+
+    private Result<VerificationToken> checkToken(
+            String token,
+            TokenType expectedType,
+            String action,
+            boolean deleteExpiredToken
+    ) {
         return ResultFactory.fromOptional(
                         verificationTokenRepository.findByToken(token),
                         MessageKey.AUTH_TOKEN_NOT_FOUND
                 )
                 .flatMap(verificationToken -> {
                     if (verificationToken.getExpiryDate().isBefore(Instant.now())) {
-                        verificationTokenRepository.deleteById(verificationToken.getId());
+                        if (deleteExpiredToken) {
+                            verificationTokenRepository.deleteById(verificationToken.getId());
+                        }
 
                         logFailure(action, verificationToken.getUser(), "AUTH_TOKEN_EXPIRED");
 

@@ -42,6 +42,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         LOGIN,
         SEARCH,
         EMAIL_FLOW,
+        TOKEN_VALIDATION,
         OTHER_AUTH
     }
 
@@ -69,6 +70,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
         return Bucket.builder().addLimit(limit).build();
     }
 
+    private Bucket createTokenValidationBucket() {
+        Bandwidth limit = Bandwidth.classic(10,
+                Refill.intervally(10, Duration.ofMinutes(1)));
+        return Bucket.builder().addLimit(limit).build();
+    }
+
     private Bucket resolveBucket(String ip, RateLimitType type) {
         String key = ip + ":" + type.name();
 
@@ -80,6 +87,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
             case LOGIN -> createLoginBucket();
             case SEARCH -> createGetBooksBucket();
             case EMAIL_FLOW -> createSendEmailAPIsBucket();
+            case TOKEN_VALIDATION -> createTokenValidationBucket();
             case OTHER_AUTH -> createOtherAPIsBucket();
         };
     }
@@ -97,6 +105,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 || path.endsWith(AuthPaths.AUTH_PATH_FORGOT_PASSWORD)
                 || path.endsWith(AuthPaths.AUTH_PATH_RESEND_CONFIRMATION_EMAIL)) {
             return RateLimitType.EMAIL_FLOW;
+        }
+
+        if (path.endsWith(AuthPaths.AUTH_PATH_VALIDATE_TOKEN)) {
+            return RateLimitType.TOKEN_VALIDATION;
         }
 
         if (path.contains(AuthPaths.AUTH_PATH + "/")) {

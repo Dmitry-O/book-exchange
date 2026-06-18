@@ -2,6 +2,8 @@ package com.example.bookexchange.auth.service;
 
 import com.example.bookexchange.auth.dto.AuthLoginRequestDTO;
 import com.example.bookexchange.auth.dto.AuthLoginResponseDTO;
+import com.example.bookexchange.auth.dto.VerificationTokenTypeDTO;
+import com.example.bookexchange.auth.dto.VerificationTokenValidationDTO;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.user.dto.*;
 
@@ -12,6 +14,8 @@ public interface AuthService {
     Result<AuthLoginResponseDTO> loginUser(AuthLoginRequestDTO requestDTO);
 
     Result<String> refreshAccessToken(String token);
+
+    Result<VerificationTokenValidationDTO> validateVerificationToken(String token, VerificationTokenTypeDTO tokenType);
 
     Result<Void> confirmRegistration(String token);
 
