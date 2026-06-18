@@ -1,3 +1,5 @@
+# Local full-stack compose: backend, frontend, MySQL, Mailpit, Elasticsearch.
+# Elastic Beanstalk demo deployment uses docker-compose.eb.template.yml.
 services:
   backend:
     container_name: book-exchange-backend
@@ -15,6 +17,7 @@ services:
       - MAIL_PASSWORD=
       - MAIL_SMTP_AUTH=false
       - MAIL_SMTP_STARTTLS_ENABLE=false
+      - APP_DEMO_EMAIL_SANDBOX_MAILPIT_API_BASE_URL=http://mailpit:8025
       - SPRING_ELASTICSEARCH_URIS=http://elasticsearch:9200
       - APP_BASE_URL=http://localhost:${BACKEND_PORT:-8080}
       - APP_FRONTEND_URL=http://localhost:${FRONTEND_PORT:-5173}
@@ -31,37 +34,36 @@ services:
         condition: service_started
       elasticsearch:
         condition: service_healthy
+    develop:
+      watch:
+        - action: rebuild
+          path: ./src
+        - action: rebuild
+          path: ./pom.xml
+        - action: rebuild
+          path: ./Dockerfile
+        - action: rebuild
+          path: ./.env
+        - action: rebuild
+          path: ./mvnw
+        - action: rebuild
+          path: ./.mvn
 
   frontend:
     container_name: book-exchange-frontend
-    build:
-      context: ${FRONTEND_CONTEXT:-../book-exchange-frontend}
-      args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:${BACKEND_PORT:-8080}/api/v1}
-      dockerfile_inline: |
-        FROM node:22-alpine AS build
-        WORKDIR /app
-        ARG VITE_API_BASE_URL
-        ENV VITE_API_BASE_URL=$$VITE_API_BASE_URL
-        COPY package*.json ./
-        RUN npm ci
-        COPY . .
-        RUN npm run build
-
-        FROM nginx:1.27-alpine
-        COPY --from=build /app/dist /usr/share/nginx/html
-        RUN printf '%s\n' \
-          'server {' \
-          '  listen 80;' \
-          '  server_name _;' \
-          '  root /usr/share/nginx/html;' \
-          '  index index.html;' \
-          '  location / {' \
-          '    try_files $$uri $$uri/ /index.html;' \
-          '  }' \
-          '}' > /etc/nginx/conf.d/default.conf
+    image: node:22-alpine
+    working_dir: /app
+    command: sh -c "npm ci && npm run dev"
+    environment:
+      - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:${BACKEND_PORT:-8080}/api/v1}
+      - VITE_DEV_HOST=0.0.0.0
+      - VITE_DEV_PORT=5173
+      - VITE_USE_POLLING=true
+    volumes:
+      - "${FRONTEND_CONTEXT:-../book-exchange-frontend}:/app"
+      - frontend_node_modules:/app/node_modules
     ports:
-      - "${FRONTEND_PORT:-5173}:80"
+      - "${FRONTEND_PORT:-5173}:5173"
     depends_on:
       backend:
         condition: service_started
@@ -88,6 +90,8 @@ services:
   mailpit:
     image: axllent/mailpit:latest
     container_name: book-exchange-mailpit
+    environment:
+      - MP_MAX_MESSAGES=${MAILPIT_MAX_MESSAGES:-500}
     ports:
       - "${MAILPIT_SMTP_PORT}:1025"
       - "${MAILPIT_WEB_PORT}:8025"
@@ -113,3 +117,4 @@ services:
 volumes:
   mysql_data:
   elasticsearch_data_v9:
+  frontend_node_modules:
