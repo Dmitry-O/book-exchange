@@ -9,6 +9,7 @@ public final class AuthPaths {
     public static final String AUTH_PATH_REGISTER = AUTH_PATH + "/register";
     public static final String AUTH_PATH_LOGIN = AUTH_PATH + "/login";
     public static final String AUTH_PATH_REFRESH_TOKEN = AUTH_PATH + "/refresh_token";
+    public static final String AUTH_PATH_VALIDATE_TOKEN = AUTH_PATH + "/validate_token";
     public static final String AUTH_PATH_CONFIRM_REGISTRATION = AUTH_PATH + "/verify";
     public static final String AUTH_PATH_FORGOT_PASSWORD = AUTH_PATH + "/forgot_password";
     public static final String AUTH_PATH_RESET_PASSWORD = AUTH_PATH + "/reset_password";

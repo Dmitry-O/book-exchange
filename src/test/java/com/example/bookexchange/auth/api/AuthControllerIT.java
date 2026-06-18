@@ -43,6 +43,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Rollback
 class AuthControllerIT extends IntegrationTestSupport {
 
+    private static final String PUBLIC_EMAIL_ACTION_RESPONSE =
+            "If an account with this email address exists and the action is available, we have sent an email to your inbox.";
+
     @Autowired
     UserRepository userRepository;
 
@@ -102,6 +105,38 @@ class AuthControllerIT extends IntegrationTestSupport {
                 .andReturn();
 
         assertValidationErrorResponse(responseBody(mvcResult), AuthPaths.AUTH_PATH_REGISTER);
+    }
+
+    @Test
+    void shouldReturnBadRequest_whenRegisterEmailFormatIsInvalid() throws Exception {
+        UserCreateDTO invalidDto = userUtil.buildUserCreateDTO(FixtureNumbers.auth(117));
+        invalidDto.setEmail("not-an-email");
+
+        MvcResult mvcResult = mockMvc.perform(post(AuthPaths.AUTH_PATH_REGISTER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(invalidDto)))
+                .andExpect(status().isBadRequest())
+                .andReturn();
+
+        assertValidationErrorResponse(responseBody(mvcResult), AuthPaths.AUTH_PATH_REGISTER);
+        assertThat(userRepository.findByEmail(invalidDto.getEmail())).isEmpty();
+    }
+
+    @Test
+    void shouldReturnBadRequest_whenRegisterEmailExceedsMaximumLength() throws Exception {
+        UserCreateDTO invalidDto = userUtil.buildUserCreateDTO(FixtureNumbers.auth(118));
+        invalidDto.setEmail("a".repeat(243) + "@example.com");
+
+        MvcResult mvcResult = mockMvc.perform(post(AuthPaths.AUTH_PATH_REGISTER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(invalidDto)))
+                .andExpect(status().isBadRequest())
+                .andReturn();
+
+        assertValidationErrorResponse(responseBody(mvcResult), AuthPaths.AUTH_PATH_REGISTER);
+        assertThat(userRepository.findByEmail(invalidDto.getEmail())).isEmpty();
     }
 
     @Test
@@ -194,7 +229,7 @@ class AuthControllerIT extends IntegrationTestSupport {
     }
 
     @Test
-    void shouldReturnNotFound_whenLoginEmailDoesNotExist() throws Exception {
+    void shouldReturnUnauthorized_whenLoginEmailDoesNotExist() throws Exception {
         MvcResult mvcResult = mockMvc.perform(post(AuthPaths.AUTH_PATH_LOGIN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .accept(MediaType.APPLICATION_JSON)
@@ -204,14 +239,14 @@ class AuthControllerIT extends IntegrationTestSupport {
                                   "password": "Password1!"
                                 }
                                 """))
-                .andExpect(status().isNotFound())
+                .andExpect(status().isUnauthorized())
                 .andReturn();
 
-        assertErrorResponse(responseBody(mvcResult), 404, MessageKey.AUTH_WRONG_EMAIL, AuthPaths.AUTH_PATH_LOGIN);
+        assertErrorResponse(responseBody(mvcResult), 401, MessageKey.AUTH_INVALID_CREDENTIALS, AuthPaths.AUTH_PATH_LOGIN);
     }
 
     @Test
-    void shouldReturnBadRequest_whenLoginPasswordIsWrong() throws Exception {
+    void shouldReturnUnauthorized_whenLoginPasswordIsWrong() throws Exception {
         int slot = FixtureNumbers.auth(6);
         UserCreateDTO userCreateDTO = userUtil.buildUserCreateDTO(slot);
         userUtil.createUser(slot);
@@ -225,10 +260,10 @@ class AuthControllerIT extends IntegrationTestSupport {
                                   "password": "WrongPassword1!"
                                 }
                                 """.formatted(userCreateDTO.getEmail())))
-                .andExpect(status().isBadRequest())
+                .andExpect(status().isUnauthorized())
                 .andReturn();
 
-        assertErrorResponse(responseBody(mvcResult), 400, MessageKey.AUTH_WRONG_PASSWORD, AuthPaths.AUTH_PATH_LOGIN);
+        assertErrorResponse(responseBody(mvcResult), 401, MessageKey.AUTH_INVALID_CREDENTIALS, AuthPaths.AUTH_PATH_LOGIN);
     }
 
     @Test
@@ -394,6 +429,79 @@ class AuthControllerIT extends IntegrationTestSupport {
     }
 
     @Test
+    void shouldReturnTokenMetadataWithoutConsumingToken_whenVerificationTokenIsValid() throws Exception {
+        int slot = FixtureNumbers.auth(101);
+        User user = userUtil.createUser(slot);
+
+        mockMvc.perform(patch(AuthPaths.AUTH_PATH_FORGOT_PASSWORD)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                UserForgotPasswordDTO.builder().email(user.getEmail()).build()
+                        )))
+                .andExpect(status().isOk());
+
+        VerificationToken verificationToken = verificationTokenRepository
+                .findByUserAndType(user, TokenType.RESET_PASSWORD)
+                .orElseThrow();
+
+        MvcResult mvcResult = mockMvc.perform(get(AuthPaths.AUTH_PATH_VALIDATE_TOKEN)
+                        .queryParam("token", verificationToken.getToken())
+                        .queryParam("tokenType", "RESET_PASSWORD")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode data = responseBody(mvcResult).path("data");
+        assertThat(data.path("tokenType").asText()).isEqualTo("RESET_PASSWORD");
+        assertThat(data.path("expiresAt").asText()).isNotBlank();
+        assertThat(verificationTokenRepository.findByToken(verificationToken.getToken())).isPresent();
+    }
+
+    @Test
+    void shouldReturnBadRequest_whenValidatedTokenIsExpired() throws Exception {
+        int slot = FixtureNumbers.auth(102);
+        String token = registerAndGetVerificationToken(slot, TokenType.CONFIRM_EMAIL);
+        expireVerificationToken(token);
+
+        MvcResult mvcResult = mockMvc.perform(get(AuthPaths.AUTH_PATH_VALIDATE_TOKEN)
+                        .queryParam("token", token)
+                        .queryParam("tokenType", "CONFIRM_EMAIL")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andReturn();
+
+        assertErrorResponse(
+                responseBody(mvcResult),
+                400,
+                MessageKey.AUTH_TOKEN_EXPIRED,
+                AuthPaths.AUTH_PATH_VALIDATE_TOKEN
+        );
+        assertThat(verificationTokenRepository.findByToken(token)).isPresent();
+    }
+
+    @Test
+    void shouldReturnBadRequest_whenValidatedTokenTypeDoesNotMatch() throws Exception {
+        int slot = FixtureNumbers.auth(103);
+        String token = registerAndGetVerificationToken(slot, TokenType.CONFIRM_EMAIL);
+
+        MvcResult mvcResult = mockMvc.perform(get(AuthPaths.AUTH_PATH_VALIDATE_TOKEN)
+                        .queryParam("token", token)
+                        .queryParam("tokenType", "RESET_PASSWORD")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andReturn();
+
+        assertErrorResponse(
+                responseBody(mvcResult),
+                400,
+                MessageKey.AUTH_TOKEN_NOT_VALID,
+                AuthPaths.AUTH_PATH_VALIDATE_TOKEN
+        );
+        assertThat(verificationTokenRepository.findByToken(token)).isPresent();
+    }
+
+    @Test
     void shouldReturnNotFound_whenConfirmationTokenDoesNotExist() throws Exception {
         MvcResult mvcResult = mockMvc.perform(get(AuthPaths.AUTH_PATH_CONFIRM_REGISTRATION)
                         .queryParam("token", "missing-confirm-token")
@@ -477,12 +585,12 @@ class AuthControllerIT extends IntegrationTestSupport {
 
         JsonNode body = responseBody(mvcResult);
 
-        assertThat(body.path("success").asBoolean()).isTrue();
+        assertPublicEmailActionResponse(body);
         assertThat(verificationTokenRepository.findByUserAndType(user, TokenType.RESET_PASSWORD)).isPresent();
     }
 
     @Test
-    void shouldReturnNotFound_whenForgotPasswordEmailDoesNotExist() throws Exception {
+    void shouldReturnNeutralResponse_whenForgotPasswordEmailDoesNotExist() throws Exception {
         UserForgotPasswordDTO dto = UserForgotPasswordDTO.builder()
                 .email("missing-forgot-password@test.com")
                 .build();
@@ -491,19 +599,14 @@ class AuthControllerIT extends IntegrationTestSupport {
                         .contentType(MediaType.APPLICATION_JSON)
                         .accept(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
-                .andExpect(status().isNotFound())
+                .andExpect(status().isOk())
                 .andReturn();
 
-        assertErrorResponse(
-                responseBody(mvcResult),
-                404,
-                MessageKey.AUTH_EMAIL_NOT_FOUND,
-                AuthPaths.AUTH_PATH_FORGOT_PASSWORD
-        );
+        assertPublicEmailActionResponse(responseBody(mvcResult));
     }
 
     @Test
-    void shouldReturnForbidden_whenForgotPasswordAccountIsNotVerified() throws Exception {
+    void shouldReturnNeutralResponse_whenForgotPasswordAccountIsNotVerified() throws Exception {
         int slot = FixtureNumbers.auth(15);
         User user = userUtil.createUser(slot, false);
         UserForgotPasswordDTO dto = UserForgotPasswordDTO.builder()
@@ -514,15 +617,11 @@ class AuthControllerIT extends IntegrationTestSupport {
                         .contentType(MediaType.APPLICATION_JSON)
                         .accept(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
-                .andExpect(status().isForbidden())
+                .andExpect(status().isOk())
                 .andReturn();
 
-        assertErrorResponse(
-                responseBody(mvcResult),
-                403,
-                MessageKey.AUTH_ACCOUNT_NOT_VERIFIED,
-                AuthPaths.AUTH_PATH_FORGOT_PASSWORD
-        );
+        assertPublicEmailActionResponse(responseBody(mvcResult));
+        assertThat(verificationTokenRepository.findByUserAndType(user, TokenType.RESET_PASSWORD)).isEmpty();
     }
 
     @Test
@@ -565,6 +664,49 @@ class AuthControllerIT extends IntegrationTestSupport {
     }
 
     @Test
+    void shouldRejectSamePasswordAndKeepResetToken_whenResetTokenIsValid() throws Exception {
+        User user = userUtil.createUser(FixtureNumbers.auth(116));
+
+        mockMvc.perform(patch(AuthPaths.AUTH_PATH_FORGOT_PASSWORD)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                UserForgotPasswordDTO.builder().email(user.getEmail()).build()
+                        )))
+                .andExpect(status().isOk());
+
+        String token = verificationTokenRepository
+                .findByUserAndType(user, TokenType.RESET_PASSWORD)
+                .orElseThrow()
+                .getToken();
+
+        UserResetForgottenPasswordDTO dto = UserResetForgottenPasswordDTO.builder()
+                .newPassword("Password1!")
+                .build();
+
+        MvcResult mvcResult = mockMvc.perform(patch(AuthPaths.AUTH_PATH_RESET_PASSWORD)
+                        .queryParam("token", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest())
+                .andReturn();
+
+        clearPersistenceContext();
+
+        User unchangedUser = userRepository.findById(user.getId()).orElseThrow();
+
+        assertErrorResponse(
+                responseBody(mvcResult),
+                400,
+                MessageKey.AUTH_SAME_PASSWORDS,
+                AuthPaths.AUTH_PATH_RESET_PASSWORD
+        );
+        assertThat(passwordEncoder.matches("Password1!", unchangedUser.getPassword())).isTrue();
+        assertThat(verificationTokenRepository.findByToken(token)).isPresent();
+    }
+
+    @Test
     void shouldReturnNotFound_whenResetTokenDoesNotExist() throws Exception {
         UserResetForgottenPasswordDTO dto = UserResetForgottenPasswordDTO.builder()
                 .newPassword("NewPassword1!")
@@ -578,12 +720,17 @@ class AuthControllerIT extends IntegrationTestSupport {
                 .andExpect(status().isNotFound())
                 .andReturn();
 
+        JsonNode body = responseBody(mvcResult);
+
         assertErrorResponse(
-                responseBody(mvcResult),
+                body,
                 404,
                 MessageKey.AUTH_TOKEN_NOT_FOUND,
                 AuthPaths.AUTH_PATH_RESET_PASSWORD
         );
+        assertThat(body.path("error").path("message").asText())
+                .containsIgnoringCase("link")
+                .containsIgnoringCase("request");
     }
 
     @Test
@@ -691,13 +838,13 @@ class AuthControllerIT extends IntegrationTestSupport {
                 .orElseThrow()
                 .getToken();
 
-        assertThat(responseBody(mvcResult).path("success").asBoolean()).isTrue();
+        assertPublicEmailActionResponse(responseBody(mvcResult));
         assertThat(newToken).isNotBlank();
         assertThat(newToken).isNotEqualTo(oldToken);
     }
 
     @Test
-    void shouldReturnTooManyRequests_whenResendEmailConfirmationCooldownHasNotElapsed() throws Exception {
+    void shouldReturnNeutralResponse_whenResendEmailConfirmationCooldownHasNotElapsed() throws Exception {
         UserCreateDTO userCreateDTO = userUtil.buildUserCreateDTO(FixtureNumbers.auth(24));
 
         mockMvc.perform(post(AuthPaths.AUTH_PATH_REGISTER)
@@ -715,19 +862,15 @@ class AuthControllerIT extends IntegrationTestSupport {
                         .contentType(MediaType.APPLICATION_JSON)
                         .accept(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
-                .andExpect(status().isTooManyRequests())
+                .andExpect(status().isOk())
                 .andReturn();
 
-        assertErrorResponse(
-                responseBody(mvcResult),
-                429,
-                MessageKey.SYSTEM_TOO_MANY_REQUESTS,
-                AuthPaths.AUTH_PATH_RESEND_CONFIRMATION_EMAIL
-        );
+        assertPublicEmailActionResponse(responseBody(mvcResult));
+        assertThat(verificationTokenRepository.findByUserAndType(user, TokenType.CONFIRM_EMAIL)).isPresent();
     }
 
     @Test
-    void shouldReturnBadRequest_whenResendEmailConfirmationAccountIsAlreadyVerified() throws Exception {
+    void shouldReturnNeutralResponse_whenResendEmailConfirmationAccountIsAlreadyVerified() throws Exception {
         int slot = FixtureNumbers.auth(20);
         User user = userUtil.createUser(slot);
         UserResendEmailConfirmationDTO dto = UserResendEmailConfirmationDTO.builder()
@@ -738,19 +881,15 @@ class AuthControllerIT extends IntegrationTestSupport {
                         .contentType(MediaType.APPLICATION_JSON)
                         .accept(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
-                .andExpect(status().isBadRequest())
+                .andExpect(status().isOk())
                 .andReturn();
 
-        assertErrorResponse(
-                responseBody(mvcResult),
-                400,
-                MessageKey.AUTH_ACCOUNT_ALREADY_VERIFIED,
-                AuthPaths.AUTH_PATH_RESEND_CONFIRMATION_EMAIL
-        );
+        assertPublicEmailActionResponse(responseBody(mvcResult));
+        assertThat(verificationTokenRepository.findByUserAndType(user, TokenType.CONFIRM_EMAIL)).isEmpty();
     }
 
     @Test
-    void shouldReturnNotFound_whenResendEmailConfirmationEmailDoesNotExist() throws Exception {
+    void shouldReturnNeutralResponse_whenResendEmailConfirmationEmailDoesNotExist() throws Exception {
         UserResendEmailConfirmationDTO dto = UserResendEmailConfirmationDTO.builder()
                 .email("missing-resend@test.com")
                 .build();
@@ -759,15 +898,10 @@ class AuthControllerIT extends IntegrationTestSupport {
                         .contentType(MediaType.APPLICATION_JSON)
                         .accept(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
-                .andExpect(status().isNotFound())
+                .andExpect(status().isOk())
                 .andReturn();
 
-        assertErrorResponse(
-                responseBody(mvcResult),
-                404,
-                MessageKey.AUTH_EMAIL_NOT_FOUND,
-                AuthPaths.AUTH_PATH_RESEND_CONFIRMATION_EMAIL
-        );
+        assertPublicEmailActionResponse(responseBody(mvcResult));
     }
 
     @Test
@@ -784,12 +918,12 @@ class AuthControllerIT extends IntegrationTestSupport {
                 .andExpect(status().isOk())
                 .andReturn();
 
-        assertThat(responseBody(mvcResult).path("success").asBoolean()).isTrue();
+        assertPublicEmailActionResponse(responseBody(mvcResult));
         assertThat(verificationTokenRepository.findByUserAndType(user, TokenType.DELETE_ACCOUNT)).isPresent();
     }
 
     @Test
-    void shouldReturnNotFound_whenInitiateDeleteAccountEmailDoesNotExist() throws Exception {
+    void shouldReturnNeutralResponse_whenInitiateDeleteAccountEmailDoesNotExist() throws Exception {
         UserInitiateDeleteAccountDTO dto = UserInitiateDeleteAccountDTO.builder()
                 .email("missing-delete-account@test.com")
                 .build();
@@ -798,15 +932,10 @@ class AuthControllerIT extends IntegrationTestSupport {
                         .contentType(MediaType.APPLICATION_JSON)
                         .accept(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
-                .andExpect(status().isNotFound())
+                .andExpect(status().isOk())
                 .andReturn();
 
-        assertErrorResponse(
-                responseBody(mvcResult),
-                404,
-                MessageKey.AUTH_EMAIL_NOT_FOUND,
-                AuthPaths.AUTH_PATH_INITIATE_DELETE_ACCOUNT
-        );
+        assertPublicEmailActionResponse(responseBody(mvcResult));
     }
 
     @Test
@@ -938,5 +1067,12 @@ class AuthControllerIT extends IntegrationTestSupport {
         verificationTokenRepository.save(verificationToken);
 
         clearPersistenceContext();
+    }
+
+    private void assertPublicEmailActionResponse(JsonNode body) {
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(body.path("data").isNull()).isTrue();
+        assertThat(body.path("message").asText()).isEqualTo(PUBLIC_EMAIL_ACTION_RESPONSE);
+        assertThat(body.path("error").isNull()).isTrue();
     }
 }

@@ -2,6 +2,8 @@ package com.example.bookexchange.auth.service;
 
 import com.example.bookexchange.auth.dto.AuthLoginRequestDTO;
 import com.example.bookexchange.auth.dto.AuthLoginResponseDTO;
+import com.example.bookexchange.auth.dto.VerificationTokenTypeDTO;
+import com.example.bookexchange.auth.dto.VerificationTokenValidationDTO;
 import com.example.bookexchange.auth.model.TokenType;
 import com.example.bookexchange.auth.model.VerificationToken;
 import com.example.bookexchange.common.audit.service.AuditService;
@@ -42,6 +44,8 @@ import static com.example.bookexchange.support.unit.ResultAssertions.assertFailu
 import static com.example.bookexchange.support.unit.ResultAssertions.assertSuccess;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -135,7 +139,7 @@ class AuthServiceImplTest {
     }
 
     @Test
-    void shouldReturnBadRequest_whenLoginPasswordIsWrong() {
+    void shouldReturnUnauthorized_whenLoginPasswordIsWrong() {
         AuthLoginRequestDTO request = UnitTestDataFactory.loginRequest("reader@example.com", "wrong-password");
         User user = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, request.getEmail(), "reader_one");
 
@@ -144,7 +148,21 @@ class AuthServiceImplTest {
 
         Result<AuthLoginResponseDTO> result = authService.loginUser(request);
 
-        assertFailure(result, MessageKey.AUTH_WRONG_PASSWORD, HttpStatus.BAD_REQUEST);
+        assertFailure(result, MessageKey.AUTH_INVALID_CREDENTIALS, HttpStatus.UNAUTHORIZED);
+        verify(jwtService, never()).generateToken(any());
+        verify(refreshTokenService, never()).createToken(any());
+        verify(auditService).log(any());
+    }
+
+    @Test
+    void shouldReturnSameUnauthorizedErrorAndPerformDummyPasswordCheck_whenLoginEmailDoesNotExist() {
+        AuthLoginRequestDTO request = UnitTestDataFactory.loginRequest("missing@example.com", "wrong-password");
+        when(userRepository.findByEmail(request.getEmail())).thenReturn(Optional.empty());
+
+        Result<AuthLoginResponseDTO> result = authService.loginUser(request);
+
+        assertFailure(result, MessageKey.AUTH_INVALID_CREDENTIALS, HttpStatus.UNAUTHORIZED);
+        verify(passwordEncoder).matches(eq(request.getPassword()), anyString());
         verify(jwtService, never()).generateToken(any());
         verify(refreshTokenService, never()).createToken(any());
         verify(auditService).log(any());
@@ -202,6 +220,29 @@ class AuthServiceImplTest {
     }
 
     @Test
+    void shouldReturnTokenMetadataWithoutConsumingToken_whenVerificationTokenIsValid() {
+        Instant expiresAt = Instant.now().plusSeconds(600);
+        VerificationToken verificationToken = new VerificationToken();
+        verificationToken.setExpiryDate(expiresAt);
+
+        when(verificationTokenService.inspectToken(
+                "reset-token",
+                TokenType.RESET_PASSWORD,
+                "VALIDATE_VERIFICATION_TOKEN"
+        )).thenReturn(ok(verificationToken));
+
+        Result<VerificationTokenValidationDTO> result = authService.validateVerificationToken(
+                "reset-token",
+                VerificationTokenTypeDTO.RESET_PASSWORD
+        );
+
+        VerificationTokenValidationDTO dto = assertSuccess(result, HttpStatus.OK).body();
+        assertThat(dto.tokenType()).isEqualTo(VerificationTokenTypeDTO.RESET_PASSWORD);
+        assertThat(dto.expiresAt()).isEqualTo(expiresAt);
+        verify(verificationTokenService, never()).deleteToken(any());
+    }
+
+    @Test
     void shouldMarkUserVerifiedAndDeleteToken_whenConfirmRegistrationTokenIsValid() {
         User user = UnitTestDataFactory.unverifiedUser(UnitFixtureIds.UNVERIFIED_USER_ID, "reader@example.com", "reader_one");
         VerificationToken verificationToken = new VerificationToken();
@@ -219,7 +260,24 @@ class AuthServiceImplTest {
     }
 
     @Test
-    void shouldReturnForbidden_whenForgotPasswordAccountIsNotVerified() {
+    void shouldSendResetPasswordEmailAndReturnNeutralResponse_whenAccountIsEligible() {
+        UserForgotPasswordDTO dto = UnitTestDataFactory.forgotPasswordDto("reader@example.com");
+        User user = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, dto.getEmail(), "reader_one");
+
+        when(userRepository.findByEmail(dto.getEmail())).thenReturn(Optional.of(user));
+        when(verificationTokenService.ensureCooldownPassed(user, TokenType.RESET_PASSWORD)).thenReturn(successVoid());
+        when(verificationTokenService.createToken(user, TokenType.RESET_PASSWORD)).thenReturn(ok("reset-token"));
+        when(emailService.buildAndSendEmail(user, "reset-token", EmailType.RESET_PASSWORD)).thenReturn(successVoid());
+
+        Result<Void> result = authService.forgotPassword(dto);
+
+        assertSuccess(result, HttpStatus.OK, MessageKey.EMAIL_PUBLIC_ACTION_REQUESTED);
+        verify(emailService).buildAndSendEmail(user, "reset-token", EmailType.RESET_PASSWORD);
+        verify(auditService).log(any());
+    }
+
+    @Test
+    void shouldReturnNeutralResponse_whenForgotPasswordAccountIsNotVerified() {
         UserForgotPasswordDTO dto = UnitTestDataFactory.forgotPasswordDto("reader@example.com");
         User user = UnitTestDataFactory.unverifiedUser(UnitFixtureIds.UNVERIFIED_USER_ID, dto.getEmail(), "reader_one");
 
@@ -227,12 +285,23 @@ class AuthServiceImplTest {
 
         Result<Void> result = authService.forgotPassword(dto);
 
-        assertFailure(result, MessageKey.AUTH_ACCOUNT_NOT_VERIFIED, HttpStatus.FORBIDDEN);
+        assertSuccess(result, HttpStatus.OK, MessageKey.EMAIL_PUBLIC_ACTION_REQUESTED);
         verify(verificationTokenService, never()).createToken(any(), any());
     }
 
     @Test
-    void shouldReturnTooManyRequests_whenForgotPasswordIsRequestedTooSoon() {
+    void shouldReturnNeutralResponse_whenForgotPasswordAccountDoesNotExist() {
+        UserForgotPasswordDTO dto = UnitTestDataFactory.forgotPasswordDto("missing@example.com");
+        when(userRepository.findByEmail(dto.getEmail())).thenReturn(Optional.empty());
+
+        Result<Void> result = authService.forgotPassword(dto);
+
+        assertSuccess(result, HttpStatus.OK, MessageKey.EMAIL_PUBLIC_ACTION_REQUESTED);
+        verify(verificationTokenService, never()).createToken(any(), any());
+    }
+
+    @Test
+    void shouldReturnNeutralResponse_whenForgotPasswordIsRequestedTooSoon() {
         UserForgotPasswordDTO dto = UnitTestDataFactory.forgotPasswordDto("reader@example.com");
         User user = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, dto.getEmail(), "reader_one");
 
@@ -242,12 +311,29 @@ class AuthServiceImplTest {
 
         Result<Void> result = authService.forgotPassword(dto);
 
-        assertFailure(result, MessageKey.SYSTEM_TOO_MANY_REQUESTS, HttpStatus.TOO_MANY_REQUESTS);
+        assertSuccess(result, HttpStatus.OK, MessageKey.EMAIL_PUBLIC_ACTION_REQUESTED);
         verify(verificationTokenService, never()).createToken(any(), any());
     }
 
     @Test
-    void shouldReturnBadRequest_whenResendEmailConfirmationAccountIsAlreadyVerified() {
+    void shouldReturnNeutralResponse_whenResetPasswordEmailCannotBeSent() {
+        UserForgotPasswordDTO dto = UnitTestDataFactory.forgotPasswordDto("reader@example.com");
+        User user = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, dto.getEmail(), "reader_one");
+
+        when(userRepository.findByEmail(dto.getEmail())).thenReturn(Optional.of(user));
+        when(verificationTokenService.ensureCooldownPassed(user, TokenType.RESET_PASSWORD)).thenReturn(successVoid());
+        when(verificationTokenService.createToken(user, TokenType.RESET_PASSWORD)).thenReturn(ok("reset-token"));
+        when(emailService.buildAndSendEmail(user, "reset-token", EmailType.RESET_PASSWORD))
+                .thenReturn(error(MessageKey.SYSTEM_UNEXPECTED_ERROR, HttpStatus.INTERNAL_SERVER_ERROR));
+
+        Result<Void> result = authService.forgotPassword(dto);
+
+        assertSuccess(result, HttpStatus.OK, MessageKey.EMAIL_PUBLIC_ACTION_REQUESTED);
+        verify(auditService, never()).log(any());
+    }
+
+    @Test
+    void shouldReturnNeutralResponse_whenResendEmailConfirmationAccountIsAlreadyVerified() {
         UserResendEmailConfirmationDTO dto = UnitTestDataFactory.resendEmailConfirmationDto("reader@example.com");
         User user = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, dto.getEmail(), "reader_one");
 
@@ -255,11 +341,12 @@ class AuthServiceImplTest {
 
         Result<Void> result = authService.resendEmailConfirmation(dto);
 
-        assertFailure(result, MessageKey.AUTH_ACCOUNT_ALREADY_VERIFIED, HttpStatus.BAD_REQUEST);
+        assertSuccess(result, HttpStatus.OK, MessageKey.EMAIL_PUBLIC_ACTION_REQUESTED);
+        verify(verificationTokenService, never()).createToken(any(), any());
     }
 
     @Test
-    void shouldReturnTooManyRequests_whenResendEmailConfirmationIsRequestedTooSoon() {
+    void shouldReturnNeutralResponse_whenResendEmailConfirmationIsRequestedTooSoon() {
         UserResendEmailConfirmationDTO dto = UnitTestDataFactory.resendEmailConfirmationDto("reader@example.com");
         User user = UnitTestDataFactory.unverifiedUser(UnitFixtureIds.UNVERIFIED_USER_ID, dto.getEmail(), "reader_one");
 
@@ -269,8 +356,37 @@ class AuthServiceImplTest {
 
         Result<Void> result = authService.resendEmailConfirmation(dto);
 
-        assertFailure(result, MessageKey.SYSTEM_TOO_MANY_REQUESTS, HttpStatus.TOO_MANY_REQUESTS);
+        assertSuccess(result, HttpStatus.OK, MessageKey.EMAIL_PUBLIC_ACTION_REQUESTED);
         verify(verificationTokenService, never()).deleteByUserAndType(any(), any());
+    }
+
+    @Test
+    void shouldReturnNeutralResponse_whenResendEmailConfirmationAccountDoesNotExist() {
+        UserResendEmailConfirmationDTO dto = UnitTestDataFactory.resendEmailConfirmationDto("missing@example.com");
+        when(userRepository.findByEmail(dto.getEmail())).thenReturn(Optional.empty());
+
+        Result<Void> result = authService.resendEmailConfirmation(dto);
+
+        assertSuccess(result, HttpStatus.OK, MessageKey.EMAIL_PUBLIC_ACTION_REQUESTED);
+        verify(verificationTokenService, never()).createToken(any(), any());
+    }
+
+    @Test
+    void shouldResendConfirmationEmailAndReturnNeutralResponse_whenAccountIsEligible() {
+        UserResendEmailConfirmationDTO dto = UnitTestDataFactory.resendEmailConfirmationDto("reader@example.com");
+        User user = UnitTestDataFactory.unverifiedUser(UnitFixtureIds.UNVERIFIED_USER_ID, dto.getEmail(), "reader_one");
+
+        when(userRepository.findByEmail(dto.getEmail())).thenReturn(Optional.of(user));
+        when(verificationTokenService.ensureCooldownPassed(user, TokenType.CONFIRM_EMAIL)).thenReturn(successVoid());
+        when(verificationTokenService.createToken(user, TokenType.CONFIRM_EMAIL)).thenReturn(ok("confirm-token"));
+        when(emailService.buildAndSendEmail(user, "confirm-token", EmailType.CONFIRM_EMAIL)).thenReturn(successVoid());
+
+        Result<Void> result = authService.resendEmailConfirmation(dto);
+
+        assertSuccess(result, HttpStatus.OK, MessageKey.EMAIL_PUBLIC_ACTION_REQUESTED);
+        verify(verificationTokenService).deleteByUserAndType(user, TokenType.CONFIRM_EMAIL);
+        verify(emailService).buildAndSendEmail(user, "confirm-token", EmailType.CONFIRM_EMAIL);
+        verify(auditService).log(any());
     }
 
     @Test
@@ -286,12 +402,12 @@ class AuthServiceImplTest {
 
         Result<Void> result = authService.initiateDeleteAccount(dto);
 
-        assertSuccess(result, HttpStatus.OK, MessageKey.EMAIL_DELETE_ACCOUNT);
+        assertSuccess(result, HttpStatus.OK, MessageKey.EMAIL_PUBLIC_ACTION_REQUESTED);
         verify(auditService).log(any());
     }
 
     @Test
-    void shouldReturnTooManyRequests_whenDeleteAccountEmailIsRequestedTooSoon() {
+    void shouldReturnNeutralResponse_whenDeleteAccountEmailIsRequestedTooSoon() {
         UserInitiateDeleteAccountDTO dto = UnitTestDataFactory.initiateDeleteAccountDto("reader@example.com");
         User user = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, dto.getEmail(), "reader_one");
 
@@ -301,7 +417,18 @@ class AuthServiceImplTest {
 
         Result<Void> result = authService.initiateDeleteAccount(dto);
 
-        assertFailure(result, MessageKey.SYSTEM_TOO_MANY_REQUESTS, HttpStatus.TOO_MANY_REQUESTS);
+        assertSuccess(result, HttpStatus.OK, MessageKey.EMAIL_PUBLIC_ACTION_REQUESTED);
+        verify(verificationTokenService, never()).createToken(any(), any());
+    }
+
+    @Test
+    void shouldReturnNeutralResponse_whenDeleteAccountEmailDoesNotExist() {
+        UserInitiateDeleteAccountDTO dto = UnitTestDataFactory.initiateDeleteAccountDto("missing@example.com");
+        when(userRepository.findByEmail(dto.getEmail())).thenReturn(Optional.empty());
+
+        Result<Void> result = authService.initiateDeleteAccount(dto);
+
+        assertSuccess(result, HttpStatus.OK, MessageKey.EMAIL_PUBLIC_ACTION_REQUESTED);
         verify(verificationTokenService, never()).createToken(any(), any());
     }
 
@@ -342,5 +469,26 @@ class AuthServiceImplTest {
         assertThat(user.getPassword()).isEqualTo("new-encoded-password");
         verify(verificationTokenService).deleteToken(verificationToken);
         verify(notificationDispatchService).sendPasswordChangedNotification(user);
+    }
+
+    @Test
+    void shouldRejectSamePasswordAndKeepToken_whenForgottenPasswordIsReset() {
+        User user = UnitTestDataFactory.user(UnitFixtureIds.VERIFIED_USER_ID, "reader@example.com", "reader_one");
+        VerificationToken verificationToken = new VerificationToken();
+        verificationToken.setUser(user);
+        UserResetForgottenPasswordDTO dto = UserResetForgottenPasswordDTO.builder()
+                .newPassword("Password-123")
+                .build();
+
+        when(verificationTokenService.validateToken("reset-token", TokenType.RESET_PASSWORD, "RESET_FORGOTTEN_PASSWORD"))
+                .thenReturn(ok(verificationToken));
+        when(passwordEncoder.matches(dto.getNewPassword(), user.getPassword())).thenReturn(true);
+
+        Result<Void> result = authService.resetForgottenPassword("reset-token", dto);
+
+        assertFailure(result, MessageKey.AUTH_SAME_PASSWORDS, HttpStatus.BAD_REQUEST);
+        verify(userRepository, never()).save(any(User.class));
+        verify(verificationTokenService, never()).deleteToken(any());
+        verify(notificationDispatchService, never()).sendPasswordChangedNotification(any());
     }
 }

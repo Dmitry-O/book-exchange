@@ -3,6 +3,8 @@ package com.example.bookexchange.auth.api;
 import com.example.bookexchange.auth.dto.AuthLoginRequestDTO;
 import com.example.bookexchange.auth.dto.AuthLoginResponseDTO;
 import com.example.bookexchange.auth.dto.AuthRefreshTokenDTO;
+import com.example.bookexchange.auth.dto.VerificationTokenTypeDTO;
+import com.example.bookexchange.auth.dto.VerificationTokenValidationDTO;
 import com.example.bookexchange.auth.service.AuthService;
 import com.example.bookexchange.common.swagger.error_response.BadRequestErrorResponse;
 import com.example.bookexchange.common.swagger.error_response.ConflictErrorResponse;
@@ -17,6 +19,8 @@ import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -25,6 +29,7 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "Authentication")
 @RestController
 @AllArgsConstructor
+@Validated
 public class AuthController {
 
     private final AuthService authService;
@@ -66,7 +71,29 @@ public class AuthController {
 
     @BadRequestErrorResponse
     @ForbiddenErrorResponse
-    @NotFoundErrorResponse
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "401",
+            description = "Invalid email address or password",
+            content = @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ApiResponse.class),
+                    examples = @ExampleObject(
+                            value = """
+                                        {
+                                          "success": false,
+                                          "data": null,
+                                          "message": null,
+                                          "error": {
+                                            "status": 401,
+                                            "error": "AUTH_INVALID_CREDENTIALS",
+                                            "message": "Incorrect email address or password",
+                                            "path": "/api/v1/auth/login"
+                                          }
+                                        }
+                                """
+                    )
+            )
+    )
     @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
             description = "User has been logged in",
@@ -138,6 +165,29 @@ public class AuthController {
     @NotFoundErrorResponse
     @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
+            description = "Verification token is valid for the requested action",
+            content = @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = VerificationTokenValidationDTO.class)
+            )
+    )
+    @GetMapping(AuthPaths.AUTH_PATH_VALIDATE_TOKEN)
+    public ResponseEntity<?> validateVerificationToken(
+            @Parameter(description = "Verification token from the email action link")
+            @RequestParam @NotBlank @Size(max = 128) String token,
+
+            @Parameter(description = "Action for which the token must be valid")
+            @RequestParam VerificationTokenTypeDTO tokenType,
+
+            HttpServletRequest request
+    ) {
+        return responseMapper.map(authService.validateVerificationToken(token, tokenType), request);
+    }
+
+    @BadRequestErrorResponse
+    @NotFoundErrorResponse
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "200",
             description = "User's email address has been confirmed",
             content = @Content(
                     mediaType = "application/json",
@@ -147,7 +197,7 @@ public class AuthController {
                                         {
                                           "success": true,
                                           "data": null,
-                                          "message": "The registration process has been fully completed",
+                                          "message": "Your email address has been confirmed. Welcome to Book Exchange!",
                                           "error": null
                                         }
                                 """
@@ -164,11 +214,10 @@ public class AuthController {
         return responseMapper.map(authService.confirmRegistration(token), request);
     }
 
-    @ForbiddenErrorResponse
-    @NotFoundErrorResponse
+    @BadRequestErrorResponse
     @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
-            description = "An E-Mail has been sent to reset user's password",
+            description = "Returns the same neutral response regardless of account existence or eligibility",
             content = @Content(
                     mediaType = "application/json",
                     schema = @Schema(implementation = ApiResponse.class),
@@ -177,7 +226,7 @@ public class AuthController {
                                         {
                                           "success": true,
                                           "data": null,
-                                          "message": "We have sent you instructions on how to reset your password to your email address",
+                                          "message": "If an account with this email address exists and the action is available, we have sent an email to your inbox.",
                                           "error": null
                                         }
                                 """
@@ -234,10 +283,9 @@ public class AuthController {
     }
 
     @BadRequestErrorResponse
-    @NotFoundErrorResponse
     @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
-            description = "An additional confirmation has been sent to verify the E-Mail address",
+            description = "Returns the same neutral response regardless of account existence or eligibility",
             content = @Content(
                     mediaType = "application/json",
                     schema = @Schema(implementation = ApiResponse.class),
@@ -246,7 +294,7 @@ public class AuthController {
                                         {
                                           "success": true,
                                           "data": null,
-                                          "message": "We have emailed you because you first need to confirm your email address. Please check your inbox and follow the instructions.",
+                                          "message": "If an account with this email address exists and the action is available, we have sent an email to your inbox.",
                                           "error": null
                                         }
                                 """
@@ -266,10 +314,10 @@ public class AuthController {
         return responseMapper.map(authService.resendEmailConfirmation(dto), request);
     }
 
-    @NotFoundErrorResponse
+    @BadRequestErrorResponse
     @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
-            description = "An E-Mail has been sent to delete user's account",
+            description = "Returns the same neutral response regardless of account existence or eligibility",
             content = @Content(
                     mediaType = "application/json",
                     schema = @Schema(implementation = ApiResponse.class),
@@ -278,7 +326,7 @@ public class AuthController {
                                         {
                                           "success": true,
                                           "data": null,
-                                          "message": "We have sent instructions on how to delete your account to your email address",
+                                          "message": "If an account with this email address exists and the action is available, we have sent an email to your inbox.",
                                           "error": null
                                         }
                                 """

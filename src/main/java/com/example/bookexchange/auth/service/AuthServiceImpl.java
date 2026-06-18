@@ -2,6 +2,8 @@ package com.example.bookexchange.auth.service;
 
 import com.example.bookexchange.auth.dto.AuthLoginRequestDTO;
 import com.example.bookexchange.auth.dto.AuthLoginResponseDTO;
+import com.example.bookexchange.auth.dto.VerificationTokenTypeDTO;
+import com.example.bookexchange.auth.dto.VerificationTokenValidationDTO;
 import com.example.bookexchange.auth.model.TokenType;
 import com.example.bookexchange.common.audit.model.AuditEvent;
 import com.example.bookexchange.common.audit.model.AuditResult;
@@ -31,6 +33,9 @@ import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
+
+    private static final String DUMMY_PASSWORD_HASH =
+            "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
 
     private final UserService userService;
     private final UserRepository userRepository;
@@ -77,51 +82,56 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     @Override
     public Result<AuthLoginResponseDTO> loginUser(AuthLoginRequestDTO requestDTO) {
-        return ResultFactory.fromOptional(
-                        userRepository.findByEmail(requestDTO.getEmail()),
-                        MessageKey.AUTH_WRONG_EMAIL
-                )
-                .flatMap(user -> {
-                    if (!passwordEncoder.matches(requestDTO.getPassword(), user.getPassword())) {
-                        logAuthFailure("AUTH_LOGIN", user, "AUTH_WRONG_PASSWORD");
+        Optional<User> userOptional = userRepository.findByEmail(requestDTO.getEmail());
 
-                        return ResultFactory.error(MessageKey.AUTH_WRONG_PASSWORD, HttpStatus.BAD_REQUEST);
-                    }
+        if (userOptional.isEmpty()) {
+            // Keep the missing-user path close to the password-mismatch path to reduce timing-based enumeration.
+            passwordEncoder.matches(requestDTO.getPassword(), DUMMY_PASSWORD_HASH);
+            logAuthFailure("AUTH_LOGIN", requestDTO.getEmail(), "AUTH_UNKNOWN_EMAIL");
+            return ResultFactory.error(MessageKey.AUTH_INVALID_CREDENTIALS, HttpStatus.UNAUTHORIZED);
+        }
 
-                    if (!user.isEmailVerified()) {
-                        verificationTokenService.deleteByUserAndType(user, TokenType.CONFIRM_EMAIL);
+        User user = userOptional.get();
 
-                        return ResultFactory.error(MessageKey.AUTH_ACCOUNT_NOT_VERIFIED, HttpStatus.FORBIDDEN);
-                    }
+        if (!passwordEncoder.matches(requestDTO.getPassword(), user.getPassword())) {
+            logAuthFailure("AUTH_LOGIN", user, "AUTH_WRONG_PASSWORD");
 
-                    Instant bannedUntil = user.getBannedUntil();
-                    String banReason = user.getBanReason() != null ? user.getBanReason() : null;
+            return ResultFactory.error(MessageKey.AUTH_INVALID_CREDENTIALS, HttpStatus.UNAUTHORIZED);
+        }
 
-                    if (user.isBannedPermanently()) {
-                        logAuthFailure("AUTH_LOGIN", user, "AUTH_PERMANENTLY_BANNED", "banReason", banReason);
+        if (!user.isEmailVerified()) {
+            verificationTokenService.deleteByUserAndType(user, TokenType.CONFIRM_EMAIL);
 
-                        return ResultFactory.error(MessageKey.AUTH_PERMANENTLY_BANNED, HttpStatus.FORBIDDEN, banReason);
-                    } else if (bannedUntil != null && bannedUntil.isAfter(Instant.now())) {
-                        logAuthFailure("AUTH_LOGIN", user, "AUTH_TEMPORARILY_BANNED", "bannedUntil", bannedUntil);
+            return ResultFactory.error(MessageKey.AUTH_ACCOUNT_NOT_VERIFIED, HttpStatus.FORBIDDEN);
+        }
 
-                        return ResultFactory.error(MessageKey.AUTH_TEMPORARILY_BANNED, HttpStatus.FORBIDDEN, bannedUntil, banReason);
-                    } else if (bannedUntil != null && bannedUntil.isBefore(Instant.now())) {
-                        user.setBannedUntil(null);
-                        user.setBanReason(null);
+        Instant bannedUntil = user.getBannedUntil();
+        String banReason = user.getBanReason() != null ? user.getBanReason() : null;
 
-                        userRepository.save(user);
-                    }
+        if (user.isBannedPermanently()) {
+            logAuthFailure("AUTH_LOGIN", user, "AUTH_PERMANENTLY_BANNED", "banReason", banReason);
 
-                    AuthLoginResponseDTO authLoginResponseDto = AuthLoginResponseDTO
-                            .builder()
-                            .accessToken(jwtService.generateToken(user))
-                            .refreshToken(refreshTokenService.createToken(user))
-                            .build();
+            return ResultFactory.error(MessageKey.AUTH_PERMANENTLY_BANNED, HttpStatus.FORBIDDEN, banReason);
+        } else if (bannedUntil != null && bannedUntil.isAfter(Instant.now())) {
+            logAuthFailure("AUTH_LOGIN", user, "AUTH_TEMPORARILY_BANNED", "bannedUntil", bannedUntil);
 
-                    logAuthSuccess("AUTH_LOGIN", user);
+            return ResultFactory.error(MessageKey.AUTH_TEMPORARILY_BANNED, HttpStatus.FORBIDDEN, bannedUntil, banReason);
+        } else if (bannedUntil != null && bannedUntil.isBefore(Instant.now())) {
+            user.setBannedUntil(null);
+            user.setBanReason(null);
 
-                    return ResultFactory.ok(authLoginResponseDto);
-                });
+            userRepository.save(user);
+        }
+
+        AuthLoginResponseDTO authLoginResponseDto = AuthLoginResponseDTO
+                .builder()
+                .accessToken(jwtService.generateToken(user))
+                .refreshToken(refreshTokenService.createToken(user))
+                .build();
+
+        logAuthSuccess("AUTH_LOGIN", user);
+
+        return ResultFactory.ok(authLoginResponseDto);
     }
 
     @Transactional
@@ -133,6 +143,23 @@ public class AuthServiceImpl implements AuthService {
 
                     return ResultFactory.ok(jwtService.generateToken(refreshToken.getUser()));
                 });
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public Result<VerificationTokenValidationDTO> validateVerificationToken(
+            String token,
+            VerificationTokenTypeDTO tokenType
+    ) {
+        return verificationTokenService.inspectToken(
+                        token,
+                        tokenType.toTokenType(),
+                        "VALIDATE_VERIFICATION_TOKEN"
+                )
+                .map(verificationToken -> new VerificationTokenValidationDTO(
+                        tokenType,
+                        verificationToken.getExpiryDate()
+                ));
     }
 
     @Transactional
@@ -155,24 +182,20 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     @Override
     public Result<Void> forgotPassword(UserForgotPasswordDTO dto) {
-        return ResultFactory.fromOptional(
-                        userRepository.findByEmail(dto.getEmail()),
-                        MessageKey.AUTH_EMAIL_NOT_FOUND
-                )
-                .flatMap(user -> {
-                    if (!user.isEmailVerified()) {
-                        return ResultFactory.error(MessageKey.AUTH_ACCOUNT_NOT_VERIFIED, HttpStatus.FORBIDDEN);
-                    }
+        Optional<User> userOptional = userRepository.findByEmail(dto.getEmail());
 
-                    return verificationTokenService.ensureCooldownPassed(user, TokenType.RESET_PASSWORD)
-                            .flatMap(v -> sendResetPasswordEmail(user)
-                                    .flatMap(r -> {
-                                        logAuthSuccess("FORGOT_PASSWORD", user);
+        if (userOptional.isEmpty() || !userOptional.get().isEmailVerified()) {
+            return publicEmailActionResponse();
+        }
 
-                                        return ResultFactory.successVoid();
-                                    }));
-                })
-                .flatMap(v -> ResultFactory.okMessage(MessageKey.EMAIL_RESET_PASSWORD));
+        User user = userOptional.get();
+        Result<Void> cooldownResult = verificationTokenService.ensureCooldownPassed(user, TokenType.RESET_PASSWORD);
+
+        if (cooldownResult.isFailure()) {
+            return publicEmailActionResponse();
+        }
+
+        return finishPublicEmailAction(sendResetPasswordEmail(user), "FORGOT_PASSWORD", user);
     }
 
     @Transactional
@@ -181,6 +204,11 @@ public class AuthServiceImpl implements AuthService {
         return verificationTokenService.validateToken(token, TokenType.RESET_PASSWORD, "RESET_FORGOTTEN_PASSWORD")
                 .flatMap(vt -> {
                     User user = vt.getUser();
+
+                    if (passwordEncoder.matches(dto.getNewPassword(), user.getPassword())) {
+                        return ResultFactory.error(MessageKey.AUTH_SAME_PASSWORDS, HttpStatus.BAD_REQUEST);
+                    }
+
                     user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
                     userRepository.save(user);
 
@@ -196,45 +224,41 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     @Override
     public Result<Void> resendEmailConfirmation(UserResendEmailConfirmationDTO dto) {
-        return ResultFactory.fromOptional(
-                        userRepository.findByEmail(dto.getEmail()),
-                        MessageKey.AUTH_EMAIL_NOT_FOUND
-                )
-                .flatMap(user -> {
-                    if (user.isEmailVerified()) {
-                        return ResultFactory.error(MessageKey.AUTH_ACCOUNT_ALREADY_VERIFIED, HttpStatus.BAD_REQUEST);
-                    }
+        Optional<User> userOptional = userRepository.findByEmail(dto.getEmail());
 
-                    return verificationTokenService.ensureCooldownPassed(user, TokenType.CONFIRM_EMAIL)
-                            .flatMap(v -> {
-                                verificationTokenService.deleteByUserAndType(user, TokenType.CONFIRM_EMAIL);
+        if (userOptional.isEmpty() || userOptional.get().isEmailVerified()) {
+            return publicEmailActionResponse();
+        }
 
-                                return sendVerificationEmail(user)
-                                        .flatMap(r -> {
-                                            logAuthSuccess("RESEND_EMAIL_CONFIRMATION", user);
+        User user = userOptional.get();
+        Result<Void> cooldownResult = verificationTokenService.ensureCooldownPassed(user, TokenType.CONFIRM_EMAIL);
 
-                                            return ResultFactory.okMessage(MessageKey.EMAIL_VERIFY_ACCOUNT);
-                                        });
-                            });
-                });
+        if (cooldownResult.isFailure()) {
+            return publicEmailActionResponse();
+        }
+
+        verificationTokenService.deleteByUserAndType(user, TokenType.CONFIRM_EMAIL);
+
+        return finishPublicEmailAction(sendVerificationEmail(user), "RESEND_EMAIL_CONFIRMATION", user);
     }
 
     @Transactional
     @Override
     public Result<Void> initiateDeleteAccount(UserInitiateDeleteAccountDTO dto) {
-        return ResultFactory.fromOptional(
-                        userRepository.findByEmail(dto.getEmail()),
-                        MessageKey.AUTH_EMAIL_NOT_FOUND
-                )
-                .flatMap(user ->
-                        verificationTokenService.ensureCooldownPassed(user, TokenType.DELETE_ACCOUNT)
-                                .flatMap(v -> sendDeleteAccountEmail(user)
-                                        .flatMap(r -> {
-                                            logAuthSuccess("INITIATE_DELETE_ACCOUNT", user);
+        Optional<User> userOptional = userRepository.findByEmail(dto.getEmail());
 
-                                            return ResultFactory.okMessage(MessageKey.EMAIL_DELETE_ACCOUNT);
-                                        }))
-                );
+        if (userOptional.isEmpty()) {
+            return publicEmailActionResponse();
+        }
+
+        User user = userOptional.get();
+        Result<Void> cooldownResult = verificationTokenService.ensureCooldownPassed(user, TokenType.DELETE_ACCOUNT);
+
+        if (cooldownResult.isFailure()) {
+            return publicEmailActionResponse();
+        }
+
+        return finishPublicEmailAction(sendDeleteAccountEmail(user), "INITIATE_DELETE_ACCOUNT", user);
     }
 
     @Transactional
@@ -261,6 +285,18 @@ public class AuthServiceImpl implements AuthService {
                 .flatMap(token -> emailService.buildAndSendEmail(user, token, emailType));
     }
 
+    private Result<Void> finishPublicEmailAction(Result<Void> emailResult, String action, User user) {
+        if (emailResult.isSuccess()) {
+            logAuthSuccess(action, user);
+        }
+
+        return publicEmailActionResponse();
+    }
+
+    private Result<Void> publicEmailActionResponse() {
+        return ResultFactory.okMessage(MessageKey.EMAIL_PUBLIC_ACTION_REQUESTED);
+    }
+
     private void logAuthSuccess(String action, User user) {
         auditService.log(AuditEvent.builder()
                 .action(action)
@@ -277,6 +313,16 @@ public class AuthServiceImpl implements AuthService {
                 .result(AuditResult.FAILURE)
                 .actorId(user.getId())
                 .actorEmail(user.getEmail())
+                .reason(reason)
+                .build()
+        );
+    }
+
+    private void logAuthFailure(String action, String actorEmail, String reason) {
+        auditService.log(AuditEvent.builder()
+                .action(action)
+                .result(AuditResult.FAILURE)
+                .actorEmail(actorEmail)
                 .reason(reason)
                 .build()
         );

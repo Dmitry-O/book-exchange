@@ -5,8 +5,7 @@ public enum MessageKey {
     AUTH_EMAIL_ALREADY_EXISTS("auth.email.already.exists"),
     AUTH_NICKNAME_ALREADY_EXISTS("auth.nickname.already.exists"),
     AUTH_ACCOUNT_REGISTERED("auth.account.registered"),
-    AUTH_WRONG_EMAIL("auth.wrong.email"),
-    AUTH_WRONG_PASSWORD("auth.wrong.password"),
+    AUTH_INVALID_CREDENTIALS("auth.invalid.credentials"),
     AUTH_ACCOUNT_NOT_VERIFIED("auth.account.not.verified"),
     AUTH_PERMANENTLY_BANNED("auth.permanently.banned"),
     AUTH_TEMPORARILY_BANNED("auth.temporarily.banned"),
@@ -56,6 +55,7 @@ public enum MessageKey {
     EMAIL_VERIFY_ACCOUNT("email.verify.account"),
     EMAIL_RESET_PASSWORD("email.reset.password"),
     EMAIL_DELETE_ACCOUNT("email.delete.account"),
+    EMAIL_PUBLIC_ACTION_REQUESTED("email.public.action.requested"),
 
     REPORT_SENT("report.sent"),
     REPORT_ALREADY_EXISTS("report.already.exists"),
