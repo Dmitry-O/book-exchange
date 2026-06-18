@@ -51,6 +51,7 @@ import static com.example.bookexchange.support.unit.ResultAssertions.assertFailu
 import static com.example.bookexchange.support.unit.ResultAssertions.assertSuccess;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -204,6 +205,37 @@ class BookServiceImplTest {
         assertSuccess(result, HttpStatus.OK, BOOK_UPDATED);
         verify(bookMapper).updateBookDtoToBook(dto, book);
         verify(bookRepository).save(book);
+    }
+
+    @Test
+    void shouldExposeEditLockedState_whenFindingUserBooks() {
+        User user = UnitTestDataFactory.user(UnitFixtureIds.BOOK_OWNER_ID, "owner@example.com", "book_owner");
+        Book lockedBook = UnitTestDataFactory.book(UnitFixtureIds.SENDER_BOOK_ID, "Locked book", user);
+        Book unlockedBook = UnitTestDataFactory.book(UnitFixtureIds.RECEIVER_BOOK_ID, "Unlocked book", user);
+        BookDTO lockedBookDto = BookDTO.builder().id(lockedBook.getId()).build();
+        BookDTO unlockedBookDto = BookDTO.builder().id(unlockedBook.getId()).build();
+        PageQueryDTO queryDTO = UnitTestDataFactory.pageQuery(0, 20);
+        Set<Long> bookIds = Set.of(lockedBook.getId(), unlockedBook.getId());
+
+        when(bookRepository.findByUserIdAndIsExchanged(eq(user.getId()), eq(false), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(lockedBook, unlockedBook)));
+        when(bookMapper.bookToBookDto(lockedBook)).thenReturn(lockedBookDto);
+        when(bookMapper.bookToBookDto(unlockedBook)).thenReturn(unlockedBookDto);
+        when(exchangeRepository.findLockedSenderBookIdsByStatusInAndBookIds(
+                Set.of(ExchangeStatus.PENDING, ExchangeStatus.APPROVED),
+                bookIds
+        )).thenReturn(List.of(lockedBook.getId()));
+        when(exchangeRepository.findLockedReceiverBookIdsByStatusInAndBookIds(
+                Set.of(ExchangeStatus.PENDING, ExchangeStatus.APPROVED),
+                bookIds
+        )).thenReturn(List.of());
+
+        Result<org.springframework.data.domain.Page<BookDTO>> result =
+                bookService.findUserBooks(user.getId(), queryDTO);
+
+        List<BookDTO> books = assertSuccess(result, HttpStatus.OK).body().getContent();
+        assertThat(books).extracting(BookDTO::getEditLocked).containsExactly(true, false);
+        verify(exchangeRepository, never()).existsByStatusInAndBookId(any(), any());
     }
 
     @Test
