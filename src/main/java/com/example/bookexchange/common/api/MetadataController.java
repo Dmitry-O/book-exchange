@@ -8,6 +8,7 @@ import com.example.bookexchange.common.city.dto.CityAutocompleteDTO;
 import com.example.bookexchange.common.city.service.CityCatalogService;
 import com.example.bookexchange.common.config.AppProperties;
 import com.example.bookexchange.common.dto.MetadataDTO;
+import com.example.bookexchange.common.dto.MetadataFeaturesDTO;
 import com.example.bookexchange.common.dto.MetadataLinksDTO;
 import com.example.bookexchange.common.dto.PopularBookCategoryDTO;
 import com.example.bookexchange.common.dto.PublicStatisticsDTO;
@@ -102,6 +103,9 @@ public class MetadataController {
                         .frontendGithubUrl(blankToNull(appProperties.getShowcase().getFrontendGithubUrl()))
                         .linkedinUrl(blankToNull(appProperties.getShowcase().getLinkedinUrl()))
                         .swaggerUrl(blankToNull(appProperties.getShowcase().getSwaggerUrl()))
+                        .build())
+                .features(MetadataFeaturesDTO.builder()
+                        .demoEmailSandboxEnabled(appProperties.getDemoEmailSandbox().isEnabled())
                         .build())
                 .statistics(PublicStatisticsDTO.builder()
                         .users(userRepository.countByDeletedAtIsNull())

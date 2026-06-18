@@ -4,6 +4,7 @@ import com.example.bookexchange.common.config.AppProperties;
 import com.example.bookexchange.common.audit.model.AuditEvent;
 import com.example.bookexchange.common.audit.model.AuditResult;
 import com.example.bookexchange.common.audit.service.AuditService;
+import com.example.bookexchange.common.demoemail.DemoEmailSandboxService;
 import com.example.bookexchange.user.model.User;
 import com.example.bookexchange.common.result.Result;
 import com.example.bookexchange.common.result.ResultFactory;
@@ -32,6 +33,7 @@ public class EmailServiceImpl implements EmailService {
     private final AppProperties appProperties;
     private final UrlBuilder urlBuilder;
     private final AuditService auditService;
+    private final DemoEmailSandboxService demoEmailSandboxService;
 
     @Override
     public Result<Void> buildAndSendEmail(User user, String token, EmailType emailType) {
@@ -186,6 +188,7 @@ public class EmailServiceImpl implements EmailService {
             helper.setSubject(subject);
             helper.setText(htmlTemplate, true);
             helper.setFrom(appProperties.getEmailSentFrom());
+            demoEmailSandboxService.attachSandboxHeader(emailTo, message);
 
             mailSender.send(message);
 
