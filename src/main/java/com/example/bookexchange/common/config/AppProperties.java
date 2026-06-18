@@ -21,6 +21,7 @@ public class AppProperties {
     private ReportSettings report = new ReportSettings();
     private NotificationSettings notification = new NotificationSettings();
     private ShowcaseSettings showcase = new ShowcaseSettings();
+    private DemoEmailSandboxSettings demoEmailSandbox = new DemoEmailSandboxSettings();
 
     @Getter
     @Setter
@@ -41,5 +42,18 @@ public class AppProperties {
         private String frontendGithubUrl;
         private String linkedinUrl;
         private String swaggerUrl;
+    }
+
+    @Getter
+    @Setter
+    public static class DemoEmailSandboxSettings {
+        private boolean enabled = false;
+        private String mailpitApiBaseUrl = "http://localhost:8025";
+        private String mailpitUsername;
+        private String mailpitPassword;
+        private int sessionTtlMinutes = 180;
+        private int maxMessages = 500;
+        private boolean deleteExpiredMessages = true;
+        private long cleanupIntervalMillis = 300000;
     }
 }

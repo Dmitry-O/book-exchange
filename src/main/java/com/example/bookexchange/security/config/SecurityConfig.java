@@ -2,6 +2,8 @@ package com.example.bookexchange.security.config;
 
 import com.example.bookexchange.common.api.MetadataPaths;
 import com.example.bookexchange.common.config.AppProperties;
+import com.example.bookexchange.common.demoemail.DemoEmailSandboxPaths;
+import com.example.bookexchange.common.demoemail.DemoEmailSandboxService;
 import com.example.bookexchange.admin.api.AdminPaths;
 import com.example.bookexchange.auth.api.AuthPaths;
 import com.example.bookexchange.book.api.BookPaths;
@@ -87,6 +89,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, BookPaths.BOOK_PATH_SEARCH).permitAll()
                         .requestMatchers(HttpMethod.GET, BookPaths.BOOK_PATH_BOOK_ID).permitAll()
                         .requestMatchers(MetadataPaths.METADATA_PATH, MetadataPaths.METADATA_PATH + "/**").permitAll()
+                        .requestMatchers(DemoEmailSandboxPaths.DEMO_EMAIL_SANDBOX_PATH + "/**").permitAll()
                         .requestMatchers(
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
@@ -114,9 +117,10 @@ public class SecurityConfig {
                 "Content-Type",
                 "If-Match",
                 "Accept-Language",
-                "X-Request-Id"
+                "X-Request-Id",
+                DemoEmailSandboxService.REQUEST_HEADER_NAME
         ));
-        configuration.setExposedHeaders(List.of("ETag", "X-Request-Id"));
+        configuration.setExposedHeaders(List.of("ETag", "X-Request-Id", DemoEmailSandboxService.REQUEST_HEADER_NAME));
         configuration.setAllowCredentials(false);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

@@ -2,6 +2,7 @@ package com.example.bookexchange.common.email;
 
 import com.example.bookexchange.common.audit.service.AuditService;
 import com.example.bookexchange.common.config.AppProperties;
+import com.example.bookexchange.common.demoemail.DemoEmailSandboxService;
 import com.example.bookexchange.common.util.UrlBuilder;
 import com.example.bookexchange.support.unit.UnitFixtureIds;
 import com.example.bookexchange.support.unit.UnitTestDataFactory;
@@ -40,6 +41,9 @@ class EmailServiceImplTest {
     @Mock
     private AuditService auditService;
 
+    @Mock
+    private DemoEmailSandboxService demoEmailSandboxService;
+
     private EmailServiceImpl emailService;
 
     @BeforeEach
@@ -53,7 +57,8 @@ class EmailServiceImplTest {
                 messageSource(),
                 appProperties,
                 urlBuilder,
-                auditService
+                auditService,
+                demoEmailSandboxService
         );
     }
 
@@ -73,6 +78,7 @@ class EmailServiceImplTest {
         assertThat(mimeMessage.getSubject()).isEqualTo("Verify your email address");
         assertThat(extractHtml(mimeMessage)).contains("Confirm your email to activate your account");
         assertThat(extractHtml(mimeMessage)).contains("http://localhost:5173/verify-email?token=verification-token");
+        verify(demoEmailSandboxService).attachSandboxHeader("reader@example.com", mimeMessage);
         verify(mailSender).send(mimeMessage);
     }
 

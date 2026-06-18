@@ -59,6 +59,10 @@ public class MetadataDTO {
     @JsonProperty("links")
     private MetadataLinksDTO links;
 
+    @Schema(implementation = MetadataFeaturesDTO.class)
+    @JsonProperty("features")
+    private MetadataFeaturesDTO features;
+
     @Schema(implementation = PublicStatisticsDTO.class)
     @JsonProperty("statistics")
     private PublicStatisticsDTO statistics;

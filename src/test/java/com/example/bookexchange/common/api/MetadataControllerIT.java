@@ -54,6 +54,7 @@ class MetadataControllerIT extends IntegrationTestSupport {
         JsonNode body = responseBody(mvcResult);
         JsonNode categories = body.path("data").path("bookCategories");
         JsonNode links = body.path("data").path("links");
+        JsonNode features = body.path("data").path("features");
         JsonNode statistics = body.path("data").path("statistics");
 
         assertThat(body.path("success").asBoolean()).isTrue();
@@ -67,6 +68,7 @@ class MetadataControllerIT extends IntegrationTestSupport {
         assertThat(links.path("frontendGithubUrl").asText()).isEqualTo("https://github.com/test/book-exchange-frontend");
         assertThat(links.path("linkedinUrl").asText()).isEqualTo("https://www.linkedin.com/in/test-user");
         assertThat(links.path("swaggerUrl").asText()).isEqualTo("http://localhost:8080/swagger-ui/index.html");
+        assertThat(features.path("demoEmailSandboxEnabled").asBoolean()).isFalse();
         assertThat(statistics.path("users").isNumber()).isTrue();
         assertThat(statistics.path("books").isNumber()).isTrue();
         assertThat(statistics.path("exchanges").isNumber()).isTrue();
