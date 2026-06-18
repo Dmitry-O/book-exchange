@@ -141,6 +141,29 @@ public interface ExchangeRepository extends JpaRepository<Exchange, Long>, JpaSp
             @Param("bookId") Long bookId
     );
 
+    @Query("""
+            SELECT DISTINCT e.senderBook.id
+            FROM Exchange e
+            WHERE e.status IN :statuses
+                AND e.senderBook IS NOT NULL
+                AND e.senderBook.id IN :bookIds
+            """)
+    List<Long> findLockedSenderBookIdsByStatusInAndBookIds(
+            @Param("statuses") Set<ExchangeStatus> statuses,
+            @Param("bookIds") Set<Long> bookIds
+    );
+
+    @Query("""
+            SELECT DISTINCT e.receiverBook.id
+            FROM Exchange e
+            WHERE e.status IN :statuses
+                AND e.receiverBook.id IN :bookIds
+            """)
+    List<Long> findLockedReceiverBookIdsByStatusInAndBookIds(
+            @Param("statuses") Set<ExchangeStatus> statuses,
+            @Param("bookIds") Set<Long> bookIds
+    );
+
     @EntityGraph(attributePaths = {
             "senderUser",
             "receiverUser",

@@ -43,6 +43,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.interceptor.TransactionAspectSupport;
 
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -122,11 +123,33 @@ public class BookServiceImpl implements BookService {
                 Sort.by(Sort.Direction.DESC, "createdAt")
         );
 
-        Page<BookDTO> bookPage = bookRepository
-                .findByUserIdAndIsExchanged(userId, false, pageable)
-                .map(bookMapper::bookToBookDto);
+        Page<Book> books = bookRepository.findByUserIdAndIsExchanged(userId, false, pageable);
+        Set<Long> bookIds = books.stream()
+                .map(Book::getId)
+                .collect(Collectors.toSet());
+        Set<Long> lockedBookIds = bookIds.isEmpty()
+                ? Set.of()
+                : findLockedBookIds(bookIds);
+        Page<BookDTO> bookPage = books.map(book -> {
+                    BookDTO dto = bookMapper.bookToBookDto(book);
+                    dto.setEditLocked(lockedBookIds.contains(book.getId()));
+                    return dto;
+                });
 
         return ResultFactory.ok(bookPage);
+    }
+
+    private Set<Long> findLockedBookIds(Set<Long> bookIds) {
+        Set<Long> lockedBookIds = new HashSet<>(exchangeRepository.findLockedSenderBookIdsByStatusInAndBookIds(
+                BOOK_EDIT_LOCK_STATUSES,
+                bookIds
+        ));
+        lockedBookIds.addAll(exchangeRepository.findLockedReceiverBookIdsByStatusInAndBookIds(
+                BOOK_EDIT_LOCK_STATUSES,
+                bookIds
+        ));
+
+        return lockedBookIds;
     }
 
     @Transactional(readOnly = true)
