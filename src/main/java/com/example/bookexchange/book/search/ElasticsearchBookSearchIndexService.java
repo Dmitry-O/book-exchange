@@ -138,20 +138,27 @@ public class ElasticsearchBookSearchIndexService implements BookSearchIndexServi
     }
 
     private Map<String, Object> buildQuerySource(Long currentUserId, BookSearchDTO dto, BookType bookType) {
+        String searchText = dto.getSearchText().trim();
+        String normalizedSearchText = normalizeKeyword(searchText);
         List<Object> shouldClauses = List.of(
+                boostedTerm("nameSort", normalizedSearchText, 40),
+                boostedTerm("authorSort", normalizedSearchText, 16),
+                boostedTerm("categorySort", normalizedSearchText, 10),
+                boostedTerm("citySort", normalizedSearchText, 6),
                 Map.of(
                         "multi_match",
                         Map.of(
-                                "query", dto.getSearchText(),
+                                "query", searchText,
                                 "fields", List.of("name^6", "author^4", "category^3", "city^2", "description"),
                                 "type", "best_fields",
-                                "fuzziness", "AUTO"
+                                "operator", "and",
+                                "boost", 4
                         )
                 ),
                 Map.of(
                         "multi_match",
                         Map.of(
-                                "query", dto.getSearchText(),
+                                "query", searchText,
                                 "fields", List.of("name^10", "author^6", "category^4"),
                                 "type", "phrase_prefix",
                                 "boost", 3
@@ -232,10 +239,18 @@ public class ElasticsearchBookSearchIndexService implements BookSearchIndexServi
         return Map.of("term", Map.of(field, value));
     }
 
+    private Map<String, Object> boostedTerm(String field, Object value, int boost) {
+        return Map.of("term", Map.of(field, Map.of("value", value, "boost", boost)));
+    }
+
     private void addKeywordFilter(List<Object> filters, String field, String value) {
         if (value != null && !value.isBlank()) {
-            filters.add(term(field, value.trim().toLowerCase(Locale.ROOT)));
+            filters.add(term(field, normalizeKeyword(value)));
         }
+    }
+
+    private String normalizeKeyword(String value) {
+        return value.trim().toLowerCase(Locale.ROOT);
     }
 
     private void upsertNow(Book book) {

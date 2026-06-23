@@ -107,6 +107,39 @@ class ElasticsearchBookSearchIndexServiceTest {
         assertThat(queryCaptor.getValue().getSource()).contains("\"query\":\"char\"");
         assertThat(queryCaptor.getValue().getSource()).contains("\"authorSort\":\"frank oester\"");
         assertThat(queryCaptor.getValue().getSource()).contains("\"deleted\":false");
+        assertThat(queryCaptor.getValue().getSource()).contains("\"operator\":\"and\"");
+        assertThat(queryCaptor.getValue().getSource()).doesNotContain("fuzziness");
+    }
+
+    @Test
+    void shouldBoostExactKeywordMatchesAndAvoidFuzzyNgramSearch_whenSearchTextIsPrecise() {
+        BookSearchDTO dto = BookSearchDTO.builder()
+                .searchText("  The Hobbit  ")
+                .build();
+        PageQueryDTO queryDTO = new PageQueryDTO();
+
+        @SuppressWarnings("unchecked")
+        SearchHits<BookSearchDocument> searchHits = mock(SearchHits.class);
+
+        when(elasticsearchOperations.indexOps(BookSearchDocument.class)).thenReturn(indexOperations);
+        when(indexOperations.exists()).thenReturn(true);
+        when(searchHits.getSearchHits()).thenReturn(List.of());
+        when(searchHits.getTotalHits()).thenReturn(0L);
+        when(elasticsearchOperations.search(any(StringQuery.class), eq(BookSearchDocument.class), any(IndexCoordinates.class)))
+                .thenReturn(searchHits);
+
+        service.search(null, dto, queryDTO, BookType.ACTIVE);
+
+        ArgumentCaptor<StringQuery> queryCaptor = ArgumentCaptor.forClass(StringQuery.class);
+        verify(elasticsearchOperations).search(queryCaptor.capture(), eq(BookSearchDocument.class), any(IndexCoordinates.class));
+        String querySource = queryCaptor.getValue().getSource();
+
+        assertThat(querySource).contains("\"query\":\"The Hobbit\"");
+        assertThat(querySource).contains("\"nameSort\":{");
+        assertThat(querySource).contains("\"value\":\"the hobbit\"");
+        assertThat(querySource).contains("\"boost\":40");
+        assertThat(querySource).contains("\"operator\":\"and\"");
+        assertThat(querySource).doesNotContain("fuzziness");
     }
 
     @Test
