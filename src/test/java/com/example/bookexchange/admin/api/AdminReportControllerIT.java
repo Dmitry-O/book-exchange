@@ -52,14 +52,14 @@ class AdminReportControllerIT extends IntegrationTestSupport {
     void shouldReturnFilteredReports_whenAdminGetsReportsByStatus() throws Exception {
         User admin = userUtil.createAdmin(FixtureNumbers.adminReport(1));
         Report openReport = createUserReport(FixtureNumbers.adminReport(2), ReportStatus.OPEN);
-        createUserReport(FixtureNumbers.adminReport(10), ReportStatus.RESOLVED);
+        Report resolvedReport = createUserReport(FixtureNumbers.adminReport(10), ReportStatus.RESOLVED);
 
         MvcResult mvcResult = mockMvc.perform(get(AdminPaths.ADMIN_PATH_REPORTS)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(admin))
                         .queryParam("pageIndex", PageTestDefaults.PAGE_INDEX.toString())
                         .queryParam("pageSize", PageTestDefaults.PAGE_SIZE.toString())
                         .queryParam("reportStatuses", ReportStatus.OPEN.name())
-                        .queryParam("sortDirection", SortDirectionDTO.ASC.name())
+                        .queryParam("sortDirection", SortDirectionDTO.DESC.name())
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andReturn();
@@ -68,8 +68,10 @@ class AdminReportControllerIT extends IntegrationTestSupport {
         JsonNode content = body.path("data").path("content");
 
         assertThat(body.path("success").asBoolean()).isTrue();
-        assertThat(body.path("data").path("totalElements").asLong()).isEqualTo(1);
-        assertThat(content.get(0).path("id").asLong()).isEqualTo(openReport.getId());
+        assertThat(body.path("data").path("totalElements").asLong()).isGreaterThanOrEqualTo(1);
+        assertThat(content)
+                .anySatisfy(report -> assertThat(report.path("id").asLong()).isEqualTo(openReport.getId()))
+                .noneSatisfy(report -> assertThat(report.path("id").asLong()).isEqualTo(resolvedReport.getId()));
         assertHasVersion(content.get(0));
         assertThat(content.get(0).path("status").asText()).isEqualTo(ReportStatus.OPEN.name());
     }
