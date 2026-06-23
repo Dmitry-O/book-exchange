@@ -27,7 +27,10 @@ public class ReportSnapshotCleanupServiceImpl implements ReportSnapshotCleanupSe
     private final AppProperties appProperties;
 
     @Transactional
-    @Scheduled(cron = "${app.report.snapshot-cleanup-cron:0 45 3 * * *}")
+    @Scheduled(
+            cron = "${app.report.snapshot-cleanup-cron:0 45 3 * * *}",
+            zone = "${app.scheduler.zone:UTC}"
+    )
     @Override
     public void deleteExpiredReportSnapshots() {
         int retentionDays = appProperties.getReport().getSnapshotRetentionDays();
