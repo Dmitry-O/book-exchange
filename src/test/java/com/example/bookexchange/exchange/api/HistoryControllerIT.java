@@ -651,6 +651,8 @@ class HistoryControllerIT extends IntegrationTestSupport {
         assertThat(body.path("data").path("status").asText()).isEqualTo(ExchangeStatus.DECLINED.name());
         assertThat(body.path("data").path("userExchangeRole").asText()).isEqualTo("SENDER");
         assertThat(body.path("data").path("contactDetails").isNull()).isTrue();
+        assertThat(body.path("data").path("senderBook").path("contactDetails").isNull()).isTrue();
+        assertThat(body.path("data").path("receiverBook").path("contactDetails").isNull()).isTrue();
     }
 
     @Test
@@ -669,6 +671,8 @@ class HistoryControllerIT extends IntegrationTestSupport {
         assertThat(body.path("data").path("status").asText()).isEqualTo(ExchangeStatus.DECLINED.name());
         assertThat(body.path("data").path("userExchangeRole").asText()).isEqualTo("RECEIVER");
         assertThat(body.path("data").path("contactDetails").isNull()).isTrue();
+        assertThat(body.path("data").path("senderBook").path("contactDetails").isNull()).isTrue();
+        assertThat(body.path("data").path("receiverBook").path("contactDetails").isNull()).isTrue();
     }
 
     private ExchangeFixture createExchangeForSender(User sender, int base) {

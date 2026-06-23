@@ -381,7 +381,7 @@ public class HistoryServiceImpl implements HistoryService {
     }
 
     private ExchangeHistoryDetailsDTO toExchangeHistoryDetailsDto(Exchange exchange, UserExchangeRole userRole) {
-        return switch (userRole) {
+        ExchangeHistoryDetailsDTO dto = switch (userRole) {
             case SENDER -> exchangeMapper.exchangeToExchangeHistoryDetailsDto(
                     exchange,
                     exchange.getReceiverUser().getId(),
@@ -397,6 +397,22 @@ public class HistoryServiceImpl implements HistoryService {
                     userRole
             );
         };
+
+        if (exchange.getStatus() != ExchangeStatus.APPROVED) {
+            hideBookContactDetails(dto);
+        }
+
+        return dto;
+    }
+
+    private void hideBookContactDetails(ExchangeHistoryDetailsDTO dto) {
+        if (dto.getSenderBook() != null) {
+            dto.getSenderBook().setContactDetails(null);
+        }
+
+        if (dto.getReceiverBook() != null) {
+            dto.getReceiverBook().setContactDetails(null);
+        }
     }
 
     private String resolveContactDetails(Exchange exchange, UserExchangeRole userRole) {
