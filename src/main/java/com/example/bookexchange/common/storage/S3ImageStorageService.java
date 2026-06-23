@@ -40,7 +40,7 @@ public class S3ImageStorageService implements ImageStorageService {
     @Override
     public Result<String> replaceUserProfileImage(Long userId, String photoBase64) {
         return uploadAndReplace(
-                USERS_PREFIX + "/" + userId + "/" + PROFILE_PHOTO_PREFIX,
+                withConfiguredKeyPrefix(USERS_PREFIX + "/" + userId + "/" + PROFILE_PHOTO_PREFIX),
                 photoBase64
         );
     }
@@ -48,24 +48,35 @@ public class S3ImageStorageService implements ImageStorageService {
     @Override
     public Result<String> replaceBookImage(Long userId, Long bookId, String photoBase64) {
         return uploadAndReplace(
-                USERS_PREFIX + "/" + userId + "/" + BOOKS_DIRECTORY + "/" + bookId + "_",
+                withConfiguredKeyPrefix(USERS_PREFIX + "/" + userId + "/" + BOOKS_DIRECTORY + "/" + bookId + "_"),
                 photoBase64
         );
     }
 
     @Override
     public Result<Void> deleteUserProfileImage(Long userId) {
-        return deleteByPrefix(USERS_PREFIX + "/" + userId + "/" + PROFILE_PHOTO_PREFIX);
+        return deleteByPrefix(withConfiguredKeyPrefix(USERS_PREFIX + "/" + userId + "/" + PROFILE_PHOTO_PREFIX));
     }
 
     @Override
     public Result<Void> deleteBookImage(Long userId, Long bookId) {
-        return deleteByPrefix(USERS_PREFIX + "/" + userId + "/" + BOOKS_DIRECTORY + "/" + bookId + "_");
+        return deleteByPrefix(withConfiguredKeyPrefix(USERS_PREFIX + "/" + userId + "/" + BOOKS_DIRECTORY + "/" + bookId + "_"));
     }
 
     @Override
     public Result<Void> deleteAllUserImages(Long userId) {
-        return deleteByPrefix(USERS_PREFIX + "/" + userId + "/");
+        return deleteByPrefix(withConfiguredKeyPrefix(USERS_PREFIX + "/" + userId + "/"));
+    }
+
+    @Override
+    public Result<Void> deleteImagesByPrefix(String prefix) {
+        String normalizedPrefix = normalizePrefix(prefix);
+
+        if (normalizedPrefix.isBlank()) {
+            return ResultFactory.error(MessageKey.SYSTEM_INVALID_DATA, HttpStatus.BAD_REQUEST);
+        }
+
+        return deleteByPrefix(normalizedPrefix);
     }
 
     private Result<String> uploadAndReplace(String prefix, String photoBase64) {
@@ -183,5 +194,28 @@ public class S3ImageStorageService implements ImageStorageService {
         return s3Client.utilities()
                 .getUrl(GetUrlRequest.builder().bucket(bucketName).key(key).build())
                 .toString();
+    }
+
+    private String withConfiguredKeyPrefix(String key) {
+        String configuredPrefix = normalizePrefix(storageProperties.getS3().getKeyPrefix());
+        return configuredPrefix + key;
+    }
+
+    private String normalizePrefix(String prefix) {
+        if (prefix == null || prefix.isBlank()) {
+            return "";
+        }
+
+        String normalizedPrefix = prefix.trim();
+
+        while (normalizedPrefix.startsWith("/")) {
+            normalizedPrefix = normalizedPrefix.substring(1);
+        }
+
+        while (normalizedPrefix.endsWith("/")) {
+            normalizedPrefix = normalizedPrefix.substring(0, normalizedPrefix.length() - 1);
+        }
+
+        return normalizedPrefix.isBlank() ? "" : normalizedPrefix + "/";
     }
 }

@@ -20,6 +20,7 @@ public class StorageProperties {
         private String testBucket = "book-exchange-test";
         private String prodBucket = "book-exchange-prod";
         private boolean useTestBucket = false;
+        private String keyPrefix = "";
     }
 
     @Getter

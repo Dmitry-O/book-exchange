@@ -15,4 +15,6 @@ public interface ImageStorageService {
     Result<Void> deleteBookImage(Long userId, Long bookId);
 
     Result<Void> deleteAllUserImages(Long userId);
+
+    Result<Void> deleteImagesByPrefix(String prefix);
 }

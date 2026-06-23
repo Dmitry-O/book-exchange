@@ -112,6 +112,52 @@ class S3ImageStorageServiceTest {
     }
 
     @Test
+    void shouldApplyConfiguredKeyPrefix_whenUploadingBookImage() {
+        StorageProperties storageProperties = new StorageProperties();
+        storageProperties.getS3().setRegion("eu-central-1");
+        storageProperties.getS3().setTestBucket("book-exchange-test");
+        storageProperties.getS3().setUseTestBucket(true);
+        storageProperties.getS3().setKeyPrefix("runtime");
+        imageStorageService = new S3ImageStorageService(s3Client, storageProperties, imageProcessingService);
+        ProcessedImage processedImage = new ProcessedImage(new byte[]{1, 2, 3}, "image/jpeg", "jpg");
+
+        when(imageProcessingService.process("book-photo-base64")).thenReturn(ResultFactory.ok(processedImage));
+        when(s3Client.listObjectsV2(any(ListObjectsV2Request.class))).thenReturn(ListObjectsV2Response.builder().build());
+        when(s3Client.utilities()).thenReturn(S3Utilities.builder().region(Region.EU_CENTRAL_1).build());
+
+        Success<String> success = assertSuccess(imageStorageService.replaceBookImage(5L, 9L, "book-photo-base64"), OK);
+        ArgumentCaptor<PutObjectRequest> putObjectCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
+
+        verify(s3Client).putObject(putObjectCaptor.capture(), any(RequestBody.class));
+
+        assertThat(putObjectCaptor.getValue().key()).startsWith("runtime/users/5/books/9_");
+        assertThat(success.body()).startsWith("https://book-exchange-test.s3.eu-central-1.amazonaws.com/runtime/users/5/books/9_");
+    }
+
+    @Test
+    void shouldApplySeedKeyPrefix_whenPreparingSeedImages() {
+        StorageProperties storageProperties = new StorageProperties();
+        storageProperties.getS3().setRegion("eu-central-1");
+        storageProperties.getS3().setTestBucket("book-exchange-test");
+        storageProperties.getS3().setUseTestBucket(true);
+        storageProperties.getS3().setKeyPrefix("seed");
+        imageStorageService = new S3ImageStorageService(s3Client, storageProperties, imageProcessingService);
+        ProcessedImage processedImage = new ProcessedImage(new byte[]{1, 2, 3}, "image/jpeg", "jpg");
+
+        when(imageProcessingService.process("book-photo-base64")).thenReturn(ResultFactory.ok(processedImage));
+        when(s3Client.listObjectsV2(any(ListObjectsV2Request.class))).thenReturn(ListObjectsV2Response.builder().build());
+        when(s3Client.utilities()).thenReturn(S3Utilities.builder().region(Region.EU_CENTRAL_1).build());
+
+        Success<String> success = assertSuccess(imageStorageService.replaceBookImage(5L, 9L, "book-photo-base64"), OK);
+        ArgumentCaptor<PutObjectRequest> putObjectCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
+
+        verify(s3Client).putObject(putObjectCaptor.capture(), any(RequestBody.class));
+
+        assertThat(putObjectCaptor.getValue().key()).startsWith("seed/users/5/books/9_");
+        assertThat(success.body()).startsWith("https://book-exchange-test.s3.eu-central-1.amazonaws.com/seed/users/5/books/9_");
+    }
+
+    @Test
     void shouldDeleteUserProfileAndBookPrefixes_whenDeletingAllUserImages() {
         when(s3Client.listObjectsV2(ListObjectsV2Request.builder()
                 .bucket("book-exchange-test")
