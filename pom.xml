@@ -266,6 +266,10 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
                     <argLine>@{argLine} -javaagent:${org.mockito:mockito-core:jar}</argLine>
+                    <systemPropertyVariables>
+                        <app.runtime-env>test</app.runtime-env>
+                        <app.demo-email-sandbox.enabled>false</app.demo-email-sandbox.enabled>
+                    </systemPropertyVariables>
                 </configuration>
             </plugin>
             <plugin>
@@ -274,6 +278,10 @@
                 <version>3.5.2</version>
                 <configuration>
                     <argLine>@{argLine} -javaagent:${org.mockito:mockito-core:jar}</argLine>
+                    <systemPropertyVariables>
+                        <app.runtime-env>test</app.runtime-env>
+                        <app.demo-email-sandbox.enabled>false</app.demo-email-sandbox.enabled>
+                    </systemPropertyVariables>
                 </configuration>
                 <executions>
                     <execution>
