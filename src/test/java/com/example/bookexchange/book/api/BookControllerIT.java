@@ -232,7 +232,7 @@ class BookControllerIT extends IntegrationTestSupport {
         assertThat(data.path("id").asLong()).isEqualTo(bookId);
         assertVersion(data, persistedBook.getVersion());
         assertThat(data.path("name").asText()).isEqualTo(persistedBook.getName());
-        assertThat(data.path("contactDetails").asText()).isEqualTo(persistedBook.getContactDetails());
+        assertThat(data.path("contactDetails").isNull()).isTrue();
         assertThat(data.path("ownerUserId").asLong()).isEqualTo(user.getId());
         assertThat(data.path("ownerNickname").asText()).isEqualTo(user.getNickname());
         assertThat(data.path("ownerPhotoUrl").asText()).isEqualTo(expectedUserPhotoUrl(user.getId()));
@@ -375,7 +375,7 @@ class BookControllerIT extends IntegrationTestSupport {
         assertThat(body.path("data").path("totalElements").asLong()).isEqualTo(1);
         assertThat(content.size()).isEqualTo(1);
         assertThat(content.get(0).path("id").asLong()).isEqualTo(bookId);
-        assertThat(content.get(0).path("contactDetails").asText()).isNotBlank();
+        assertThat(content.get(0).path("contactDetails").isNull()).isTrue();
         assertThat(content.get(0).path("ownerUserId").asLong()).isEqualTo(user.getId());
         assertThat(content.get(0).path("ownerNickname").asText()).isEqualTo(user.getNickname());
         assertThat(content.get(0).path("ownerPhotoUrl").asText()).isEqualTo(expectedUserPhotoUrl(user.getId()));

@@ -199,7 +199,7 @@ public class BookServiceImpl implements BookService {
 
         Page<BookDTO> bookPage = bookRepository
                 .findAll(specification, pageable)
-                .map(bookMapper::bookToBookDto);
+                .map(this::toPublicBookDto);
 
         return ResultFactory.ok(bookPage);
     }
@@ -209,7 +209,7 @@ public class BookServiceImpl implements BookService {
     public Result<BookDTO> findBookById(Long bookId) {
         return ResultFactory
                 .fromOptional(bookRepository.findPublicBookById(bookId), MessageKey.BOOK_PUBLIC_NOT_FOUND)
-                .flatMap(book -> ResultFactory.okETag(bookMapper.bookToBookDto(book), ETagUtil.form(book)));
+                .flatMap(book -> ResultFactory.okETag(toPublicBookDto(book), ETagUtil.form(book)));
     }
 
     @Transactional
@@ -473,10 +473,16 @@ public class BookServiceImpl implements BookService {
         List<BookDTO> dtos = searchResult.bookIds().stream()
                 .map(booksById::get)
                 .filter(Objects::nonNull)
-                .map(bookMapper::bookToBookDto)
+                .map(this::toPublicBookDto)
                 .toList();
 
         return Optional.of(new PageImpl<>(dtos, pageable, searchResult.totalHits()));
+    }
+
+    private BookDTO toPublicBookDto(Book book) {
+        BookDTO dto = bookMapper.bookToBookDto(book);
+        dto.setContactDetails(null);
+        return dto;
     }
 
     private boolean containsCurrentUserBooks(Long currentUserId, Iterable<Book> books) {

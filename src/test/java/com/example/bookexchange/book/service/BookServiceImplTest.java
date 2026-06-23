@@ -250,6 +250,7 @@ class BookServiceImplTest {
         Result<BookDTO> result = bookService.findBookById(book.getId());
 
         assertSuccess(result, HttpStatus.OK);
+        verify(bookDto).setContactDetails(null);
     }
 
     @Test
