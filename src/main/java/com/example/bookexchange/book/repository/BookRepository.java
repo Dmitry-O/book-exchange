@@ -46,6 +46,14 @@ public interface BookRepository extends JpaRepository<Book, Long>, JpaSpecificat
     @EntityGraph(attributePaths = "user")
     List<Book> findAllByDeletedAtBeforeAndPhotoUrlIsNotNull(Instant deletedAtBefore);
 
+    @EntityGraph(attributePaths = "user")
+    @Query("""
+            SELECT b
+            FROM Book b
+            """
+    )
+    List<Book> findAllForSearchIndex();
+
     long countByDeletedAtIsNullAndIsExchangedFalse();
 
     @Query("""
