@@ -11,6 +11,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.Instant;
 import java.time.OffsetDateTime;
 
 @Builder
@@ -38,5 +39,12 @@ public class BanUserDTO {
     @AssertTrue(message = "{validation.ban.configuration}")
     public boolean isBanConfigurationValid() {
         return bannedPermanently || bannedUntil != null;
+    }
+
+    @JsonIgnore
+    @SuppressWarnings("unused")
+    @AssertTrue(message = "{validation.ban.until.future}")
+    public boolean isBannedUntilInFuture() {
+        return bannedPermanently || bannedUntil == null || bannedUntil.toInstant().isAfter(Instant.now());
     }
 }

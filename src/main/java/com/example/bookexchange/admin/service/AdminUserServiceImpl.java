@@ -272,6 +272,24 @@ public class AdminUserServiceImpl implements AdminUserService {
                         return ResultFactory.error(MessageKey.ADMIN_CANT_BAN_YOURSELF, HttpStatus.BAD_REQUEST);
                     }
 
+                    if (!banUserDTO.isBannedPermanently()
+                            && banUserDTO.getBannedUntil() != null
+                            && !banUserDTO.getBannedUntil().toInstant().isAfter(Instant.now())) {
+                        auditService.log(AuditEvent.builder()
+                                .action("ADMIN_BAN_USER")
+                                .result(AuditResult.FAILURE)
+                                .actorEmail(adminUser.getUsername())
+                                .reason("ADMIN_BAN_UNTIL_IN_PAST")
+                                .detail("actorUserRoles", adminUser.getAuthorities())
+                                .detail("targetUserId", userId)
+                                .detail("targetUserEmail", user.getEmail())
+                                .detail("BanUserDTO", banUserDTO)
+                                .build()
+                        );
+
+                        return ResultFactory.error(MessageKey.ADMIN_REQUEST_NOT_VALID, HttpStatus.BAD_REQUEST);
+                    }
+
                     if (banUserDTO.isBannedPermanently()) {
                         user.setBannedPermanently(true);
                         user.setBannedUntil(null);
