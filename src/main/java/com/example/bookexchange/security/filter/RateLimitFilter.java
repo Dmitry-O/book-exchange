@@ -5,6 +5,9 @@ import com.example.bookexchange.book.api.BookPaths;
 import com.example.bookexchange.common.audit.model.AuditEvent;
 import com.example.bookexchange.common.audit.model.AuditResult;
 import com.example.bookexchange.common.audit.service.AuditService;
+import com.example.bookexchange.common.demoaccess.DemoAccessPaths;
+import com.example.bookexchange.common.demoaccounts.DemoAccountsPaths;
+import com.example.bookexchange.common.demoemail.DemoEmailSandboxPaths;
 import com.example.bookexchange.common.i18n.MessageKey;
 import com.example.bookexchange.common.web.ErrorResponseWriter;
 import com.github.benmanes.caffeine.cache.Cache;
@@ -39,8 +42,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
             .build();
 
     private enum RateLimitType {
+        DEMO_ACCESS,
+        DEMO_ACCOUNTS,
+        SWAGGER,
         LOGIN,
         SEARCH,
+        DEMO_EMAIL_SANDBOX,
         EMAIL_FLOW,
         TOKEN_VALIDATION,
         OTHER_AUTH
@@ -52,9 +59,33 @@ public class RateLimitFilter extends OncePerRequestFilter {
         return Bucket.builder().addLimit(limit).build();
     }
 
+    private Bucket createDemoAccessBucket() {
+        Bandwidth limit = Bandwidth.classic(10,
+                Refill.intervally(10, Duration.ofMinutes(1)));
+        return Bucket.builder().addLimit(limit).build();
+    }
+
+    private Bucket createDemoAccountsBucket() {
+        Bandwidth limit = Bandwidth.classic(30,
+                Refill.intervally(30, Duration.ofMinutes(1)));
+        return Bucket.builder().addLimit(limit).build();
+    }
+
+    private Bucket createSwaggerBucket() {
+        Bandwidth limit = Bandwidth.classic(60,
+                Refill.intervally(60, Duration.ofMinutes(1)));
+        return Bucket.builder().addLimit(limit).build();
+    }
+
     private Bucket createGetBooksBucket() {
         Bandwidth limit = Bandwidth.classic(100,
                 Refill.intervally(100, Duration.ofMinutes(1)));
+        return Bucket.builder().addLimit(limit).build();
+    }
+
+    private Bucket createDemoEmailSandboxBucket() {
+        Bandwidth limit = Bandwidth.classic(60,
+                Refill.intervally(60, Duration.ofMinutes(1)));
         return Bucket.builder().addLimit(limit).build();
     }
 
@@ -84,8 +115,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     private Bucket createBucket(RateLimitType type) {
         return switch (type) {
+            case DEMO_ACCESS -> createDemoAccessBucket();
+            case DEMO_ACCOUNTS -> createDemoAccountsBucket();
+            case SWAGGER -> createSwaggerBucket();
             case LOGIN -> createLoginBucket();
             case SEARCH -> createGetBooksBucket();
+            case DEMO_EMAIL_SANDBOX -> createDemoEmailSandboxBucket();
             case EMAIL_FLOW -> createSendEmailAPIsBucket();
             case TOKEN_VALIDATION -> createTokenValidationBucket();
             case OTHER_AUTH -> createOtherAPIsBucket();
@@ -93,6 +128,19 @@ public class RateLimitFilter extends OncePerRequestFilter {
     }
 
     private RateLimitType resolveRateLimitType(String path) {
+        if (path.endsWith(DemoAccessPaths.DEMO_ACCESS_VERIFY_PATH)) {
+            return RateLimitType.DEMO_ACCESS;
+        }
+
+        if (path.endsWith(DemoAccountsPaths.DEMO_ACCOUNTS_PATH)) {
+            return RateLimitType.DEMO_ACCOUNTS;
+        }
+
+        if (path.contains("/swagger-ui")
+                || path.contains("/v3/api-docs")) {
+            return RateLimitType.SWAGGER;
+        }
+
         if (path.endsWith(AuthPaths.AUTH_PATH_LOGIN)) {
             return RateLimitType.LOGIN;
         }
@@ -103,8 +151,13 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
         if (path.endsWith(AuthPaths.AUTH_PATH_REGISTER)
                 || path.endsWith(AuthPaths.AUTH_PATH_FORGOT_PASSWORD)
-                || path.endsWith(AuthPaths.AUTH_PATH_RESEND_CONFIRMATION_EMAIL)) {
+                || path.endsWith(AuthPaths.AUTH_PATH_RESEND_CONFIRMATION_EMAIL)
+                || path.endsWith(AuthPaths.AUTH_PATH_INITIATE_DELETE_ACCOUNT)) {
             return RateLimitType.EMAIL_FLOW;
+        }
+
+        if (path.contains(DemoEmailSandboxPaths.DEMO_EMAIL_SANDBOX_PATH + "/")) {
+            return RateLimitType.DEMO_EMAIL_SANDBOX;
         }
 
         if (path.endsWith(AuthPaths.AUTH_PATH_VALIDATE_TOKEN)) {
