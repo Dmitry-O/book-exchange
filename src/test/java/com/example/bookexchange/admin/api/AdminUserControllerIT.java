@@ -337,7 +337,7 @@ class AdminUserControllerIT extends IntegrationTestSupport {
         User targetUser = userUtil.createUser(FixtureNumbers.adminUser(13));
         String refreshToken = refreshTokenService.createToken(targetUser);
         BanUserDTO dto = BanUserDTO.builder()
-                .bannedUntil(OffsetDateTime.parse("2026-05-01T12:00:00Z"))
+                .bannedUntil(OffsetDateTime.now().plusDays(30))
                 .banReason(TestReportStrings.banReason("Repeated spam offers"))
                 .build();
 
@@ -368,7 +368,7 @@ class AdminUserControllerIT extends IntegrationTestSupport {
     void shouldClearBannedUntil_whenAdminBansUserPermanently() throws Exception {
         User admin = userUtil.createAdmin(FixtureNumbers.adminUser(38));
         User targetUser = userUtil.createUser(FixtureNumbers.adminUser(39));
-        targetUser.setBannedUntil(OffsetDateTime.parse("2026-05-01T12:00:00Z").toInstant());
+        targetUser.setBannedUntil(OffsetDateTime.now().plusDays(7).toInstant());
         targetUser.setBanReason(TestReportStrings.banReason("Old temporary ban"));
         userRepository.saveAndFlush(targetUser);
 
@@ -377,7 +377,7 @@ class AdminUserControllerIT extends IntegrationTestSupport {
         User persistedUser = userRepository.findById(targetUser.getId()).orElseThrow();
         BanUserDTO dto = BanUserDTO.builder()
                 .bannedPermanently(true)
-                .bannedUntil(OffsetDateTime.parse("2026-06-01T12:00:00Z"))
+                .bannedUntil(OffsetDateTime.now().plusDays(7))
                 .banReason(TestReportStrings.banReason("Permanent ban"))
                 .build();
 
@@ -456,7 +456,7 @@ class AdminUserControllerIT extends IntegrationTestSupport {
     void shouldUnbanUser_whenAdminRemovesBan() throws Exception {
         User admin = userUtil.createAdmin(FixtureNumbers.adminUser(15));
         User targetUser = userUtil.createUser(FixtureNumbers.adminUser(16));
-        targetUser.setBannedUntil(OffsetDateTime.parse("2026-05-01T12:00:00Z").toInstant());
+        targetUser.setBannedUntil(OffsetDateTime.now().plusDays(7).toInstant());
         targetUser.setBanReason(TestReportStrings.banReason("Old ban"));
         userRepository.save(targetUser);
 

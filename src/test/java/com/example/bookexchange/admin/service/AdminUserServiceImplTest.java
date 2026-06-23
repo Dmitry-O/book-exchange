@@ -35,6 +35,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -266,6 +267,25 @@ class AdminUserServiceImplTest {
         Result<UserAdminDTO> result = adminUserService.banUserById(admin, user.getId(), dto, user.getVersion());
 
         assertFailure(result, ADMIN_REQUEST_NOT_VALID, HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void shouldReturnBadRequest_whenAdminBanUntilIsInPast() {
+        User user = UnitTestDataFactory.user(UnitFixtureIds.TARGET_USER_ID, "target@example.com", "target_one");
+        BanUserDTO dto = BanUserDTO.builder()
+                .bannedUntil(OffsetDateTime.now().minusMinutes(1))
+                .banReason(TestReportStrings.banReason("Spam"))
+                .build();
+        UserDetails admin = UnitTestDataFactory.adminPrincipal("admin@example.com");
+
+        when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
+        when(versionedEntityTransitionHelper.requireVersion(any(User.class), any(Long.class), any(String.class), any()))
+                .thenReturn(ok(user));
+
+        Result<UserAdminDTO> result = adminUserService.banUserById(admin, user.getId(), dto, user.getVersion());
+
+        assertFailure(result, ADMIN_REQUEST_NOT_VALID, HttpStatus.BAD_REQUEST);
+        verify(refreshTokenRepository, never()).deleteByUserId(any());
     }
 
     @Test
