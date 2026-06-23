@@ -12,4 +12,6 @@ public interface MailpitClient {
     MailpitMessageDetail getMessage(String messageId);
 
     void deleteMessages(List<String> messageIds);
+
+    void deleteAllMessages(int batchSize, int maxBatches);
 }

@@ -107,6 +107,11 @@ public class TestUserConfig {
             public Result<Void> deleteAllUserImages(Long userId) {
                 return ResultFactory.successVoid();
             }
+
+            @Override
+            public Result<Void> deleteImagesByPrefix(String prefix) {
+                return ResultFactory.successVoid();
+            }
         };
     }
 }

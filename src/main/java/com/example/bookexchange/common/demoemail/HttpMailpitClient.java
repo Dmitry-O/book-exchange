@@ -87,6 +87,24 @@ public class HttpMailpitClient implements MailpitClient {
         }
     }
 
+    @Override
+    public void deleteAllMessages(int batchSize, int maxBatches) {
+        for (int batchIndex = 0; batchIndex < maxBatches; batchIndex++) {
+            List<String> messageIds = listMessages(batchSize).stream()
+                    .map(MailpitMessageSummary::id)
+                    .filter(messageId -> messageId != null && !messageId.isBlank())
+                    .toList();
+
+            if (messageIds.isEmpty()) {
+                return;
+            }
+
+            deleteMessages(messageIds);
+        }
+
+        throw new IllegalStateException("Mailpit cleanup did not finish after " + maxBatches + " batches");
+    }
+
     private HttpRequest get(String url) {
         return requestBuilder(url)
                 .GET()

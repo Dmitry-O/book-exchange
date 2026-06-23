@@ -28,4 +28,6 @@ public final class AdminPaths {
     public static final String ADMIN_PATH_REPORTS_ID = ADMIN_PATH_REPORTS + "/{reportId}";
     public static final String ADMIN_PATH_REPORTS_ID_RESOLVE = ADMIN_PATH_REPORTS_ID + "/resolve";
     public static final String ADMIN_PATH_REPORTS_ID_REJECT = ADMIN_PATH_REPORTS_ID + "/reject";
+
+    public static final String ADMIN_PATH_DEMO_RESET = ADMIN_PATH + "/demo/reset";
 }

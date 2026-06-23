@@ -103,6 +103,13 @@ public class MailpitDemoEmailSandboxService implements DemoEmailSandboxService {
         }
     }
 
+    @Override
+    public void clearAllSandboxState() {
+        sessions.clear();
+        sandboxByEmail.clear();
+        emailBySandbox.clear();
+    }
+
     @Scheduled(fixedDelayString = "${app.demo-email-sandbox.cleanup-interval-millis:300000}")
     void cleanupExpiredSessions() {
         if (!appProperties.getDemoEmailSandbox().isEnabled()) {

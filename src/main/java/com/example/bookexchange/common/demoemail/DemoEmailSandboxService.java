@@ -15,4 +15,7 @@ public interface DemoEmailSandboxService {
     Result<DemoEmailInboxDTO> getInbox(String requestedSandboxId, Integer limit);
 
     Result<DemoEmailInboxDTO> clearInbox(String requestedSandboxId);
+
+    default void clearAllSandboxState() {
+    }
 }
