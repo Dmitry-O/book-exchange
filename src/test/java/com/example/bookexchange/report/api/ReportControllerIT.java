@@ -29,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.Instant;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -81,7 +82,7 @@ class ReportControllerIT extends IntegrationTestSupport {
                 .andReturn();
 
         JsonNode body = responseBody(mvcResult);
-        Report savedReport = reportRepository.findAll().stream().findFirst().orElseThrow();
+        Report savedReport = findReport(reporter, TargetType.USER, targetUser.getId(), ReportStatus.OPEN);
 
         assertThat(body.path("success").asBoolean()).isTrue();
         assertThat(body.path("data").isNull()).isTrue();
@@ -115,7 +116,7 @@ class ReportControllerIT extends IntegrationTestSupport {
                 .andReturn();
 
         JsonNode body = responseBody(mvcResult);
-        Report savedReport = reportRepository.findAll().stream().findFirst().orElseThrow();
+        Report savedReport = findReport(reporter, TargetType.BOOK, targetBookId, ReportStatus.OPEN);
 
         assertThat(body.path("success").asBoolean()).isTrue();
         assertThat(savedReport.getTargetType()).isEqualTo(TargetType.BOOK);
@@ -190,12 +191,11 @@ class ReportControllerIT extends IntegrationTestSupport {
                 .andReturn();
 
         JsonNode body = responseBody(mvcResult);
+        List<Report> targetReports = findReports(reporter, TargetType.USER, targetUser.getId());
 
         assertThat(body.path("success").asBoolean()).isTrue();
-        assertThat(reportRepository.findAll()).hasSize(2);
-        assertThat(reportRepository.findAll().stream()
-                .filter(report -> report.getTargetId().equals(targetUser.getId()))
-                .map(Report::getStatus))
+        assertThat(targetReports).hasSize(2);
+        assertThat(targetReports.stream().map(Report::getStatus))
                 .containsExactlyInAnyOrder(ReportStatus.RESOLVED, ReportStatus.OPEN);
     }
 
@@ -458,5 +458,20 @@ class ReportControllerIT extends IntegrationTestSupport {
         }
 
         throw new IllegalStateException("Report with targetType=" + targetType + " was not found in response");
+    }
+
+    private Report findReport(User reporter, TargetType targetType, Long targetId, ReportStatus status) {
+        return findReports(reporter, targetType, targetId).stream()
+                .filter(report -> report.getStatus() == status)
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private List<Report> findReports(User reporter, TargetType targetType, Long targetId) {
+        return reportRepository.findAll().stream()
+                .filter(report -> report.getReporter().getId().equals(reporter.getId()))
+                .filter(report -> report.getTargetType() == targetType)
+                .filter(report -> report.getTargetId().equals(targetId))
+                .toList();
     }
 }
