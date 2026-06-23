@@ -26,7 +26,10 @@ public class BookPhotoCleanupServiceImpl implements BookPhotoCleanupService {
     private final StorageProperties storageProperties;
 
     @Transactional
-    @Scheduled(cron = "${app.storage.cleanup.soft-deleted-book-photo-cron:0 30 3 * * *}")
+    @Scheduled(
+            cron = "${app.storage.cleanup.soft-deleted-book-photo-cron:0 30 3 * * *}",
+            zone = "${app.scheduler.zone:UTC}"
+    )
     @Override
     public void deleteExpiredSoftDeletedBookPhotos() {
         Instant deletedBefore = Instant.now()

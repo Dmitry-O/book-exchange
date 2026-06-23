@@ -19,7 +19,10 @@ public class TokenCleanupServiceImpl implements TokenCleanupService {
     private final RefreshTokenRepository refreshTokenRepository;
 
     @Transactional
-    @Scheduled(cron = "0 58 15 * * *")
+    @Scheduled(
+            cron = "${app.token-cleanup.cron:0 58 15 * * *}",
+            zone = "${app.scheduler.zone:UTC}"
+    )
     @Override
     public void deleteExpiredTokens() {
         log.info("Cleaning expired verification tokens");
