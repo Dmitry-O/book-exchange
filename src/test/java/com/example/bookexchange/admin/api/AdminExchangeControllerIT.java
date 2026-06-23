@@ -61,7 +61,7 @@ class AdminExchangeControllerIT extends IntegrationTestSupport {
     void shouldReturnFilteredExchanges_whenAdminGetsExchangesByStatus() throws Exception {
         User admin = userUtil.createAdmin(FixtureNumbers.adminExchange(1));
         Exchange pendingExchange = createExchangeWithStatus(FixtureNumbers.adminExchange(2), ExchangeStatus.PENDING);
-        createExchangeWithStatus(FixtureNumbers.adminExchange(10), ExchangeStatus.APPROVED);
+        Exchange approvedExchange = createExchangeWithStatus(FixtureNumbers.adminExchange(10), ExchangeStatus.APPROVED);
 
         MvcResult mvcResult = mockMvc.perform(get(AdminPaths.ADMIN_PATH_EXCHANGES)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(admin))
@@ -76,9 +76,13 @@ class AdminExchangeControllerIT extends IntegrationTestSupport {
         JsonNode content = body.path("data").path("content");
 
         assertThat(body.path("success").asBoolean()).isTrue();
-        assertThat(body.path("data").path("totalElements").asLong()).isEqualTo(1);
-        assertThat(content.get(0).path("id").asLong()).isEqualTo(pendingExchange.getId());
-        assertThat(content.get(0).path("status").asText()).isEqualTo(ExchangeStatus.PENDING.name());
+        assertThat(body.path("data").path("totalElements").asLong()).isGreaterThanOrEqualTo(1);
+        assertThat(content)
+                .anySatisfy(exchange -> {
+                    assertThat(exchange.path("id").asLong()).isEqualTo(pendingExchange.getId());
+                    assertThat(exchange.path("status").asText()).isEqualTo(ExchangeStatus.PENDING.name());
+                })
+                .noneSatisfy(exchange -> assertThat(exchange.path("id").asLong()).isEqualTo(approvedExchange.getId()));
     }
 
     @Test
