@@ -11,6 +11,9 @@ Get-Content .env | ForEach-Object {
     }
 }
 
+$env:RUNTIME_ENV = 'test'
+$env:APP_DEMO_EMAIL_SANDBOX_ENABLED = 'false'
+
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
     throw 'Docker is not installed or is not available in PATH. Testcontainers needs Docker to run integration tests.'
 }
