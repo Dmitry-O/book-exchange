@@ -2,8 +2,12 @@ package com.example.bookexchange.security.config;
 
 import com.example.bookexchange.common.api.MetadataPaths;
 import com.example.bookexchange.common.config.AppProperties;
+import com.example.bookexchange.common.demoaccess.DemoAccessFilter;
+import com.example.bookexchange.common.demoaccess.DemoAccessPaths;
+import com.example.bookexchange.common.demoaccounts.DemoAccountsPaths;
 import com.example.bookexchange.common.demoemail.DemoEmailSandboxPaths;
 import com.example.bookexchange.common.demoemail.DemoEmailSandboxService;
+import com.example.bookexchange.common.demoreset.DemoMaintenanceFilter;
 import com.example.bookexchange.admin.api.AdminPaths;
 import com.example.bookexchange.auth.api.AuthPaths;
 import com.example.bookexchange.book.api.BookPaths;
@@ -41,6 +45,8 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtFilter jwtFilter;
+    private final DemoMaintenanceFilter demoMaintenanceFilter;
+    private final DemoAccessFilter demoAccessFilter;
     private final RateLimitFilter rateLimitFilter;
     private final RequestIdFilter requestIdFilter;
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
@@ -82,6 +88,7 @@ public class SecurityConfig {
                                 withApiBasePath("/actuator/health/**")
                         )).permitAll()
                         .requestMatchers(pathMatcher("/actuator/**", withApiBasePath("/actuator/**"))).denyAll()
+                        .requestMatchers(DemoAccessPaths.DEMO_ACCESS_VERIFY_PATH).permitAll()
                         .requestMatchers(AuthPaths.AUTH_PATH + "/**").permitAll()
                         .requestMatchers(AdminPaths.ADMIN_PATH + "/**").hasRole("ADMIN")
                         .requestMatchers(BookPaths.BOOK_PATH_USER, BookPaths.BOOK_PATH_USER + "/**").authenticated()
@@ -89,6 +96,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, BookPaths.BOOK_PATH_SEARCH).permitAll()
                         .requestMatchers(HttpMethod.GET, BookPaths.BOOK_PATH_BOOK_ID).permitAll()
                         .requestMatchers(MetadataPaths.METADATA_PATH, MetadataPaths.METADATA_PATH + "/**").permitAll()
+                        .requestMatchers(DemoAccountsPaths.DEMO_ACCOUNTS_PATH).permitAll()
                         .requestMatchers(DemoEmailSandboxPaths.DEMO_EMAIL_SANDBOX_PATH + "/**").permitAll()
                         .requestMatchers(
                                 "/v3/api-docs/**",
@@ -98,7 +106,9 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(requestIdFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterAfter(jwtFilter, RequestIdFilter.class)
+                .addFilterAfter(demoMaintenanceFilter, RequestIdFilter.class)
+                .addFilterAfter(demoAccessFilter, DemoMaintenanceFilter.class)
+                .addFilterAfter(jwtFilter, DemoAccessFilter.class)
                 .addFilterAfter(rateLimitFilter, JwtFilter.class)
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint)

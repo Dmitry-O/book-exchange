@@ -1,5 +1,6 @@
 package com.example.bookexchange.user.dto;
 
+import com.example.bookexchange.common.validation.DemoDataPolicyAccepted;
 import com.example.bookexchange.common.validation.SupportedLocale;
 import com.example.bookexchange.common.validation.StrongPassword;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -46,4 +47,12 @@ public class UserCreateDTO {
     @NotNull
     @SupportedLocale
     private String locale;
+
+    @Schema(
+            example = "true",
+            description = "Required in the public demo environment to confirm that no real personal data should be entered"
+    )
+    @JsonProperty("demoDataPolicyAccepted")
+    @DemoDataPolicyAccepted
+    private Boolean demoDataPolicyAccepted;
 }
