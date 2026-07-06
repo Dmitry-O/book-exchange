@@ -79,3 +79,112 @@ jobs:
 
       - name: Build Docker image
         run: docker build --pull -t book-exchange-backend:ci .
+
+  deploy-demo:
+    name: Deploy Demo to AWS
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs:
+      - test
+      - docker-build
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    environment: demo
+    concurrency:
+      group: demo-deployment
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+      EB_APPLICATION_NAME: ${{ vars.EB_APPLICATION_NAME }}
+      EB_ENVIRONMENT_NAME: ${{ vars.EB_ENVIRONMENT_NAME }}
+      EB_SOURCE_BUNDLE_BUCKET: ${{ vars.EB_SOURCE_BUNDLE_BUCKET }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate deployment configuration
+        env:
+          AWS_ROLE_ARN: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+        run: |
+          set -euo pipefail
+          : "${AWS_ROLE_ARN:?Configure AWS_GITHUB_ACTIONS_ROLE_ARN in the demo environment}"
+          : "${AWS_REGION:?Configure AWS_REGION in the demo environment}"
+          : "${ECR_REPOSITORY:?Configure ECR_REPOSITORY in the demo environment}"
+          : "${EB_APPLICATION_NAME:?Configure EB_APPLICATION_NAME in the demo environment}"
+          : "${EB_ENVIRONMENT_NAME:?Configure EB_ENVIRONMENT_NAME in the demo environment}"
+          : "${EB_SOURCE_BUNDLE_BUCKET:?Configure EB_SOURCE_BUNDLE_BUCKET in the demo environment}"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push backend image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          IMAGE_URI="$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          docker build --pull -t "$IMAGE_URI" .
+          docker push "$IMAGE_URI"
+          echo "IMAGE_URI=$IMAGE_URI" >> "$GITHUB_ENV"
+
+      - name: Render Elastic Beanstalk compose bundle
+        run: |
+          set -euo pipefail
+          mkdir -p deploy
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          image_uri = os.environ["IMAGE_URI"]
+          template = Path("docker-compose.eb.template.yml").read_text(encoding="utf-8")
+          rendered = template.replace("__BACKEND_IMAGE__", image_uri)
+          Path("deploy/docker-compose.yml").write_text(rendered, encoding="utf-8")
+          PY
+          cd deploy
+          zip -r "../book-exchange-demo-${GITHUB_SHA}-${GITHUB_RUN_ATTEMPT}.zip" docker-compose.yml
+
+      - name: Upload source bundle to S3
+        env:
+          BUNDLE_KEY: backend/book-exchange-demo-${{ github.sha }}-${{ github.run_attempt }}.zip
+        run: |
+          set -euo pipefail
+          aws s3 cp "book-exchange-demo-${GITHUB_SHA}-${GITHUB_RUN_ATTEMPT}.zip" "s3://${EB_SOURCE_BUNDLE_BUCKET}/${BUNDLE_KEY}"
+          echo "BUNDLE_KEY=$BUNDLE_KEY" >> "$GITHUB_ENV"
+
+      - name: Create Elastic Beanstalk application version
+        env:
+          VERSION_LABEL: demo-${{ github.sha }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          aws elasticbeanstalk create-application-version \
+            --application-name "$EB_APPLICATION_NAME" \
+            --version-label "$VERSION_LABEL" \
+            --source-bundle S3Bucket="$EB_SOURCE_BUNDLE_BUCKET",S3Key="$BUNDLE_KEY" \
+            --process
+          echo "VERSION_LABEL=$VERSION_LABEL" >> "$GITHUB_ENV"
+
+      - name: Deploy Elastic Beanstalk environment
+        run: |
+          set -euo pipefail
+          aws elasticbeanstalk update-environment \
+            --environment-name "$EB_ENVIRONMENT_NAME" \
+            --version-label "$VERSION_LABEL"
+
+      - name: Wait for Elastic Beanstalk deployment
+        run: |
+          set -euo pipefail
+          aws elasticbeanstalk wait environment-updated \
+            --environment-names "$EB_ENVIRONMENT_NAME"
