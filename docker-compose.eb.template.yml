@@ -1,0 +1,36 @@
+# Elastic Beanstalk demo deployment compose template.
+# CI renders this file into deploy/docker-compose.yml with a concrete ECR image URI.
+# Local full-stack development uses docker-compose.local.yml.
+services:
+  backend:
+    image: __BACKEND_IMAGE__
+    env_file:
+      - .env
+    environment:
+      RUNTIME_ENV: demo
+      SPRING_PROFILES_ACTIVE: demo
+      MAIL_HOST: mailpit
+      MAIL_PORT: 1025
+      MAIL_USERNAME: ""
+      MAIL_PASSWORD: ""
+      MAIL_SMTP_AUTH: false
+      MAIL_SMTP_STARTTLS_ENABLE: false
+      APP_DEMO_EMAIL_SANDBOX_ENABLED: true
+      APP_DEMO_EMAIL_SANDBOX_MAILPIT_API_BASE_URL: http://mailpit:8025
+      APP_DEMO_EMAIL_SANDBOX_MAILPIT_USERNAME: ""
+      APP_DEMO_EMAIL_SANDBOX_MAILPIT_PASSWORD: ""
+      MANAGEMENT_PORT: 8080
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health
+      MANAGEMENT_PROMETHEUS_ENABLED: false
+    ports:
+      - "80:8080"
+    depends_on:
+      mailpit:
+        condition: service_started
+    restart: unless-stopped
+
+  mailpit:
+    image: axllent/mailpit@sha256:757f22b56c1da03570afdb3d259effe5091018008a81bbedc8158cee7e16fdbc
+    environment:
+      MP_MAX_MESSAGES: 500
+    restart: unless-stopped
