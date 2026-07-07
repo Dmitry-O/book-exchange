@@ -4,6 +4,7 @@ import com.example.bookexchange.common.api.MetadataPaths;
 import com.example.bookexchange.common.config.AppProperties;
 import com.example.bookexchange.common.demoaccess.DemoAccessFilter;
 import com.example.bookexchange.common.demoaccess.DemoAccessPaths;
+import com.example.bookexchange.common.demoaccess.DemoOriginGuardFilter;
 import com.example.bookexchange.common.demoaccounts.DemoAccountsPaths;
 import com.example.bookexchange.common.demoemail.DemoEmailSandboxPaths;
 import com.example.bookexchange.common.demoemail.DemoEmailSandboxService;
@@ -46,6 +47,7 @@ public class SecurityConfig {
 
     private final JwtFilter jwtFilter;
     private final DemoMaintenanceFilter demoMaintenanceFilter;
+    private final DemoOriginGuardFilter demoOriginGuardFilter;
     private final DemoAccessFilter demoAccessFilter;
     private final RateLimitFilter rateLimitFilter;
     private final RequestIdFilter requestIdFilter;
@@ -107,7 +109,8 @@ public class SecurityConfig {
                 )
                 .addFilterBefore(requestIdFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterAfter(demoMaintenanceFilter, RequestIdFilter.class)
-                .addFilterAfter(demoAccessFilter, DemoMaintenanceFilter.class)
+                .addFilterAfter(demoOriginGuardFilter, DemoMaintenanceFilter.class)
+                .addFilterAfter(demoAccessFilter, DemoOriginGuardFilter.class)
                 .addFilterAfter(jwtFilter, DemoAccessFilter.class)
                 .addFilterAfter(rateLimitFilter, JwtFilter.class)
                 .exceptionHandling(ex -> ex
