@@ -23,6 +23,7 @@ public class AppProperties {
     private NotificationSettings notification = new NotificationSettings();
     private ShowcaseSettings showcase = new ShowcaseSettings();
     private DemoAccessSettings demoAccess = new DemoAccessSettings();
+    private DemoOriginGuardSettings demoOriginGuard = new DemoOriginGuardSettings();
     private DemoAccountsSettings demoAccounts = new DemoAccountsSettings();
     private DemoEmailSandboxSettings demoEmailSandbox = new DemoEmailSandboxSettings();
     private DemoResetSettings demoReset = new DemoResetSettings();
@@ -55,6 +56,14 @@ public class AppProperties {
         private String cookieName = "BE_DEMO_ACCESS";
         private int cookieTtlSeconds = 604800;
         private boolean secureCookie = true;
+    }
+
+    @Getter
+    @Setter
+    public static class DemoOriginGuardSettings {
+        private boolean enabled = false;
+        private String headerName = "X-Origin-Verify";
+        private String headerValue;
     }
 
     @Getter
