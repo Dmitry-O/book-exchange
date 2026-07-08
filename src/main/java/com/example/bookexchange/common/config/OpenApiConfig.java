@@ -6,8 +6,10 @@ import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.media.*;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
+import io.swagger.v3.oas.models.servers.Server;
 import io.swagger.v3.oas.models.tags.Tag;
 import org.springdoc.core.customizers.OpenApiCustomizer;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -15,8 +17,9 @@ import org.springframework.context.annotation.Configuration;
 public class OpenApiConfig {
 
     @Bean
-    public OpenAPI customOpenAPI() {
+    public OpenAPI customOpenAPI(@Value("${app.openapi.server-url:/api/v1}") String serverUrl) {
         return new OpenAPI()
+                .addServersItem(new Server().url(serverUrl))
                 .addTagsItem(new Tag().name("Authentication").description("Operations with authentication"))
                 .addTagsItem(new Tag().name("Users").description("Operations with users"))
                 .addTagsItem(new Tag().name("Books").description("Operations with books"))
