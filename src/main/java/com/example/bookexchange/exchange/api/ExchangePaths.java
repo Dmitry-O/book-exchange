@@ -18,9 +18,4 @@ public class ExchangePaths {
     public static final String HISTORY_PATH = "/history";
     public static final String HISTORY_PATH_EXCHANGE_ID = HISTORY_PATH + "/{exchangeId}";
 
-    public static final String UPDATES_PATH = "/updates";
-    public static final String UPDATES_PATH_UNREAD = UPDATES_PATH + "/unread";
-    public static final String UPDATES_PATH_MARK_ALL_READ = UPDATES_PATH + "/read-state/all";
-    public static final String UPDATES_PATH_EXCHANGE_ID_READ_STATE = UPDATES_PATH + EXCHANGE_ID_PATH + "/read-state";
-    public static final String UPDATES_PATH_NOTIFICATION_ID_READ_STATE = UPDATES_PATH + "/notifications/{notificationId}/read-state";
 }
